@@ -1,189 +1,114 @@
 /**
- * HeatmapEngine - 影院热度地图绘制引擎
- * 使用 Canvas 绘制热力地图，展示影院座位受欢迎程度
+ * HeatmapEngine — 影院热度地图 (Canvas)
+ * 配色：蓝=冷门 → 黄=一般 → 红=热门（严格按作业要求）
  */
+import { SEAT_STATUS } from '../core/SeatData.js';
 
 export class HeatmapEngine {
     constructor(canvas, seatData) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.seatData = seatData;
-        this.config = {
-            cellSize: 20,
-            padding: 40
-        };
+        this._initLayout();
+        this.draw();
     }
 
-    /**
-     * 绘制热度地图
-     */
+    _initLayout() {
+        const { rows, cols } = this.seatData;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const maxW = Math.min(window.innerWidth - 40, 1100);
+        const cell = Math.max(14, Math.min(24, Math.floor((maxW - 80) / cols)));
+        const pad = 44;
+        this.C = { cell, pad };
+        const w = pad * 2 + cols * cell;
+        const h = pad * 2 + rows * cell + 30;
+        this.canvas.width  = Math.round(w * dpr);
+        this.canvas.height = Math.round(h * dpr);
+        this.canvas.style.width  = w + 'px';
+        this.canvas.style.height = h + 'px';
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this.displayW = w; this.displayH = h;
+    }
+
     draw() {
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        const { cellSize, padding } = this.config;
         const { rows, cols } = this.seatData;
+        const { cell, pad } = this.C;
+        const ctx = this.ctx;
+        const W = this.displayW, H = this.displayH;
 
-        // 计算热度数据
-        const heatData = this.calculateHeatData();
+        // 背景
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+        const data = this._calcHeat();
 
-        // 绘制热力图
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                const heat = heatData[row][col];
-                const x = padding + col * cellSize;
-                const y = padding + row * cellSize;
-
-                this.drawCell(x, y, cellSize, heat);
+        // 热力单元格
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const x = pad + c * cell, y = pad + r * cell;
+                ctx.fillStyle = this._heatColor(data[r][c]);
+                ctx.fillRect(x, y, cell, cell);
+                ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+                ctx.lineWidth = 0.5; ctx.strokeRect(x, y, cell, cell);
             }
         }
 
-        // 绘制轴标签和标题
-        this.drawLabels();
-    }
-
-    /**
-     * 计算每个座位的热度指数
-     * 热度基于：已占用座位数、已选座位数、位置中心度
-     */
-    calculateHeatData() {
-        const { rows, cols } = this.seatData;
-        const heatData = Array(rows)
-            .fill(null)
-            .map(() => Array(cols).fill(0));
-
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                const seat = this.seatData.getSeat(row, col);
-                let heat = 0;
-
-                if (seat.status === 'occupied') {
-                    heat = 0.8; // 已占用座位：热度高
-                } else if (seat.isSelected) {
-                    heat = 0.7; // 已选座位：热度中等偏高
-                } else if (seat.status === 'available') {
-                    // 可用座位：根据周围情况计算热度
-                    heat = this.calculateLocalHeat(row, col);
-                }
-
-                heatData[row][col] = heat;
-            }
+        // 行列标签
+        ctx.fillStyle = '#6B7280'; ctx.font = 'bold 10px "Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        for (let r = 0; r < rows; r++) {
+            ctx.fillText(`${r+1}排`, pad - 8, pad + r*cell + cell/2);
         }
-
-        return heatData;
-    }
-
-    /**
-     * 计算局部热度
-     */
-    calculateLocalHeat(row, col) {
-        let occupiedCount = 0;
-        let totalNeighbors = 0;
-
-        // 检查周围 3x3 区域
-        for (let r = row - 1; r <= row + 1; r++) {
-            for (let c = col - 1; c <= col + 1; c++) {
-                if (r === row && c === col) continue;
-
-                const neighbor = this.seatData.getSeat(r, c);
-                if (neighbor) {
-                    totalNeighbors++;
-                    if (neighbor.status === 'occupied' || neighbor.isSelected) {
-                        occupiedCount++;
-                    }
-                }
-            }
-        }
-
-        if (totalNeighbors === 0) return 0.1;
-        return Math.min(0.6, (occupiedCount / totalNeighbors) * 0.8);
-    }
-
-    /**
-     * 绘制单个热度单元
-     */
-    drawCell(x, y, size, heat) {
-        // 根据热度选择颜色
-        const color = this.heatToColor(heat);
-
-        this.ctx.fillStyle = color;
-        this.ctx.fillRect(x, y, size, size);
-
-        // 绘制边框
-        this.ctx.strokeStyle = '#DDD';
-        this.ctx.lineWidth = 0.5;
-        this.ctx.strokeRect(x, y, size, size);
-    }
-
-    /**
-     * 将热度值（0-1）转换为颜色
-     */
-    heatToColor(heat) {
-        // 冷色（绿）-> 温色（黄）-> 热色（红）
-        if (heat < 0.33) {
-            // 绿色 -> 黄色
-            const ratio = heat / 0.33;
-            const r = Math.round(0 + 255 * ratio);
-            const g = 170;
-            const b = 0;
-            return `rgb(${r}, ${g}, ${b})`;
-        } else if (heat < 0.67) {
-            // 黄色 -> 红色
-            const ratio = (heat - 0.33) / 0.34;
-            const r = 255;
-            const g = Math.round(170 - 170 * ratio);
-            const b = 0;
-            return `rgb(${r}, ${g}, ${b})`;
-        } else {
-            // 深红
-            const ratio = (heat - 0.67) / 0.33;
-            const r = 255;
-            const g = 0;
-            const b = 0;
-            return `rgb(${r}, ${g}, ${b})`;
-        }
-    }
-
-    /**
-     * 绘制标签
-     */
-    drawLabels() {
-        const { cellSize, padding } = this.config;
-        const { rows, cols } = this.seatData;
-
-        this.ctx.fillStyle = '#333';
-        this.ctx.font = 'bold 12px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-
-        // 行标签
-        for (let row = 0; row < rows; row++) {
-            const y = padding + row * cellSize + cellSize / 2;
-            const x = padding - 15;
-            this.ctx.fillText(String.fromCharCode(65 + row), x, y);
-        }
-
-        // 列标签
-        for (let col = 0; col < cols; col++) {
-            const x = padding + col * cellSize + cellSize / 2;
-            const y = padding - 15;
-            this.ctx.fillText((col + 1).toString(), x, y);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        const step = Math.max(1, Math.floor(cols / 20));
+        for (let c = 0; c < cols; c += step) {
+            ctx.fillText(`${c+1}`, pad + c*cell + cell/2, pad - 8);
         }
 
         // 标题
-        this.ctx.font = 'bold 14px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('影院座位热度分布', this.canvas.width / 2, 20);
+        ctx.fillStyle = '#9CA3AF'; ctx.font = '12px "Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('影院热度分布  🔴热门  🟡一般  🔵冷门', W/2, H - 8);
     }
 
-    /**
-     * 调整 Canvas 尺寸
-     */
-    resize() {
-        const { cellSize, padding } = this.config;
+    _calcHeat() {
         const { rows, cols } = this.seatData;
-        this.canvas.width = Math.min(padding * 2 + cols * cellSize, window.innerWidth - 40);
-        this.canvas.height = Math.min(padding * 2 + rows * cellSize + 40, window.innerHeight - 300);
-        this.draw();
+        const grid = Array.from({length: rows}, () => new Array(cols).fill(0));
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const seat = this.seatData.getSeat(r, c);
+                if (seat.status === SEAT_STATUS.OCCUPIED) grid[r][c] = 0.85;
+                else if (seat.isSelected) grid[r][c] = 0.7;
+                else grid[r][c] = this._localHeat(r, c);
+            }
+        }
+        return grid;
     }
+
+    _localHeat(r, c) {
+        let occ = 0, total = 0;
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const nb = this.seatData.getSeat(r + dr, c + dc);
+                if (nb) { total++; if (nb.status === SEAT_STATUS.OCCUPIED || nb.isSelected) occ++; }
+            }
+        }
+        return total ? Math.min(0.55, (occ / total) * 0.7) : 0.08;
+    }
+
+    /** 蓝(冷)→黄(一般)→红(热门) */
+    _heatColor(v) {
+        if (v < 0.33) {
+            const t = v / 0.33;
+            return `rgb(${Math.round(30+40*t)},${Math.round(100+100*t)},${Math.round(200-60*t)})`;
+        } else if (v < 0.67) {
+            const t = (v - 0.33) / 0.34;
+            return `rgb(${Math.round(70+185*t)},${Math.round(200+(235-200)*t)},${Math.round(140-140*t)})`;
+        } else {
+            const t = (v - 0.67) / 0.33;
+            return `rgb(255,${Math.round(235-200*t)},${Math.round(40*t)})`;
+        }
+    }
+
+    reload() { this._initLayout(); this.draw(); }
+    resize() { this._initLayout(); this.draw(); }
 }

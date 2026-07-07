@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const __rootdir = path.resolve(__dirname, '..');  // 项目根目录
 
 const PORT = 8080;
 
@@ -40,11 +41,11 @@ const server = http.createServer((req, res) => {
 
     // 处理 GET 请求
     if (req.method === 'GET') {
-        let filePath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
+        let filePath = path.join(__rootdir, req.url === '/' ? 'index.html' : req.url);
 
         // 安全检查：防止目录遍历
         const realPath = path.resolve(filePath);
-        const realBase = path.resolve(__dirname);
+        const realBase = path.resolve(__rootdir);
         
         if (!realPath.startsWith(realBase)) {
             res.writeHead(403, { 'Content-Type': 'text/plain' });

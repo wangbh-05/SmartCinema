@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>确认订单 - SmartCinema</title>
+    <style>
+        :root {
+            --bg-primary: #0D1117;
+            --bg-secondary: #161B22;
+            --bg-card: #21262D;
+            --text-primary: #C9D1D9;
+            --text-secondary: #8B949E;
+            --border-color: #30363D;
+            --accent: #58A6FF;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .order-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px;
+        }
+
+        .order-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        .order-header {
+            text-align: center;
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .order-header h1 { font-size: 1.6em; color: #FDD835; margin-bottom: 4px; }
+        .order-header .subtitle { color: var(--text-secondary); font-size: 0.9em; }
+
+        .order-section { margin-bottom: 24px; }
+        .order-section h3 {
+            font-size: 0.85em;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.92em;
+        }
+        .info-row .label { color: var(--text-secondary); }
+        .info-row .value { font-weight: 600; text-align: right; max-width: 60%; word-break: break-all; }
+
+        .seat-chip {
+            display: inline-block;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 4px 10px;
+            margin: 3px 4px;
+            font-size: 0.85em;
+            color: var(--text-primary);
+        }
+        .seat-chips { text-align: right; line-height: 2; }
+
+        .price-highlight {
+            font-size: 2em;
+            font-weight: 700;
+            color: #FDD835;
+            text-align: center;
+            padding: 16px 0;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 32px;
+        }
+        .btn {
+            flex: 1;
+            padding: 14px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+        .btn:hover { border-color: #58A6FF; background: #1F2A38; }
+        .btn-confirm { background: #238636; border-color: #238636; color: #fff; flex: 2; }
+        .btn-confirm:hover { background: #2EA043; }
+        .btn-cancel { background: transparent; border-color: #DA3633; color: #DA3633; }
+        .btn-cancel:hover { background: rgba(218,54,51,0.1); }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        .empty-state .icon { font-size: 3em; display: block; margin-bottom: 16px; }
+        .empty-state p { margin-bottom: 20px; }
+        .empty-state .btn { display: inline-block; width: auto; flex: none; padding: 12px 32px; }
+
+        .toast {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #238636;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+        .toast.show { display: block; animation: fadeInOut 2s ease; }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            85% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toast" id="toast"></div>
+
+    <div class="order-container" id="order-container">
+        <!-- 动态填充 -->
+    </div>
+
+    <script type="module">
+        import { Storage } from './src/utils/storage.js';
+        import { AuthManager } from './src/modules/AuthManager.js';
+        import { OrderManager } from './src/modules/OrderManager.js';
+        import { SeatData } from './src/core/SeatData.js';
+
+        const storage = new Storage();
+        const auth = new AuthManager(storage);
+        const orderManager = new OrderManager(storage);
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show';
+            setTimeout(() => { t.className = 'toast'; }, 2000);
+        }
+
+        function render() {
+            const container = document.getElementById('order-container');
+            const user = auth.getCurrentUser();
+
+            // 读取暂存订单摘要
+            const summaryJSON = sessionStorage.getItem('smartcinema_order_summary');
+            if (!summaryJSON) {
+                container.innerHTML = `
+                    <div class="order-card">
+                        <div class="empty-state">
+                            <span class="icon">🛒</span>
+                            <p>暂无待确认的订单</p>
+                            <a href="index.html" class="btn">← 返回选座</a>
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            const summary = JSON.parse(summaryJSON);
+            const seatData = new SeatData(summary.hallType);
+
+            // 恢复已售座位
+            if (summary.occupiedSeats) {
+                summary.occupiedSeats.forEach(k => {
+                    const [r, c] = k.split('-').map(Number);
+                    const seat = seatData.getSeat(r, c);
+                    if (seat) seat.status = 'occupied';
+                });
+            }
+
+            // 格式化座位列表
+            const seatChips = summary.seats.map(s =>
+                `<span class="seat-chip">${s.row+1}排${s.col+1}座  ¥${s.price}</span>`
+            ).join('');
+
+            container.innerHTML = `
+                <div class="order-card">
+                    <div class="order-header">
+                        <h1>🎬 确认订单</h1>
+                        <p class="subtitle">${summary.hallName} · ${summary.hallDesc}</p>
+                    </div>
+
+                    <div class="order-section">
+                        <h3>👤 用户信息</h3>
+                        <div class="info-row">
+                            <span class="label">用户名</span>
+                            <span class="value">${user ? user.username : '未登录'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">姓名</span>
+                            <span class="value">${user ? user.name : '-'}</span>
+                        </div>
+                        ${user && user.email ? `
+                        <div class="info-row">
+                            <span class="label">邮箱</span>
+                            <span class="value">${user.email}</span>
+                        </div>` : ''}
+                    </div>
+
+                    <div class="order-section">
+                        <h3>💺 选中座位 (${summary.seats.length}张)</h3>
+                        <div class="seat-chips">${seatChips}</div>
+                    </div>
+
+                    <div class="order-section">
+                        <h3>💰 费用明细</h3>
+                        <div class="info-row">
+                            <span class="label">票面单价</span>
+                            <span class="value">¥${summary.avgPrice} / 张</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="label">票数</span>
+                            <span class="value">${summary.seats.length} 张</span>
+                        </div>
+                        <div class="info-row" style="font-size:1.1em;font-weight:700;">
+                            <span class="label">合计</span>
+                            <span class="value" style="color:#FDD835;">¥${summary.totalPrice}</span>
+                        </div>
+                    </div>
+
+                    <div class="price-highlight">
+                        ¥${summary.totalPrice}
+                    </div>
+
+                    <div class="btn-row">
+                        <button class="btn btn-cancel" id="btn-cancel">取消</button>
+                        <button class="btn btn-confirm" id="btn-confirm">✅ 确认支付</button>
+                    </div>
+                </div>`;
+
+            // 绑定按钮
+            document.getElementById('btn-confirm').addEventListener('click', () => {
+                if (!auth.isLoggedIn()) {
+                    showToast('请先登录');
+                    return;
+                }
+
+                // 恢复座位数据以创建订单
+                const sd = new SeatData(summary.hallType);
+                if (summary.occupiedSeats) {
+                    summary.occupiedSeats.forEach(k => {
+                        const [r, c] = k.split('-').map(Number);
+                        const seat = sd.getSeat(r, c);
+                        if (seat) seat.status = 'occupied';
+                    });
+                }
+                // 把要购买的座位标记为选中
+                summary.seats.forEach(s => {
+                    const seat = sd.getSeat(s.row, s.col);
+                    if (seat) seat.isSelected = true;
+                });
+
+                const selectedSeats = sd.getSelectedSeats();
+                const result = orderManager.createOrder(selectedSeats, {
+                    name: user.name,
+                    email: user.email || ''
+                });
+
+                if (result.success) {
+                    sd.confirmPurchase();
+                    // 保存回主页面
+                    const appData = storage.loadSeatSelection ? storage.loadSeatSelection() : {};
+                    // 简单方案：把已售键写入 localStorage 供主页读取
+                    const soldKeys = summary.seats.map(s => `${s.row}-${s.col}`);
+                    const existingSold = JSON.parse(localStorage.getItem('smartcinema_order_sold') || '[]');
+                    localStorage.setItem('smartcinema_order_sold',
+                        JSON.stringify([...existingSold, ...soldKeys]));
+
+                    sessionStorage.removeItem('smartcinema_order_summary');
+                    showToast('订单已确认！即将返回...');
+                    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+                } else {
+                    showToast('创建失败: ' + result.message);
+                }
+            });
+
+            document.getElementById('btn-cancel').addEventListener('click', () => {
+                sessionStorage.removeItem('smartcinema_order_summary');
+                window.location.href = 'index.html';
+            });
+        }
+
+        render();
+    </script>
+</body>
+</html>

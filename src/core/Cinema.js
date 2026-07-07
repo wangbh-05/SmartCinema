@@ -1,414 +1,339 @@
 /**
- * Cinema - Canvas 影院绘图引擎
- * 负责在 Canvas 上绘制电影院座位布局
- * 实现了完整的坐标映射、事件处理、选中高亮等功能
+ * Cinema — Canvas 弧形影院绘图引擎 v6
+ *
+ * 布局：固定行高 + 仅水平弧线。白底浅色主题。
+ * 热度图常驻：边框颜色表示热度（红=热门/琥珀=一般/蓝=冷门）。
+ * 银幕光晕：从银幕曲线向下照射观众席。
+ * 空座白色·选中琥珀·已售灰色·推荐淡紫。
  */
+import { SEAT_STATUS, HALL_CONFIG } from './SeatData.js';
+
+const CLR = {
+    bg:'#FFFFFF', bgGrid:'rgba(0,0,0,0.04)', screen:'#3B82F6',
+    avail:'#F9FAFB',availS:'#E5E7EB', select:'#F59E0B',selectS:'#D97706',
+    sold:'#9CA3AF',soldS:'#6B7280', rec:'#8B5CF6',recS:'#7C3AED',
+    rowLabel:'#6B7280',legend:'#4B5563',hallInfo:'#6B7280',dragLine:'#FBBF24',
+    tooltipBg:'rgba(255,255,255,0.96)',tooltipBd:'#D1D5DB',tooltipTxt:'#1F2937',
+};
+
+// 热度光晕色值（供径向渐变使用）—— 柔和浅色调
+const HEAT = {
+    hot:  {r:245, g:120, b:120},  // 浅红 — 高价热门区
+    warm: {r:240, g:195, b:80},   // 浅琥珀 — 一般区
+    cold: {r:100, g:145, b:240},  // 浅蓝 — 边缘冷门区
+};
 
 export class Cinema {
     constructor(canvas, seatData) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
-        this.seatData = seatData;
-        this.dragStart = null;
-        this.isMultiSelect = false;
-
-        // 绘图配置
-        this.config = {
-            seatSize: 20,
-            seatGap: 8,
-            screenMargin: 60,
-            sideMargin: 50,
-            rowLabelWidth: 30,
-            colLabelHeight: 30,
-            animationDuration: 200
-        };
-
-        // 计算布局尺寸
-        this.calculateLayout();
-        
-        // 绑定事件
+        this.sd = seatData;
+        this.dragStart=null;this.dragEnd=null;this._hover=null;this.isDragging=false;this._tooltip=null;
         this.bindEvents();
-        
-        // 初始绘制
+        this.relayout();
         this.redraw();
     }
 
-    /**
-     * 计算 Canvas 布局尺寸
-     */
-    calculateLayout() {
-        const { seatSize, seatGap, screenMargin, sideMargin, rowLabelWidth, colLabelHeight } = this.config;
-        const { rows, cols } = this.seatData;
+    /* ========== 布局：固定行高 + 仅水平弧线 ========== */
+    relayout() {
+        const {rows, cols} = this.sd;
+        const dpr = Math.min(window.devicePixelRatio||1, 2);
 
-        // 计算总宽高
-        this.totalWidth = sideMargin + rowLabelWidth + cols * (seatSize + seatGap) + sideMargin;
-        this.totalHeight = sideMargin + colLabelHeight + rows * (seatSize + seatGap) + screenMargin + sideMargin;
+        let pitch;
+        if      (cols<=10) pitch=38;
+        else if (cols<=20) pitch=30;
+        else               pitch=22;
+        const size = Math.round(pitch*0.78);
+        const aisle = cols>=14?2:(cols>=8?1:0);
+        const vCols = cols+aisle;
+        const aisleStart = Math.floor((vCols-aisle)/2);
 
-        // 计算起始坐标
-        this.offsetX = sideMargin + rowLabelWidth;
-        this.offsetY = sideMargin + colLabelHeight;
+        const maxW=Math.min(window.innerWidth-32,1100);
+        const maxH=Math.min(window.innerHeight-200,680);
+        const topPad=85, botPad=45;
+        const needW=120+vCols*pitch+80;
+        const needH=topPad+rows*pitch+botPad+20;
+        this.dispW=Math.round(Math.min(needW,maxW));
+        this.dispH=Math.round(Math.min(needH,maxH));
+        this.canvas.width=this.dispW*dpr;this.canvas.height=this.dispH*dpr;
+        this.canvas.style.width=this.dispW+'px';this.canvas.style.height=this.dispH+'px';
+        this.ctx.setTransform(dpr,0,0,dpr,0,0);
 
-        // 调整 Canvas 尺寸
-        this.canvas.width = Math.min(this.totalWidth, window.innerWidth - 40);
-        this.canvas.height = Math.min(this.totalHeight, window.innerHeight - 300);
-    }
+        const seatTop=topPad+pitch;
+        const seatH=this.dispH-seatTop-botPad;
+        const rowStep=rows>1?seatH/(rows-1):0;
 
-    /**
-     * 绑定事件监听器
-     */
-    bindEvents() {
-        this.canvas.addEventListener('click', (e) => this.handleClick(e));
-        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-        this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
-        this.canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
-        
-        // 触屏支持
-        this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e));
-        this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e));
-        this.canvas.addEventListener('touchend', () => this.handleTouchEnd());
-    }
+        this.arcX=this.dispW/2;
+        const arcR0=this.dispW*1.3;
 
-    /**
-     * 获取鼠标在 Canvas 中的相对坐标
-     */
-    getCanvasCoords(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
-    }
+        this._pos=[];this._hover=null;this._tooltip=null;
+        this._seatSize=size;this._pitch=pitch;
+        this._aisleStart=aisleStart;this._aisleCols=aisle;this._vCols=vCols;this._topPad=topPad;
 
-    /**
-     * 将 Canvas 坐标映射到座位坐标
-     */
-    canvasCoordsToSeatCoords(x, y) {
-        const { seatSize, seatGap } = this.config;
-        const { rows, cols } = this.seatData;
-
-        // 检查是否在有效范围内
-        const minX = this.offsetX;
-        const minY = this.offsetY;
-        const maxX = this.offsetX + cols * (seatSize + seatGap);
-        const maxY = this.offsetY + rows * (seatSize + seatGap);
-
-        if (x < minX || x > maxX || y < minY || y > maxY) {
-            return null;
-        }
-
-        // 计算座位索引
-        const col = Math.floor((x - minX) / (seatSize + seatGap));
-        const row = Math.floor((y - minY) / (seatSize + seatGap));
-
-        return (row >= 0 && row < rows && col >= 0 && col < cols) ? { row, col } : null;
-    }
-
-    /**
-     * 点击事件处理
-     */
-    handleClick(e) {
-        const coords = this.getCanvasCoords(e);
-        const seatCoords = this.canvasCoordsToSeatCoords(coords.x, coords.y);
-
-        if (!seatCoords) return;
-
-        // 检查多选模式
-        this.isMultiSelect = e.ctrlKey || e.metaKey;
-
-        if (!this.isMultiSelect) {
-            this.seatData.clearSelection();
-        }
-
-        // 切换座位选择
-        const { row, col } = seatCoords;
-        if (this.seatData.isSeatAvailable(row, col)) {
-            if (this.seatData.getSeat(row, col).isSelected) {
-                this.seatData.deselectSeat(row, col);
-            } else {
-                this.seatData.selectSeat(row, col);
+        for(let r=0;r<rows;r++){
+            const rowY=seatTop+r*rowStep;
+            const R=arcR0+r*pitch*0.55;
+            const angleStep=pitch/R;
+            const totalAngle=(vCols-1)*angleStep;
+            const startAngle=-totalAngle/2;
+            const half=size/2;
+            const rowPos=[];let rc=0;
+            for(let vc=0;vc<vCols;vc++){
+                if(aisle>0&&vc>=aisleStart&&vc<aisleStart+aisle)continue;
+                const angle=startAngle+vc*angleStep;
+                const cx=this.arcX+R*Math.sin(angle);
+                rowPos[rc]={x:cx-half,y:rowY-half,cx,cy:rowY};
+                rc++;
             }
+            this._pos[r]=rowPos;
         }
-
-        this.redraw();
-        this.dispatchSelectionChange();
+        this._heat=this._calcHeat();
     }
 
-    /**
-     * 鼠标按下 - 拖拽开始
-     */
-    handleMouseDown(e) {
-        const coords = this.getCanvasCoords(e);
-        const seatCoords = this.canvasCoordsToSeatCoords(coords.x, coords.y);
-        
-        if (seatCoords) {
-            this.dragStart = seatCoords;
+    /* ========== 热度计算：模拟真实影院票价分布 ========== */
+    _calcHeat(){
+        const {rows,cols}=this.sd;
+        const g=Array.from({length:rows},()=>new Array(cols).fill(0));
+        const idealRow=(rows-1)*0.55;
+        const idealCol=(cols-1)/2;
+        const maxRowD=Math.max(idealRow,rows-1-idealRow);
+        const maxColD=Math.max(idealCol,cols-1-idealCol);
+
+        for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+            const seat=this.sd.getSeat(r,c);
+            if(seat.status===SEAT_STATUS.OCCUPIED){g[r][c]=0.88;continue;}
+            if(seat.isSelected){g[r][c]=0.72;continue;}
+            const dr=Math.abs(r-idealRow)/maxRowD;
+            const dc=Math.abs(c-idealCol)/maxColD;
+            const dist=Math.sqrt(dr*dr*0.4+dc*dc*0.6);
+            const base=1-Math.pow(dist,0.65);
+            g[r][c]=0.08+base*0.78;
         }
+        return g;
     }
 
-    /**
-     * 鼠标移动 - 拖拽预览
-     */
-    handleMouseMove(e) {
-        if (!this.dragStart) {
-            this.canvas.style.cursor = 'default';
-            return;
+    /* ========== 事件 ========== */
+    bindEvents(){
+        const el=this.canvas;
+        el.addEventListener('click',e=>this._click(e));
+        el.addEventListener('mousedown',e=>this._down(e));
+        el.addEventListener('mousemove',e=>this._move(e));
+        el.addEventListener('mouseup',e=>this._up(e));
+        el.addEventListener('mouseleave',()=>this._leave());
+        el.addEventListener('touchstart',e=>{e.preventDefault();this._down(this._t(e));},{passive:false});
+        el.addEventListener('touchmove',e=>{e.preventDefault();this._move(this._t(e));},{passive:false});
+        el.addEventListener('touchend',e=>this._up({ctrlKey:false}));
+    }
+    _t(e){const t=e.touches[0];return{clientX:t.clientX,clientY:t.clientY,ctrlKey:false};}
+    _cp(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.dispW/r.width),y:(e.clientY-r.top)*(this.dispH/r.height)};}
+    _hit(px,py){const s=this._seatSize;const{rows,cols}=this.sd;for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const p=this._pos[r][c];if(px>=p.x-3&&px<=p.x+s+3&&py>=p.y-3&&py<=p.y+s+3)return{row:r,col:c};}return null;}
+    _click(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(!s)return;const seat=this.sd.getSeat(s.row,s.col);if(!seat||seat.status===SEAT_STATUS.OCCUPIED)return;seat.isSelected?this.sd.deselectSeat(s.row,s.col):this.sd.selectSeat(s.row,s.col);this._heat=this._calcHeat();this.redraw();this._emit();}
+    _down(e){const p=this._cp(e);this.dragStart=this._hit(p.x,p.y);this.isDragging=false;}
+    _move(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(this.dragStart&&s&&(s.row!==this.dragStart.row||s.col!==this.dragStart.col)){this.isDragging=true;this.dragEnd=s;this.redraw();return;}const prev=this._hover;if(!s&&!prev)return;if(s&&prev&&s.row===prev.row&&s.col===prev.col)return;this._hover=s;this._tooltip=s;this.redraw();this.canvas.style.cursor=s?'pointer':'default';}
+    _up(e){if(this.isDragging&&this.dragStart&&this.dragEnd){const r1=Math.min(this.dragStart.row,this.dragEnd.row),r2=Math.max(this.dragStart.row,this.dragEnd.row);const c1=Math.min(this.dragStart.col,this.dragEnd.col),c2=Math.max(this.dragStart.col,this.dragEnd.col);for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++){const st=this.sd.getSeat(r,c);if(st&&st.status===SEAT_STATUS.AVAILABLE)this.sd.selectSeat(r,c);}this._heat=this._calcHeat();this.redraw();this._emit();}this.dragStart=null;this.dragEnd=null;this.isDragging=false;}
+    _leave(){this.dragStart=null;this.dragEnd=null;this.isDragging=false;this._hover=null;this._tooltip=null;this.redraw();}
+    _emit(){this.canvas.dispatchEvent(new CustomEvent('selectionChange',{detail:{selectedSeats:this.sd.getSelectedSeats(),stats:this.sd.getStats()}}));}
+
+    /* ========== 绘制 ========== */
+    redraw(){
+        const ctx=this.ctx,W=this.dispW,H=this.dispH;ctx.clearRect(0,0,W,H);
+        const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#F8FAFC');bg.addColorStop(1,'#FFFFFF');
+        ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+        ctx.strokeStyle=CLR.bgGrid;ctx.lineWidth=1;
+        for(let x=0;x<W;x+=48){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+        for(let y=0;y<H;y+=48){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+        this._drawScreen();this._drawColLabels();this._drawRowLabels();
+        this._drawSeats();this._drawDragBox();this._drawTooltip();this._drawLegend();this._drawHallInfo();
+    }
+
+    /* ================================================================
+     * 银幕：光从曲线向下照射——光形顶边跟随银幕弧线
+     * ================================================================ */
+    _drawScreen(){
+        const ctx=this.ctx, sw=this._vCols*this._pitch*0.78;
+        const sx=this.arcX-sw/2, sy=this._topPad*0.38;
+
+        // 光照深度 & 两侧扩散
+        const lightH=this.dispH*0.42;
+        const spread=70;
+
+        // 光锥路径：顶边跟随银幕弧线，向下逐渐扩散
+        ctx.save();
+        ctx.beginPath();
+        const N=50;  // 采样点
+        for(let i=0;i<=N;i++){
+            const t=i/N;
+            const lx=sx-spread+t*(sw+spread*2);
+            // 二次贝塞尔 y(t) = (1-t)²·sy + 2(1-t)t·(sy-14) + t²·sy = sy - 28t(1-t)
+            const cy=sy-28*t*(1-t);
+            if(i===0)ctx.moveTo(lx,cy);else ctx.lineTo(lx,cy);
         }
+        // 右下 → 左下 → 闭合
+        ctx.lineTo(sx+sw+spread, sy+lightH);
+        ctx.lineTo(sx-spread, sy+lightH);
+        ctx.closePath();
 
-        const coords = this.getCanvasCoords(e);
-        const seatCoords = this.canvasCoordsToSeatCoords(coords.x, coords.y);
+        // 纵向渐变：银幕线最亮 → 向下渐隐
+        const gl=ctx.createLinearGradient(0,sy-14,0,sy+lightH);
+        gl.addColorStop(0,'rgba(37,99,235,0.28)');
+        gl.addColorStop(0.18,'rgba(37,99,235,0.10)');
+        gl.addColorStop(0.45,'rgba(37,99,235,0.03)');
+        gl.addColorStop(1,'rgba(37,99,235,0)');
+        ctx.fillStyle=gl;
+        ctx.fill();
+        ctx.restore();
 
-        if (seatCoords) {
-            this.canvas.style.cursor = 'pointer';
-        }
+        // 银幕曲线
+        ctx.beginPath();ctx.moveTo(sx,sy);ctx.quadraticCurveTo(this.arcX,sy-14,sx+sw,sy);
+        ctx.strokeStyle=CLR.screen;ctx.lineWidth=3;ctx.stroke();
+
+        // 发光条
+        const bar=ctx.createLinearGradient(0,sy-8,0,sy+8);
+        bar.addColorStop(0,'rgba(37,99,235,0.45)');
+        bar.addColorStop(0.5,'rgba(59,130,246,0.60)');
+        bar.addColorStop(1,'rgba(37,99,235,0.10)');
+        ctx.fillStyle=bar;ctx.fillRect(sx,sy-3,sw,6);
+
+        // 文字
+        ctx.fillStyle='#2563EB';ctx.font='bold 13px "Microsoft YaHei","PingFang SC",sans-serif';
+        ctx.textAlign='center';ctx.fillText('SCREEN  银  幕',this.arcX,sy-18);
     }
 
-    /**
-     * 鼠标释放 - 拖拽选择
-     */
-    handleMouseUp() {
-        if (!this.dragStart) return;
-        this.dragStart = null;
+    _drawColLabels(){
+        const ctx=this.ctx,{cols}=this.sd,r0=this._pos[0];
+        if(!r0||cols<6)return;
+        ctx.fillStyle=CLR.rowLabel;ctx.font='9px "Microsoft YaHei",sans-serif';
+        ctx.textAlign='center';ctx.textBaseline='bottom';
+        const step=Math.max(1,Math.floor(cols/12));
+        for(let c=0;c<cols;c+=step){const p=r0[c];if(!p)continue;ctx.fillText(`${c+1}`,p.cx,this._topPad-4);}
     }
 
-    /**
-     * 鼠标离开 Canvas
-     */
-    handleMouseLeave() {
-        this.dragStart = null;
+    _drawRowLabels(){
+        const ctx=this.ctx,{rows}=this.sd,s=this._seatSize;
+        ctx.fillStyle=CLR.rowLabel;ctx.font=`${Math.max(10,s*0.5)}px "Microsoft YaHei",sans-serif`;
+        ctx.textAlign='right';ctx.textBaseline='middle';
+        for(let r=0;r<rows;r++){const p=this._pos[r][0];ctx.fillText(`${r+1}排`,p.x-s/2-8,p.cy);}
     }
 
-    /**
-     * 触屏开始
-     */
-    handleTouchStart(e) {
-        if (e.touches.length === 1) {
-            const touch = e.touches[0];
-            const fakeEvent = new MouseEvent('mousedown', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            this.handleMouseDown(fakeEvent);
-        }
-    }
-
-    /**
-     * 触屏移动
-     */
-    handleTouchMove(e) {
-        if (e.touches.length === 1) {
-            const touch = e.touches[0];
-            const fakeEvent = new MouseEvent('mousemove', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            this.handleMouseMove(fakeEvent);
-        }
-    }
-
-    /**
-     * 触屏结束
-     */
-    handleTouchEnd() {
-        this.handleMouseUp();
-    }
-
-    /**
-     * 绘制整个画布
-     */
-    redraw() {
-        // 清空 Canvas
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // 绘制屏幕
-        this.drawScreen();
-        
-        // 绘制行标签
-        this.drawRowLabels();
-        
-        // 绘制列标签
-        this.drawColLabels();
-        
-        // 绘制座位
-        this.drawSeats();
-        
-        // 绘制图例
-        this.drawLegend();
-    }
-
-    /**
-     * 绘制屏幕
-     */
-    drawScreen() {
-        const { rows, cols } = this.seatData;
-        const { seatSize, seatGap, screenMargin, sideMargin } = this.config;
-
-        const screenY = this.offsetY - screenMargin / 2;
-        const screenX = this.offsetX - 10;
-        const screenWidth = cols * (seatSize + seatGap) + 20;
-
-        this.ctx.fillStyle = '#333';
-        this.ctx.fillRect(screenX, screenY, screenWidth, screenMargin / 2);
-
-        this.ctx.fillStyle = '#FFF';
-        this.ctx.font = 'bold 14px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('🎬 SCREEN 🎬', screenX + screenWidth / 2, screenY + screenMargin / 4 + 5);
-    }
-
-    /**
-     * 绘制行标签
-     */
-    drawRowLabels() {
-        const { rows } = this.seatData;
-        const { seatSize, seatGap } = this.config;
-
-        this.ctx.fillStyle = '#666';
-        this.ctx.font = 'bold 12px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-
-        for (let row = 0; row < rows; row++) {
-            const y = this.offsetY + row * (seatSize + seatGap) + seatSize / 2;
-            const x = this.offsetX - 20;
-            this.ctx.fillText(String.fromCharCode(65 + row), x, y);
+    _drawSeats(){
+        const{rows,cols}=this.sd;
+        for(let r=rows-1;r>=0;r--)for(let c=0;c<cols;c++){
+            const seat=this.sd.getSeat(r,c),p=this._pos[r][c];
+            const hov=this._hover&&this._hover.row===r&&this._hover.col===c;
+            this._drawOne(p.x,p.y,seat,hov,r,c);
         }
     }
 
-    /**
-     * 绘制列标签
-     */
-    drawColLabels() {
-        const { cols } = this.seatData;
-        const { seatSize, seatGap } = this.config;
+    /* ================================================================
+     * 单个座位：空座=白色填充，热度=边框颜色（红/琥珀/蓝）
+     * ================================================================ */
+    _drawOne(x,y,seat,hovered,r,c){
+        const ctx=this.ctx, s=this._seatSize, rad=Math.max(3,s*0.25);
 
-        this.ctx.fillStyle = '#666';
-        this.ctx.font = 'bold 12px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
+        // 热度 → 边框颜色
+        const hv=this._heat[r]?.[c]||0;
+        let heatStroke='';
+        if(hv>0.6)heatStroke=`rgb(${HEAT.hot.r},${HEAT.hot.g},${HEAT.hot.b})`;
+        else if(hv>0.3)heatStroke=`rgb(${HEAT.warm.r},${HEAT.warm.g},${HEAT.warm.b})`;
+        else heatStroke=`rgb(${HEAT.cold.r},${HEAT.cold.g},${HEAT.cold.b})`;
 
-        for (let col = 0; col < cols; col++) {
-            const x = this.offsetX + col * (seatSize + seatGap) + seatSize / 2;
-            const y = this.offsetY - 10;
-            this.ctx.fillText((col + 1).toString(), x, y);
-        }
-    }
-
-    /**
-     * 绘制座位
-     */
-    drawSeats() {
-        const { rows, cols } = this.seatData;
-        const { seatSize, seatGap } = this.config;
-
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                const seat = this.seatData.getSeat(row, col);
-                const x = this.offsetX + col * (seatSize + seatGap);
-                const y = this.offsetY + row * (seatSize + seatGap);
-
-                this.drawSeat(x, y, seat, seatSize);
+        // --- 悬停光晕（仅非已售座位）---
+        if(hovered&&seat.status!==SEAT_STATUS.OCCUPIED){
+            const cx=x+s/2, cy=y+s/2;
+            const haloPad=s*0.6;
+            const rectHalf=(s+haloPad)/2;
+            const halo=ctx.createRadialGradient(cx,cy,s*0.18,cx,cy,rectHalf);
+            if(seat.isSelected){
+                halo.addColorStop(0,'rgba(245,158,11,0.50)');
+                halo.addColorStop(0.4,'rgba(245,158,11,0.15)');
+                halo.addColorStop(1,'rgba(245,158,11,0)');
+            }else if(seat.isRecommended){
+                halo.addColorStop(0,'rgba(139,92,246,0.50)');
+                halo.addColorStop(0.4,'rgba(139,92,246,0.15)');
+                halo.addColorStop(1,'rgba(139,92,246,0)');
+            }else{
+                halo.addColorStop(0,'rgba(229,231,235,0.50)');
+                halo.addColorStop(0.4,'rgba(229,231,235,0.15)');
+                halo.addColorStop(1,'rgba(229,231,235,0)');
             }
+            ctx.fillStyle=halo;
+            this._rr(ctx,x-haloPad/2,y-haloPad/2,s+haloPad,s+haloPad,rad+3);
+            ctx.fill();
+        }
+
+        // --- 座位本体 ---
+        let fill,stroke;
+        if(seat.status===SEAT_STATUS.OCCUPIED){
+            fill=CLR.sold; stroke=heatStroke;          // 灰色填充+热度边框
+        }else if(seat.isSelected){
+            fill=CLR.select; stroke=CLR.selectS;        // 琥珀色，固定边框
+        }else if(seat.isRecommended){
+            fill=CLR.rec; stroke=CLR.recS;              // 紫色，固定边框
+        }else{
+            fill=CLR.avail; stroke=heatStroke;          // 白色填充+热度边框
+        }
+
+        ctx.fillStyle=fill;ctx.strokeStyle=stroke;
+        ctx.lineWidth=2;
+        this._rr(ctx,x,y,s,s,rad);ctx.fill();ctx.stroke();
+
+        // 选中 ✓
+        if(seat.isSelected){
+            ctx.fillStyle='#1C1917';ctx.font=`bold ${Math.max(9,s*0.48)}px Arial`;
+            ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',x+s/2,y+s/2);
         }
     }
 
-    /**
-     * 绘制单个座位
-     */
-    drawSeat(x, y, seat, size) {
-        let fillColor = '#E0F2F1';
-        let strokeColor = '#00796B';
-        let lineWidth = 1;
-
-        if (seat.status === 'occupied') {
-            fillColor = '#BDBDBD';
-            strokeColor = '#757575';
-        } else if (seat.status === 'vip') {
-            fillColor = '#FFD54F';
-            strokeColor = '#FBC02D';
-        } else if (seat.isSelected) {
-            fillColor = '#FF6B35';
-            strokeColor = '#E55A2B';
-            lineWidth = 2;
-        } else if (seat.isRecommended) {
-            fillColor = '#FFBB00';
-            strokeColor = '#FF9800';
-            lineWidth = 2;
-        }
-
-        // 绘制座位矩形
-        this.ctx.fillStyle = fillColor;
-        this.ctx.strokeStyle = strokeColor;
-        this.ctx.lineWidth = lineWidth;
-        this.ctx.fillRect(x, y, size, size);
-        this.ctx.strokeRect(x, y, size, size);
-
-        // 添加座位号（可选）
-        if (seat.isSelected || seat.isRecommended) {
-            this.ctx.fillStyle = '#000';
-            this.ctx.font = 'bold 10px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText('✓', x + size / 2, y + size / 2);
-        }
+    _drawDragBox(){
+        if(!this.isDragging||!this.dragStart||!this.dragEnd)return;
+        const p1=this._pos[this.dragStart.row][this.dragStart.col],p2=this._pos[this.dragEnd.row][this.dragEnd.col];
+        const x=Math.min(p1.x,p2.x),y=Math.min(p1.y,p2.y);
+        const w=Math.abs(p2.x-p1.x)+this._seatSize,h=Math.abs(p2.y-p1.y)+this._seatSize;
+        const ctx=this.ctx;ctx.save();ctx.setLineDash([5,5]);ctx.strokeStyle=CLR.dragLine;ctx.lineWidth=2;
+        ctx.strokeRect(x-2,y-2,w+4,h+4);ctx.setLineDash([]);ctx.restore();
     }
 
-    /**
-     * 绘制图例
-     */
-    drawLegend() {
-        const legendX = 10;
-        const legendY = this.canvas.height - 80;
-        const itemHeight = 20;
-        const itemWidth = 100;
+    _drawTooltip(){
+        if(!this._tooltip)return;
+        const s=this._tooltip,seat=this.sd.getSeat(s.row,s.col);if(!seat)return;
+        const p=this._pos[s.row][s.col],ctx=this.ctx;
+        const text=`${s.row+1}排${s.col+1}座  ¥${seat.price}`;ctx.font='12px "Microsoft YaHei",sans-serif';
+        const tw=ctx.measureText(text).width+16,th=26;let tx=p.cx-tw/2,ty=p.y-th-6;
+        if(ty<4)ty=p.y+this._seatSize+6;if(tx<4)tx=4;if(tx+tw>this.dispW)tx=this.dispW-tw-4;
+        ctx.fillStyle=CLR.tooltipBg;ctx.strokeStyle=CLR.tooltipBd;ctx.lineWidth=1;
+        this._rr(ctx,tx,ty,tw,th,6);ctx.fill();ctx.stroke();
+        ctx.fillStyle=CLR.tooltipTxt;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,tx+tw/2,ty+th/2);
+    }
 
-        const legend = [
-            { color: '#E0F2F1', label: '可用' },
-            { color: '#FF6B35', label: '已选' },
-            { color: '#FFBB00', label: '推荐' },
-            { color: '#BDBDBD', label: '已售' },
-            { color: '#FFD54F', label: 'VIP' }
+    _drawLegend(){
+        const items=[
+            {c:CLR.avail,t:'空座',border:`rgb(${HEAT.hot.r},${HEAT.hot.g},${HEAT.hot.b})`},
+            {c:CLR.select,t:'已选',border:CLR.selectS},
+            {c:CLR.sold,t:'已售',border:CLR.soldS},
+            {c:CLR.rec,t:'推荐',border:CLR.recS},
+            {c:`rgb(${HEAT.hot.r},${HEAT.hot.g},${HEAT.hot.b})`,t:'热门(中)',border:null},
+            {c:`rgb(${HEAT.warm.r},${HEAT.warm.g},${HEAT.warm.b})`,t:'一般',border:null},
+            {c:`rgb(${HEAT.cold.r},${HEAT.cold.g},${HEAT.cold.b})`,t:'冷门(边)',border:null},
         ];
-
-        this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.textBaseline = 'middle';
-
-        legend.forEach((item, index) => {
-            const x = legendX + (index % 3) * (itemWidth + 20);
-            const y = legendY + Math.floor(index / 3) * itemHeight;
-
-            // 颜色块
-            this.ctx.fillStyle = item.color;
-            this.ctx.fillRect(x, y - 6, 12, 12);
-            this.ctx.strokeStyle = '#999';
-            this.ctx.strokeRect(x, y - 6, 12, 12);
-
-            // 标签
-            this.ctx.fillStyle = '#333';
-            this.ctx.fillText(item.label, x + 18, y);
+        const ctx=this.ctx,y=this.dispH-26,startX=this.dispW-items.length*68-10;
+        ctx.font='11px "Microsoft YaHei",sans-serif';
+        items.forEach((it,i)=>{
+            const x=startX+i*68;
+            ctx.fillStyle=it.c;
+            ctx.fillRect(x,y-5,10,10);
+            if(it.border){ctx.strokeStyle=it.border;ctx.lineWidth=1.5;ctx.strokeRect(x,y-5,10,10);}
+            ctx.fillStyle=CLR.legend;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(it.t,x+14,y);
         });
     }
 
-    /**
-     * 触发选择变更事件
-     */
-    dispatchSelectionChange() {
-        const event = new CustomEvent('selectionChange', {
-            detail: {
-                selectedSeats: this.seatData.getSelectedSeats(),
-                stats: this.seatData.getStats()
-            }
-        });
-        this.canvas.dispatchEvent(event);
+    _drawHallInfo(){
+        const hall=HALL_CONFIG[this.sd.hallType],ctx=this.ctx;
+        ctx.fillStyle=CLR.hallInfo;ctx.font='11px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
+        ctx.fillText(`${hall.name}·${hall.desc}·${hall.total}座`,10,this.dispH-22);
     }
 
-    /**
-     * 调整 Canvas 尺寸
-     */
-    resize() {
-        this.calculateLayout();
-        this.redraw();
-    }
+    _rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();}
+
+    reload(){this.relayout();this.redraw();}
+    resize(){this.relayout();this.redraw();}
 }

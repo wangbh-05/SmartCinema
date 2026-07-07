@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="智能影院选座系统 - 基于原生 Web 技术栈实现">
+    <meta name="description" content="SmartCinema 智能影院选座系统 - 弧形Canvas布局，智能推荐，三厅切换">
     <title>SmartCinema - 智能影院选座系统</title>
-    
+
     <!-- 核心样式 -->
     <link rel="stylesheet" href="public/styles/reset.css">
     <link rel="stylesheet" href="public/styles/variables.css">
@@ -13,202 +13,417 @@
     <link rel="stylesheet" href="public/styles/components.css">
     <link rel="stylesheet" href="public/styles/responsive.css">
     <link rel="stylesheet" href="public/styles/accessibility.css">
+
+    <style>
+        /* 页面内联补充样式 (后期可抽到 components.css) */
+        :root {
+            --bg-primary: #0D1117;
+            --bg-secondary: #161B22;
+            --bg-card: #21262D;
+            --text-primary: #C9D1D9;
+            --text-secondary: #8B949E;
+            --border-color: #30363D;
+            --accent: #58A6FF;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .app-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .app-logo { font-size: 1.4em; font-weight: 700; color: #FDD835; white-space: nowrap; }
+        .header-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .header-controls select {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+        .header-controls select:focus { outline: none; border-color: var(--accent); }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn:hover { border-color: #58A6FF; background: #1F2A38; }
+        .btn-primary { background: #238636; border-color: #238636; color: #fff; }
+        .btn-primary:hover { background: #2EA043; }
+        .btn-warning { background: #D29922; border-color: #D29922; color: #fff; }
+        .btn-danger { background: #DA3633; border-color: #DA3633; color: #fff; }
+        .btn-accent { background: #1F6FEB; border-color: #1F6FEB; color: #fff; }
+        .btn-sm { padding: 4px 10px; font-size: 0.8em; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Main Layout */
+        .main-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            grid-template-rows: auto auto auto;
+            gap: 20px;
+        }
+
+        .section-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .section-card h2 {
+            font-size: 1.2em;
+            margin-bottom: 16px;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Canvas 区域占满左侧 */
+        .canvas-section { grid-column: 1; grid-row: 1 / 4; }
+        .canvas-container { text-align: center; margin: 0; }
+        .canvas-container canvas { display: block; margin: 0 auto; }
+        .canvas-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; justify-content: center; }
+
+        /* 右侧面板 */
+        .side-panel { grid-column: 2; }
+        .recommend-section { grid-row: 1; }
+        .score-section { grid-row: 2; max-height: 350px; overflow-y: auto; }
+        .orders-section { grid-row: 3; max-height: 400px; overflow-y: auto; }
+
+        /* 表单 */
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; font-size: 0.85em; color: var(--text-secondary); }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.9em;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* 统计面板 */
+        .stats-row { display: flex; gap: 12px; margin-top: 12px; }
+        .stat-item {
+            flex: 1;
+            text-align: center;
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .stat-value { font-size: 1.5em; font-weight: 700; }
+        .stat-label { font-size: 0.8em; color: var(--text-secondary); }
+        .stat-value.green { color: #10B981; }
+        .stat-value.yellow { color: #F59E0B; }
+        .stat-value.red { color: #EF4444; }
+
+        /* 推荐结果 */
+        .recommend-result {
+            margin-top: 12px;
+            padding: 14px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border-left: 3px solid #8B5CF6;
+            display: none;
+            font-size: 0.88em;
+            line-height: 1.6;
+        }
+        .recommend-result.active { display: block; }
+        .recommend-result h4 { color: #A78BFA; margin-bottom: 8px; }
+
+        /* 订单列表 */
+        .order-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            font-size: 0.85em;
+        }
+        .order-card.status-pending { border-left: 3px solid #D29922; }
+        .order-card.status-confirmed { border-left: 3px solid #238636; }
+        .order-card.status-cancelled { opacity: 0.5; border-left: 3px solid #666; }
+        .order-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .order-id { font-weight: 600; color: var(--accent); }
+        .order-status-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+        .status-pending .order-status-badge { background: #D29922; color: #000; }
+        .status-confirmed .order-status-badge { background: #238636; color: #fff; }
+        .status-cancelled .order-status-badge { background: #666; color: #fff; }
+        .order-actions-row { display: flex; gap: 6px; margin-top: 8px; }
+
+        .orders-empty { text-align: center; color: var(--text-secondary); padding: 30px; }
+
+        /* 认证模态框 */
+        .auth-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .auth-modal-overlay.active { display: flex; }
+        .auth-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .auth-modal h2 { color: var(--accent); margin-bottom: 20px; text-align: center; }
+        .auth-modal .form-group { margin-bottom: 16px; }
+        .auth-modal .btn { width: 100%; margin-top: 8px; padding: 10px; }
+        .auth-error { color: #F85149; font-size: 0.85em; margin-top: 8px; display: none; }
+        .auth-switch-link { text-align: center; margin-top: 12px; font-size: 0.85em; }
+        .auth-switch-link a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+        /* 评分区 */
+        .score-placeholder { text-align: center; color: var(--text-secondary); padding: 20px; }
+
+        /* 响应式 */
+        @media (max-width: 900px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+            .canvas-section { grid-row: auto; }
+        }
+
+        /* 暗色滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #556; }
+
+        /* 年龄段多选 */
+        .age-check-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-right: 12px;
+            font-size: 0.9em;
+            cursor: pointer;
+            color: var(--text-primary);
+        }
+        .age-check-label input[type="checkbox"] { width: auto; cursor: pointer; }
+
+        /* 全局过渡 */
+        .section-card { transition: border-color 0.2s; }
+        .section-card:hover { border-color: #3B4A5E; }
+    </style>
 </head>
 <body>
-    <div id="app" class="app-container">
-        <!-- 顶部导航 -->
-        <header class="header" role="banner">
-            <div class="header-content">
-                <h1 class="logo">🎬 SmartCinema</h1>
-                <nav class="nav-main" role="navigation" aria-label="主导航">
-                    <ul>
-                        <li><a href="#seat-selection" class="nav-link">选座</a></li>
-                        <li><a href="#recommendations" class="nav-link">推荐</a></li>
-                        <li><a href="#orders" class="nav-link">订单</a></li>
-                        <li><a href="#settings" class="nav-link">设置</a></li>
-                    </ul>
-                </nav>
+    <!-- ==================== 顶部导航 ==================== -->
+    <header class="app-header">
+        <span class="app-logo">🎬 SmartCinema</span>
+        <div class="header-controls">
+            <!-- 放映厅切换 -->
+            <select id="hall-selector" aria-label="切换放映厅">
+                <option value="small">小厅 (100座)</option>
+                <option value="medium" selected>中厅 (200座)</option>
+                <option value="large">大厅 (300座)</option>
+            </select>
+            <span id="hall-name-display" style="color:var(--text-secondary);font-size:0.85em">中厅</span>
+            <!-- 认证按钮 -->
+            <span id="user-info" style="display:none;align-items:center;gap:8px;font-size:0.9em;"></span>
+            <button class="btn btn-accent btn-sm" id="btn-login">登录</button>
+            <button class="btn btn-sm" id="btn-register">注册</button>
+            <button class="btn btn-sm" id="btn-logout" style="display:none">退出</button>
+            <button class="btn btn-warning btn-sm" id="btn-admin" style="display:none">后台</button>
+        </div>
+    </header>
+
+    <!-- ==================== 主内容区 ==================== -->
+    <div class="main-container">
+
+        <!-- 左侧：Canvas 选座区 -->
+        <section class="section-card canvas-section" id="seat-selection">
+            <h2>🪑 选座</h2>
+            <div class="canvas-toolbar">
+                <button class="btn btn-primary btn-sm" id="smart-recommend">🤖 智能推荐</button>
+                <button class="btn btn-sm" id="manual-select">✋ 手动选座</button>
+                <button class="btn btn-sm" id="clear-selection">🗑️ 清空</button>
             </div>
-        </header>
+            <div class="canvas-container">
+                <canvas id="cinema-canvas" role="img" aria-label="影院座位布局图"></canvas>
+            </div>
+            <!-- 座位统计 -->
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-value green" id="available-count">0</div>
+                    <div class="stat-label">空座</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value yellow" id="selected-count">0</div>
+                    <div class="stat-label">已选</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value red" id="sold-count">0</div>
+                    <div class="stat-label">已售</div>
+                </div>
+            </div>
+        </section>
 
-        <!-- 主内容区 -->
-        <main class="main-content" role="main">
-            <!-- 选座区域 -->
-            <section id="seat-selection" class="section seat-selection" aria-label="电影院选座区">
-                <div class="container">
-                    <!-- 影院顶部信息 -->
-                    <div class="cinema-info">
-                        <h2 class="cinema-title">影院布局</h2>
-                        <div class="cinema-controls">
-                            <button class="btn btn-primary" id="smart-recommend" aria-label="智能推荐">
-                                🤖 智能推荐
-                            </button>
-                            <button class="btn btn-secondary" id="manual-select" aria-label="手动选座">
-                                ✋ 手动选座
-                            </button>
-                            <button class="btn btn-secondary" id="clear-selection" aria-label="清空选择">
-                                🗑️ 清空
-                            </button>
-                        </div>
+        <!-- 右侧：推荐面板（级联拓扑选择） -->
+        <section class="section-card side-panel recommend-section" id="recommend-panel">
+            <h2>🤖 智能推荐</h2>
+            <form id="recommend-form" class="recommend-form">
+                <!-- ① 先选人数 -->
+                <div class="form-group">
+                    <label for="group-size">① 观影人数</label>
+                    <input type="number" id="group-size" min="1" max="20" value="2" placeholder="1-20人">
+                </div>
+                <!-- ② 再选年龄段（>=2人可多选） -->
+                <div class="form-group" id="age-group-wrapper">
+                    <label>② 观众年龄段</label>
+                    <div id="age-select-container">
+                        <select id="age-group">
+                            <option value="">-- 选择年龄段 --</option>
+                            <option value="youth">少年 (15岁以下)</option>
+                            <option value="adult">成年人 (15-59岁)</option>
+                            <option value="senior">老年人 (60岁以上)</option>
+                        </select>
                     </div>
-
-                    <!-- Canvas 影院布局 -->
-                    <div class="canvas-container">
-                        <canvas 
-                            id="cinema-canvas" 
-                            width="1000" 
-                            height="700"
-                            class="cinema-canvas"
-                            role="img"
-                            aria-label="电影院座位布局 Canvas">
-                        </canvas>
-                        <div class="canvas-info">
-                            <p class="hint">💡 提示：点击座位选择，Ctrl+点击多选，拖拽可快速选择区域</p>
-                        </div>
-                    </div>
-
-                    <!-- 推荐参数面板 -->
-                    <section id="recommend-panel" class="recommend-panel" aria-label="智能推荐参数面板">
-                        <h3>推荐参数</h3>
-                        <form class="recommend-form" id="recommend-form">
-                            <div class="form-group">
-                                <label for="age-group">年龄段：</label>
-                                <select id="age-group" aria-label="选择年龄段">
-                                    <option value="">-- 选择年龄段 --</option>
-                                    <option value="youth">青少年 (6-17)</option>
-                                    <option value="adult">成人 (18-50)</option>
-                                    <option value="senior">老年人 (50+)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="group-size">人数：</label>
-                                <input type="number" id="group-size" min="1" max="20" value="1" aria-label="输入观影人数">
-                            </div>
-                            <div class="form-group">
-                                <label for="movie-type">观影类型：</label>
-                                <select id="movie-type" aria-label="选择观影类型">
-                                    <option value="">-- 选择类型 --</option>
-                                    <option value="couple">情侣（2人）</option>
-                                    <option value="family">家庭（3-5人）</option>
-                                    <option value="group">团体（6+人）</option>
-                                    <option value="solo">个人观影</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary" aria-label="执行推荐">
-                                执行推荐
-                            </button>
-                        </form>
-                        <div id="recommend-result" class="recommend-result" aria-live="polite">
-                            <!-- 推荐结果展示 -->
-                        </div>
-                    </section>
-
-                    <!-- 统计信息 -->
-                    <div class="stats-panel" aria-label="座位统计信息">
-                        <div class="stat-item">
-                            <span class="stat-label">已选：</span>
-                            <span class="stat-value" id="selected-count">0</span> 个
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">可用：</span>
-                            <span class="stat-value" id="available-count">0</span> 个
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">已售：</span>
-                            <span class="stat-value" id="sold-count">0</span> 个
-                        </div>
+                    <div id="age-check-container" style="display:none;">
+                        <label class="age-check-label"><input type="checkbox" value="youth" class="age-check"> 少年</label>
+                        <label class="age-check-label"><input type="checkbox" value="adult" class="age-check" checked> 成年</label>
+                        <label class="age-check-label"><input type="checkbox" value="senior" class="age-check"> 老年</label>
                     </div>
                 </div>
-            </section>
-
-            <!-- 观影体验评分区 -->
-            <section id="experience-score" class="section experience-score" aria-label="观影体验评分">
-                <div class="container">
-                    <h2>观影体验评分</h2>
-                    <div id="score-details" class="score-details" aria-live="polite">
-                        <!-- 评分详情展示 -->
-                    </div>
+                <!-- ③ 观影类型（根据人数动态关联） -->
+                <div class="form-group">
+                    <label for="movie-type">③ 观影类型</label>
+                    <select id="movie-type">
+                        <option value="">-- 请先选择人数 --</option>
+                    </select>
                 </div>
-            </section>
+                <button type="submit" class="btn btn-primary" style="width:100%">🎯 执行推荐</button>
+            </form>
+            <div class="recommend-result" id="recommend-result">
+                <!-- 动态填充推荐结果 -->
+            </div>
+        </section>
 
-            <!-- 热度地图区 -->
-            <section id="heatmap" class="section heatmap" aria-label="影院热度分布地图">
-                <div class="container">
-                    <h2>影院热度地图</h2>
-                    <div class="heatmap-container">
-                        <canvas 
-                            id="heatmap-canvas" 
-                            width="800" 
-                            height="400"
-                            class="heatmap-canvas"
-                            role="img"
-                            aria-label="影院热度分布热力图">
-                        </canvas>
-                        <div class="heatmap-legend">
-                            <span class="legend-item">
-                                <span class="legend-box" style="background: #00AA00;"></span> 冷
-                            </span>
-                            <span class="legend-item">
-                                <span class="legend-box" style="background: #FFFF00;"></span> 温
-                            </span>
-                            <span class="legend-item">
-                                <span class="legend-box" style="background: #FF0000;"></span> 热
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </section>
+        <!-- 右侧：评分 -->
+        <section class="section-card side-panel score-section" id="experience-score">
+            <h2>📊 观影体验评分</h2>
+            <div id="score-details">
+                <p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>
+            </div>
+        </section>
 
-            <!-- 订单中心 -->
-            <section id="orders" class="section orders-center" aria-label="订单中心">
-                <div class="container">
-                    <h2>订单中心</h2>
-                    <div class="orders-list" id="orders-list" aria-label="订单列表">
-                        <!-- 订单项展示 -->
-                    </div>
-                </div>
-            </section>
+        <!-- 右侧：提交订单 -->
+        <section class="section-card side-panel" id="submit-order-section">
+            <h2>🛒 提交订单</h2>
+            <div id="order-summary-mini" style="margin-bottom:12px;font-size:0.85em;color:var(--text-secondary);">
+                暂未选择座位
+            </div>
+            <button class="btn btn-accent" style="width:100%" id="btn-submit-order" disabled>📋 提交订单</button>
+            <div style="margin-top:10px;">
+                <button class="btn btn-sm" style="width:100%" id="btn-view-orders">📋 查看历史订单</button>
+            </div>
+            <div id="orders-mini-list" style="display:none;margin-top:12px;max-height:200px;overflow-y:auto;"></div>
+        </section>
 
-            <!-- 设置 -->
-            <section id="settings" class="section settings" aria-label="系统设置">
-                <div class="container">
-                    <h2>设置</h2>
-                    <div class="settings-panel">
-                        <div class="setting-item">
-                            <label for="theme-toggle">深色模式：</label>
-                            <input type="checkbox" id="theme-toggle" aria-label="切换深色模式">
-                        </div>
-                        <div class="setting-item">
-                            <label for="accessibility-toggle">无障碍模式：</label>
-                            <input type="checkbox" id="accessibility-toggle" aria-label="启用无障碍模式">
-                        </div>
-                        <div class="setting-item">
-                            <label for="voice-toggle">语音提示：</label>
-                            <input type="checkbox" id="voice-toggle" aria-label="启用语音提示">
-                        </div>
-                        <button class="btn btn-secondary" id="export-data" aria-label="导出数据">
-                            💾 导出数据
-                        </button>
-                        <button class="btn btn-secondary" id="import-data" aria-label="导入数据">
-                            📂 导入数据
-                        </button>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- 底部 -->
-        <footer class="footer" role="contentinfo">
-            <p>&copy; 2024 SmartCinema. 原生 Web 技术实训项目</p>
-        </footer>
+        <!-- 设置 -->
+        <section class="section-card" id="settings" style="grid-column: 1 / -1;">
+            <h2>⚙️ 设置</h2>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="theme-toggle"> 深色模式
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="accessibility-toggle"> 无障碍模式
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="voice-toggle"> 语音提示
+                </label>
+                <button class="btn btn-sm" id="export-data">💾 导出数据</button>
+                <button class="btn btn-sm" id="import-data">📂 导入数据</button>
+            </div>
+        </section>
     </div>
 
-    <!-- 模态窗口 -->
-    <div id="modal-container" class="modal-container" role="dialog" aria-hidden="true">
-        <!-- 动态模态内容 -->
+    <!-- ==================== 认证模态框 ==================== -->
+    <div class="auth-modal-overlay" id="auth-modal" aria-hidden="true">
+        <div class="auth-modal">
+            <h2 id="auth-title">用户登录</h2>
+            <form id="auth-form" onsubmit="return false">
+                <div class="form-group">
+                    <label for="auth-username">用户名</label>
+                    <input type="text" id="auth-username" placeholder="请输入用户名" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="auth-password">密码</label>
+                    <input type="password" id="auth-password" placeholder="请输入密码" required minlength="6">
+                </div>
+                <div id="register-extra-fields" style="display:none">
+                    <div class="form-group">
+                        <label for="auth-name">姓名</label>
+                        <input type="text" id="auth-name" placeholder="请输入真实姓名">
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-email">邮箱 (选填)</label>
+                        <input type="email" id="auth-email" placeholder="请输入邮箱">
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="auth-submit" type="button">登 录</button>
+                <div class="auth-error" id="auth-error"></div>
+                <div class="auth-switch-link">
+                    <a id="auth-switch">没有账号？立即注册</a>
+                </div>
+            </form>
+            <button class="btn btn-sm" id="auth-modal-close" style="width:100%;margin-top:8px;">关闭</button>
+        </div>
     </div>
 
-    <!-- 主应用脚本 -->
+    <!-- ==================== 通用模态容器 ==================== -->
+    <div id="modal-container" class="modal-container" role="dialog" aria-hidden="true"></div>
+
+    <!-- ==================== 主应用脚本 ==================== -->
     <script type="module" src="src/app.js"></script>
 </body>
 </html>

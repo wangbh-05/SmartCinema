@@ -1,126 +1,283 @@
 /**
  * SmartCinema - 主应用入口
  * 初始化所有模块，管理应用状态和交互
+ *
+ * 加载顺序: Auth → SeatData → Cinema → Modules → UI Bindings
  */
 
-import { SeatData } from './core/SeatData.js';
+import { SeatData, HALL_CONFIG } from './core/SeatData.js';
 import { Cinema } from './core/Cinema.js';
 import { RecommendEngine } from './modules/RecommendEngine.js';
 import { ScoreEngine } from './modules/ScoreEngine.js';
-import { HeatmapEngine } from './modules/HeatmapEngine.js';
+
 import { OrderManager } from './modules/OrderManager.js';
+import { AuthManager } from './modules/AuthManager.js';
 import { Storage } from './utils/storage.js';
 import { AccessibilityManager } from './utils/accessibility.js';
 
 class SmartCinema {
     constructor() {
-        // 初始化数据和引擎
-        this.seatData = new SeatData(10, 20);
+        // 存储
         this.storage = new Storage();
+
+        // 认证（最先初始化）
+        this.auth = new AuthManager(this.storage);
+
+        // 座位数据（默认中厅）
+        this.seatData = new SeatData('medium');
+
+        // 引擎
         this.recommendEngine = new RecommendEngine(this.seatData);
         this.scoreEngine = new ScoreEngine(this.seatData);
         this.orderManager = new OrderManager(this.storage);
         this.a11yManager = new AccessibilityManager();
 
-        // 获取 DOM 元素
+        // DOM 引用
         this.cinemaCanvas = document.getElementById('cinema-canvas');
-        this.heatmapCanvas = document.getElementById('heatmap-canvas');
         this.recommendForm = document.getElementById('recommend-form');
-        this.clearButton = document.getElementById('clear-selection');
-        this.exportButton = document.getElementById('export-data');
-        this.importButton = document.getElementById('import-data');
+        this.hallSelector = document.getElementById('hall-selector');
+        this.loginBtn = document.getElementById('btn-login');
+        this.registerBtn = document.getElementById('btn-register');
+        this.logoutBtn = document.getElementById('btn-logout');
+        this.adminBtn = document.getElementById('btn-admin');
+        this.authModal = document.getElementById('auth-modal');
+        this.authForm = document.getElementById('auth-form');
+        this.authTitle = document.getElementById('auth-title');
+        this.authSubmit = document.getElementById('auth-submit');
+        this.authSwitch = document.getElementById('auth-switch');
+        this.authError = document.getElementById('auth-error');
 
-        // 初始化渲染引擎
+        // 渲染引擎
         this.cinema = new Cinema(this.cinemaCanvas, this.seatData);
-        this.heatmap = new HeatmapEngine(this.heatmapCanvas, this.seatData);
+
+        // 状态
+        this.authMode = 'login'; // 'login' | 'register'
 
         // 绑定事件
         this.bindEvents();
 
-        // 初始化
+        // 初始化UI
+        this.updateAuthUI();
         this.updateUI();
-        this.loadFromStorage();
-        
-        console.log('SmartCinema App initialized with accessibility support');
+        this.loadSettings();
+
+        console.log('SmartCinema initialized | Hall:', this.seatData.hallType,
+            '| Auth:', this.auth.isLoggedIn() ? this.auth.getCurrentUser().username : 'none');
     }
 
-    /**
-     * 绑定事件监听器
-     */
+    /* ================================================================
+     * 事件绑定
+     * ================================================================ */
+
     bindEvents() {
-        // Canvas 选择变更事件
+        // Canvas 座位选择变更
         this.cinemaCanvas.addEventListener('selectionChange', (e) => {
             this.onSelectionChange(e.detail);
         });
 
-        // 推荐表单提交
-        this.recommendForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleRecommend();
+        // 放映厅切换
+        if (this.hallSelector) {
+            this.hallSelector.addEventListener('change', (e) => {
+                this.switchHall(e.target.value);
+            });
+        }
+
+        // 推荐表单
+        if (this.recommendForm) {
+            this.recommendForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleRecommend();
+            });
+        }
+
+        // ★ 级联：人数变更 → 更新年龄段选择方式和观影类型选项
+        const groupSizeInput = document.getElementById('group-size');
+        if (groupSizeInput) {
+            groupSizeInput.addEventListener('change', () => this.updateRecommendForm());
+            groupSizeInput.addEventListener('input', () => this.updateRecommendForm());
+            this.updateRecommendForm(); // 初始化
+        }
+
+        // ★ 提交订单 → 跳转独立页面
+        document.getElementById('btn-submit-order')?.addEventListener('click', () => {
+            this.handleSubmitOrder();
+        });
+
+        // ★ 查看历史订单
+        document.getElementById('btn-view-orders')?.addEventListener('click', () => {
+            this.toggleOrdersMini();
         });
 
         // 清空选择
-        this.clearButton.addEventListener('click', () => {
+        document.getElementById('clear-selection')?.addEventListener('click', () => {
             this.handleClear();
         });
 
-        // 导出数据
-        this.exportButton.addEventListener('click', () => {
-            this.handleExport();
+        // 智能推荐按钮
+        document.getElementById('smart-recommend')?.addEventListener('click', () => {
+            document.getElementById('recommend-panel')?.scrollIntoView({ behavior: 'smooth' });
         });
 
-        // 导入数据
-        this.importButton.addEventListener('click', () => {
-            this.handleImport();
+        // 手动选座按钮
+        document.getElementById('manual-select')?.addEventListener('click', () => {
+            this.cinemaCanvas.scrollIntoView({ behavior: 'smooth' });
         });
 
-        // 设置变更
+        // 导出/导入
+        document.getElementById('export-data')?.addEventListener('click', () => this.handleExport());
+        document.getElementById('import-data')?.addEventListener('click', () => this.handleImport());
+
+        // 设置
         document.getElementById('theme-toggle')?.addEventListener('change', (e) => {
             this.toggleDarkMode(e.target.checked);
         });
-
         document.getElementById('accessibility-toggle')?.addEventListener('change', (e) => {
             this.toggleAccessibilityMode(e.target.checked);
         });
+        document.getElementById('voice-toggle')?.addEventListener('change', (e) => {
+            this.a11yManager.setVoiceEnabled(e.target.checked);
+        });
 
-        // 窗口调整
+        // 认证事件
+        this.loginBtn?.addEventListener('click', () => this.showAuthModal('login'));
+        this.registerBtn?.addEventListener('click', () => this.showAuthModal('register'));
+        this.logoutBtn?.addEventListener('click', () => this.handleLogout());
+        this.adminBtn?.addEventListener('click', () => this.showAdminPanel());
+
+        // 认证模态框
+        document.getElementById('auth-modal-close')?.addEventListener('click', () => this.hideAuthModal());
+        this.authSubmit?.addEventListener('click', () => this.handleAuthSubmit());
+        this.authSwitch?.addEventListener('click', () => {
+            this.showAuthModal(this.authMode === 'login' ? 'register' : 'login');
+        });
+
+        // 点击模态框外部关闭
+        this.authModal?.addEventListener('click', (e) => {
+            if (e.target === this.authModal) this.hideAuthModal();
+        });
+
+        // 窗口缩放
         window.addEventListener('resize', () => {
             this.cinema.resize();
-            this.heatmap.resize();
+        });
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                this.handleClear();
+            }
         });
     }
 
-    /**
-     * 选座变更处理
-     */
-    onSelectionChange(detail) {
-        // 更新统计信息
-        this.updateStats(detail.stats);
-        
-        // 更新评分
+    /* ================================================================
+     * 放映厅切换
+     * ================================================================ */
+
+    switchHall(hallType) {
+        if (!HALL_CONFIG[hallType]) return;
+
+        // 保存当前状态
+        this.saveToStorage();
+
+        // 切换数据层
+        this.seatData.switchHall(hallType);
+        this.recommendEngine = new RecommendEngine(this.seatData);
+        this.scoreEngine = new ScoreEngine(this.seatData);
+
+        // ★ 复用现有渲染实例，不创建新的 —— 避免多实例事件监听器叠加
+        this.cinema.sd = this.seatData;
+        this.cinema.relayout();
+        this.cinema.redraw();
+
+        // 更新UI
+        this.updateUI();
         this.updateScore();
-        
-        // 更新热度地图
-        this.heatmap.draw();
-        
-        // 保存到存储
-        this.storage.saveSeatSelection(this.seatData);
+
+        // 清空推荐结果
+        const resultDiv = document.getElementById('recommend-result');
+        if (resultDiv) { resultDiv.innerHTML = ''; resultDiv.classList.remove('active'); }
+
+        // 更新放映厅名称
+        const nameEl1 = document.getElementById('hall-name-display');
+        if (nameEl1) nameEl1.textContent = HALL_CONFIG[hallType].name;
+
+        this.a11yManager.announce(`已切换到${HALL_CONFIG[hallType].name}`);
     }
 
-    /**
-     * 处理智能推荐
-     */
-    handleRecommend() {
-        const ageGroup = document.getElementById('age-group').value;
-        const groupSize = parseInt(document.getElementById('group-size').value);
-        const movieType = document.getElementById('movie-type').value;
+    /* ================================================================
+     * 选座 & 推荐
+     * ================================================================ */
 
-        if (!ageGroup || !movieType) {
-            alert('请填写完整的推荐参数');
+    onSelectionChange(detail) {
+        this.updateStats(detail.stats);
+        this.updateScore();
+        this.updateSubmitButton();
+        this.saveToStorage();
+    }
+
+    /* ================================================================
+     * 级联推荐表单
+     * ================================================================ */
+
+    /** 根据人数动态更新年龄段选择方式和观影类型选项 */
+    updateRecommendForm() {
+        const groupSize = parseInt(document.getElementById('group-size')?.value) || 1;
+        const multiAge = groupSize >= 2;
+
+        // 切换年龄段选择方式
+        const selContainer = document.getElementById('age-select-container');
+        const chkContainer = document.getElementById('age-check-container');
+        if (selContainer) selContainer.style.display = multiAge ? 'none' : 'block';
+        if (chkContainer) chkContainer.style.display = multiAge ? 'block' : 'none';
+
+        // 动态更新观影类型
+        const movieSelect = document.getElementById('movie-type');
+        if (!movieSelect) return;
+
+        let options = [{v:'',t:'-- 选择类型 --'}];
+        if (groupSize === 1) {
+            options.push({v:'solo', t:'🎬 个人观影'});
+        } else if (groupSize === 2) {
+            options.push({v:'couple', t:'💑 情侣'});
+            options.push({v:'friends', t:'👫 朋友'});
+            options.push({v:'parent_child', t:'👨‍👧 亲子'});
+        } else if (groupSize >= 3 && groupSize <= 5) {
+            options.push({v:'family', t:'👨‍👩‍👧 家庭'});
+            options.push({v:'friends', t:'👫 朋友'});
+        } else {
+            options.push({v:'group', t:'👥 团体'});
+            options.push({v:'friends', t:'👫 朋友'});
+        }
+
+        movieSelect.innerHTML = options.map(o =>
+            `<option value="${o.v}">${o.t}</option>`
+        ).join('');
+    }
+
+    /** 获取当前选择的年龄段（支持多选） */
+    _getSelectedAges() {
+        const multiAge = parseInt(document.getElementById('group-size')?.value) >= 2;
+        if (multiAge) {
+            const checks = document.querySelectorAll('.age-check:checked');
+            if (checks.length === 0) return '';
+            return Array.from(checks).map(c => c.value).join(',');
+        }
+        return document.getElementById('age-group')?.value || '';
+    }
+
+    handleRecommend() {
+        if (!this.requireAuth()) return;
+
+        const ageGroup = this._getSelectedAges();
+        const groupSize = parseInt(document.getElementById('group-size')?.value);
+        const movieType = document.getElementById('movie-type')?.value;
+
+        if (!ageGroup || !movieType || isNaN(groupSize) || groupSize < 1) {
+            alert('请填写完整的推荐参数（人数→年龄段→观影类型）');
             return;
         }
 
-        // 执行推荐
         const result = this.recommendEngine.recommend(ageGroup, groupSize, movieType);
 
         if (!result.success) {
@@ -128,30 +285,29 @@ class SmartCinema {
             return;
         }
 
-        // 清空旧推荐
-        this.seatData.clearRecommended();
-
         // 高亮推荐座位
+        this.seatData.clearRecommended();
         this.seatData.setRecommended(result.seats);
 
         // 显示推荐结果
         const resultDiv = document.getElementById('recommend-result');
-        resultDiv.innerHTML = `
-            <h4>🎯 推荐结果</h4>
-            <p>${result.reason.replace(/\n/g, '<br>')}</p>
-            <button class="btn btn-primary" onclick="app.applyRecommendation()">
-                ✓ 应用推荐
-            </button>
-        `;
+        if (resultDiv) {
+            resultDiv.innerHTML = `
+                <h4>🎯 推荐结果</h4>
+                <p>${result.reason.replace(/\n/g, '<br>')}</p>
+                <button class="btn btn-primary" id="btn-apply-recommend">
+                    ✓ 应用推荐
+                </button>
+            `;
+            resultDiv.classList.add('active');
+            document.getElementById('btn-apply-recommend')?.addEventListener('click', () => {
+                this.applyRecommendation();
+            });
+        }
 
-        // 重绘
         this.cinema.redraw();
-        this.heatmap.draw();
     }
 
-    /**
-     * 应用推荐座位
-     */
     applyRecommendation() {
         this.seatData.clearSelection();
         const recommended = this.seatData.getRecommendedSeats();
@@ -160,283 +316,422 @@ class SmartCinema {
         });
         this.cinema.redraw();
         this.updateScore();
-        this.heatmap.draw();
     }
 
-    /**
-     * 更新观影体验评分
-     */
+    handleClear() {
+        this.seatData.clearSelection();
+        this.seatData.clearRecommended();
+        this.cinema.redraw();
+        this.updateUI();
+        this.updateScore();
+    }
+
+    /* ================================================================
+     * 评分
+     * ================================================================ */
+
     updateScore() {
         const result = this.scoreEngine.calculateScore();
         const scoreDiv = document.getElementById('score-details');
+        if (!scoreDiv) return;
 
         if (result.totalScore === 0) {
-            scoreDiv.innerHTML = '<p>请先选择座位，系统将为您计算观影体验评分</p>';
+            scoreDiv.innerHTML = '<p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>';
             return;
         }
 
+        const gradeColor = result.grade === 'excellent' ? '#FFD700' : result.grade === 'good' ? '#58A6FF' : '#8B949E';
+
         let html = `
-            <div class="score-container">
-                <div class="score-total">
-                    <span class="score-number">${result.totalScore}</span>
-                    <span class="score-label">/ 100</span>
-                </div>
-                <div class="score-breakdown">
-        `;
+            <div class="score-total-row" style="text-align:center;padding:12px 0;border-bottom:1px solid #30363D;margin-bottom:12px;">
+                <span style="font-size:2em;font-weight:700;color:${gradeColor};">${result.totalScore}</span>
+                <span style="font-size:0.9em;color:#8B949E;"> / 100</span>
+                <span style="display:inline-block;margin-left:12px;font-size:1.3em;font-weight:700;color:${gradeColor};">${result.gradeText}</span>
+            </div>
+            <div class="score-detail-rows" style="font-size:0.88em;line-height:2;">`;
 
-        result.details.forEach(detail => {
+        result.details.forEach(d => {
             html += `
-                <div class="score-item">
-                    <span class="emoji">${detail.emoji}</span>
-                    <div class="score-content">
-                        <h5>${detail.category}</h5>
-                        <p>${detail.description}</p>
-                        <div class="score-bar">
-                            <div class="score-fill" style="width: ${(detail.score / detail.maxScore) * 100}%"></div>
-                        </div>
-                        <span class="score-text">${detail.score} / ${detail.maxScore}</span>
-                    </div>
-                </div>
-            `;
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+                    <span>${d.emoji} ${d.category}</span>
+                    <span style="display:flex;align-items:center;gap:8px;">
+                        <span style="color:#8B949E;font-size:0.85em;">${d.description}</span>
+                        <span style="font-weight:600;color:#C9D1D9;">${d.score} / ${d.maxScore}</span>
+                    </span>
+                </div>`;
         });
 
-        html += '</div><div class="score-recommendations">';
+        html += '</div>';
 
-        result.recommendations.forEach(rec => {
-            html += `<p class="recommendation">${rec.message}</p>`;
-        });
-
-        html += '</div></div>';
+        // 改进建议
+        if (result.recommendations && result.recommendations.length > 0) {
+            html += '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #30363D;">';
+            result.recommendations.forEach(r => {
+                html += `<p style="font-size:0.82em;color:#8B949E;margin:4px 0;">${r.message}</p>`;
+            });
+            html += '</div>';
+        }
 
         scoreDiv.innerHTML = html;
     }
 
-    /**
-     * 更新统计信息
-     */
-    updateStats(stats) {
-        document.getElementById('selected-count').textContent = stats.selected;
-        document.getElementById('available-count').textContent = stats.available;
-        document.getElementById('sold-count').textContent = stats.occupied;
+    /* ================================================================
+     * 订单：提交到独立确认页
+     * ================================================================ */
+
+    /** 更新提交订单按钮状态和摘要 */
+    updateSubmitButton() {
+        const btn = document.getElementById('btn-submit-order');
+        const summary = document.getElementById('order-summary-mini');
+        if (!btn || !summary) return;
+
+        const selected = this.seatData.getSelectedSeats();
+        const loggedIn = this.auth.isLoggedIn();
+
+        if (selected.length === 0) {
+            summary.textContent = '暂未选择座位';
+            btn.disabled = true;
+            btn.textContent = '📋 提交订单';
+        } else {
+            const total = selected.reduce((s, seat) => s + seat.price, 0);
+            summary.innerHTML = `已选 <b>${selected.length}</b> 座 · 合计 <b style="color:#FDD835;">¥${total}</b>`;
+            btn.disabled = !loggedIn;
+            btn.textContent = loggedIn ? `📋 提交订单 (¥${total})` : '📋 请先登录';
+        }
     }
 
-    /**
-     * 更新 UI
-     */
+    /** 提交订单 → 跳转独立确认页 */
+    handleSubmitOrder() {
+        if (!this.requireAuth()) return;
+
+        const selected = this.seatData.getSelectedSeats();
+        if (selected.length === 0) {
+            alert('请先选择座位');
+            return;
+        }
+
+        const user = this.auth.getCurrentUser();
+        const totalPrice = selected.reduce((s, seat) => s + seat.price, 0);
+        const avgPrice = Math.round(totalPrice / selected.length);
+
+        // 把订单摘要写入 sessionStorage 供 order.html 读取
+        const summary = {
+            hallType: this.seatData.hallType,
+            hallName: this.seatData.getHallConfig().name,
+            hallDesc: this.seatData.getHallConfig().desc,
+            seats: selected.map(s => ({ row: s.row, col: s.col, price: s.price })),
+            totalPrice,
+            avgPrice,
+            occupiedSeats: this.seatData.getAllOccupiedKeys(),
+            userName: user.name,
+            userEmail: user.email || '',
+            timestamp: Date.now(),
+        };
+        sessionStorage.setItem('smartcinema_order_summary', JSON.stringify(summary));
+        window.location.href = 'order.html';
+    }
+
+    /** 迷你订单历史（侧边栏） */
+    toggleOrdersMini() {
+        const container = document.getElementById('orders-mini-list');
+        if (!container) return;
+
+        if (container.style.display === 'none' || !container.style.display) {
+            container.style.display = 'block';
+            this._renderOrdersMini(container);
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    _renderOrdersMini(container) {
+        const orders = this.orderManager.getOrders({ sort: 'newest' });
+        const stats = this.orderManager.getStatistics();
+
+        if (orders.length === 0) {
+            container.innerHTML = '<p style="text-align:center;color:var(--text-secondary);padding:12px;">暂无订单</p>';
+            return;
+        }
+
+        let html = `<div style="font-size:0.8em;color:var(--text-secondary);margin-bottom:8px;">
+            共${stats.totalOrders}单 · 已确认${stats.confirmedOrders} · 收入¥${stats.totalRevenue}
+        </div>`;
+
+        orders.slice(0, 5).forEach(order => {
+            const seats = order.seats.map(s => `${s.row+1}排${s.col+1}座`).join(' ');
+            const statusText = this.orderManager.getStatusText(order.status);
+            html += `<div class="order-card status-${order.status}" style="font-size:0.78em;padding:8px;">
+                <div class="order-header-row"><span class="order-id">${order.id}</span>
+                <span class="order-status-badge">${statusText}</span></div>
+                <div>${seats} | ¥${order.totalPrice}</div>
+            </div>`;
+        });
+
+        if (orders.length > 5) {
+            html += `<p style="text-align:center;font-size:0.8em;color:var(--text-secondary);">
+                还有 ${orders.length - 5} 单...</p>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    /* ================================================================
+     * 认证
+     * ================================================================ */
+
+    /** 需要登录才能继续的操作 */
+    requireAuth() {
+        if (!this.auth.isLoggedIn()) {
+            alert('请先登录后再操作');
+            this.showAuthModal('login');
+            return false;
+        }
+        return true;
+    }
+
+    showAuthModal(mode) {
+        this.authMode = mode;
+        if (this.authTitle) {
+            this.authTitle.textContent = mode === 'login' ? '用户登录' : '注册会员';
+        }
+        if (this.authSubmit) {
+            this.authSubmit.textContent = mode === 'login' ? '登 录' : '注 册';
+        }
+        if (this.authSwitch) {
+            this.authSwitch.textContent = mode === 'login' ? '没有账号？立即注册' : '已有账号？立即登录';
+        }
+        if (this.authError) {
+            this.authError.textContent = '';
+        }
+
+        // 注册时显示额外字段
+        const extraFields = document.getElementById('register-extra-fields');
+        if (extraFields) {
+            extraFields.style.display = mode === 'register' ? 'block' : 'none';
+        }
+
+        if (this.authModal) {
+            this.authModal.classList.add('active');
+            this.authModal.setAttribute('aria-hidden', 'false');
+        }
+    }
+
+    hideAuthModal() {
+        if (this.authModal) {
+            this.authModal.classList.remove('active');
+            this.authModal.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    handleAuthSubmit() {
+        const username = document.getElementById('auth-username')?.value?.trim();
+        const password = document.getElementById('auth-password')?.value?.trim();
+
+        if (!username || !password) {
+            this.showAuthError('请填写用户名和密码');
+            return;
+        }
+
+        if (this.authMode === 'register') {
+            const name = document.getElementById('auth-name')?.value?.trim();
+            const email = document.getElementById('auth-email')?.value?.trim();
+            const result = this.auth.register({ username, password, name, email });
+            if (result.success) {
+                // 注册成功后自动登录
+                this.auth.login(username, password);
+                this.hideAuthModal();
+                this.updateAuthUI();
+                alert('注册成功！您已获得会员资格');
+                this.a11yManager.announce('注册成功，欢迎' + name);
+            } else {
+                this.showAuthError(result.message);
+            }
+        } else {
+            const result = this.auth.login(username, password);
+            if (result.success) {
+                this.hideAuthModal();
+                this.updateAuthUI();
+                this.a11yManager.announce('登录成功，欢迎' + result.user.name);
+            } else {
+                this.showAuthError(result.message);
+            }
+        }
+    }
+
+    showAuthError(msg) {
+        if (this.authError) {
+            this.authError.textContent = msg;
+            this.authError.style.display = 'block';
+        }
+    }
+
+    handleLogout() {
+        if (confirm('确定要退出登录吗？')) {
+            this.auth.logout();
+            this.updateAuthUI();
+            this.a11yManager.announce('已退出登录');
+        }
+    }
+
+    updateAuthUI() {
+        const loggedIn = this.auth.isLoggedIn();
+        const isAdmin = this.auth.isAdmin();
+        const user = this.auth.getCurrentUser();
+
+        // 按钮显示/隐藏
+        this._toggleEl(this.loginBtn, !loggedIn);
+        this._toggleEl(this.registerBtn, !loggedIn);
+        this._toggleEl(this.logoutBtn, loggedIn);
+        this._toggleEl(this.adminBtn, isAdmin);
+
+        // 用户信息显示
+        const userInfo = document.getElementById('user-info');
+        if (userInfo) {
+            if (loggedIn && user) {
+                userInfo.innerHTML = `<span>👤 ${user.name}</span>
+                    <span class="badge badge-${isAdmin ? 'primary' : 'success'}">${isAdmin ? '管理员' : '会员'}</span>`;
+                userInfo.style.display = 'flex';
+            } else {
+                userInfo.style.display = 'none';
+            }
+        }
+
+        // 更新提交订单按钮
+        this.updateSubmitButton();
+    }
+
+    /** 管理员后台面板 */
+    showAdminPanel() {
+        if (!this.auth.isAdmin()) {
+            alert('无管理员权限');
+            return;
+        }
+
+        const users = this.auth.getAllUsers();
+        const orderStats = this.orderManager.getStatistics();
+
+        let userListHTML = users.map(u =>
+            `<tr>
+                <td>${u.username}</td>
+                <td>${u.name}</td>
+                <td>${u.role}</td>
+                <td>${u.email || '-'}</td>
+                <td>${new Date(u.createdAt).toLocaleDateString('zh-CN')}</td>
+            </tr>`
+        ).join('');
+
+        const panelHTML = `
+            <div class="admin-panel">
+                <h2>🔧 管理员后台</h2>
+                <div class="admin-section">
+                    <h3>订单统计</h3>
+                    <p>总订单: ${orderStats.totalOrders} | 已确认: ${orderStats.confirmedOrders}
+                       | 总收入: ¥${orderStats.totalRevenue}</p>
+                </div>
+                <div class="admin-section">
+                    <h3>用户管理 (${users.length}人)</h3>
+                    <table class="admin-table">
+                        <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>邮箱</th><th>注册时间</th></tr></thead>
+                        <tbody>${userListHTML}</tbody>
+                    </table>
+                </div>
+            </div>`;
+
+        const modal = document.getElementById('modal-container');
+        if (modal) {
+            modal.innerHTML = `
+                <div class="modal-content admin-modal">
+                    <div class="modal-header">
+                        <h2>🔧 管理员后台</h2>
+                        <button class="modal-close" id="admin-modal-close">✕</button>
+                    </div>
+                    <div class="modal-body">${panelHTML}</div>
+                </div>`;
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('admin-modal-close')?.addEventListener('click', () => {
+                modal.classList.remove('active');
+                modal.setAttribute('aria-hidden', 'true');
+            });
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                    modal.setAttribute('aria-hidden', 'true');
+                }
+            });
+        }
+    }
+
+    /* ================================================================
+     * UI 更新
+     * ================================================================ */
+
     updateUI() {
         const stats = this.seatData.getStats();
         this.updateStats(stats);
+        this.updateSubmitButton();
     }
 
-    /**
-     * 清空选择
-     */
-    handleClear() {
-        if (confirm('确定要清空所有选择吗？')) {
-            this.seatData.clearSelection();
-            this.seatData.clearRecommended();
-            this.cinema.redraw();
-            this.updateUI();
-            this.updateScore();
-            this.heatmap.draw();
+    updateStats(stats) {
+        this._setText('selected-count', stats.selected);
+        this._setText('available-count', stats.available);
+        this._setText('sold-count', stats.occupied);
+
+        // 更新放映厅名称
+        const hallName = document.getElementById('hall-name-display');
+        if (hallName) {
+            hallName.textContent = HALL_CONFIG[this.seatData.hallType].name;
         }
     }
 
-    /**
-     * 切换深色模式
-     */
+    /* ================================================================
+     * 设置 & 数据
+     * ================================================================ */
+
     toggleDarkMode(enabled) {
-        if (enabled) {
-            document.body.classList.add('dark-mode');
-        } else {
-            document.body.classList.remove('dark-mode');
-        }
+        document.body.classList.toggle('dark-mode', enabled);
         const settings = this.storage.loadSettings();
         settings.darkMode = enabled;
         this.storage.saveSettings(settings);
     }
 
-    /**
-     * 切换无障碍模式
-     */
     toggleAccessibilityMode(enabled) {
-        if (enabled) {
-            document.body.classList.add('accessibility-mode');
-            this.a11yManager.speak('无障碍模式已启用');
-        } else {
-            document.body.classList.remove('accessibility-mode');
-        }
+        document.body.classList.toggle('accessibility-mode', enabled);
         const settings = this.storage.loadSettings();
         settings.accessibilityMode = enabled;
         this.storage.saveSettings(settings);
+        if (enabled) this.a11yManager.speak('无障碍模式已启用');
     }
 
-    /**
-     * 创建订单
-     */
-    createOrder(userInfo = {}) {
-        const selected = this.seatData.getSelectedSeats();
-        
-        if (selected.length === 0) {
-            this.a11yManager.announce('请先选择座位');
-            alert('请先选择座位');
-            return;
+    loadSettings() {
+        const settings = this.storage.loadSettings();
+        if (settings.darkMode) {
+            const cb = document.getElementById('theme-toggle');
+            if (cb) cb.checked = true;
+            this.toggleDarkMode(true);
         }
-
-        const result = this.orderManager.createOrder(selected, userInfo);
-        
-        if (result.success) {
-            const receipt = this.orderManager.generateReceipt(result.order.id);
-            console.log('订单已创建:', result.order);
-            this.a11yManager.announce(`订单已创建，订单号：${result.order.id}`);
-            this.updateOrdersList();
-            
-            // 显示收据
-            alert('订单已创建\n\n' + receipt);
-            
-            // 清空选择
-            this.handleClear();
-        } else {
-            this.a11yManager.announce(result.message);
-            alert('订单创建失败: ' + result.message);
+        if (settings.accessibilityMode) {
+            const cb = document.getElementById('accessibility-toggle');
+            if (cb) cb.checked = true;
+            this.toggleAccessibilityMode(true);
         }
     }
 
-    /**
-     * 更新订单列表显示
-     */
-    updateOrdersList() {
-        const ordersList = document.getElementById('orders-list');
-        if (!ordersList) return;
-
-        const orders = this.orderManager.getOrders({ sort: 'newest' });
-        const stats = this.orderManager.getStatistics();
-
-        if (orders.length === 0) {
-            ordersList.innerHTML = '<p>暂无订单</p>';
-            return;
-        }
-
-        let html = `
-            <div class="orders-stats">
-                <div class="stat-box">
-                    <span class="label">总订单数:</span>
-                    <span class="value">${stats.totalOrders}</span>
-                </div>
-                <div class="stat-box">
-                    <span class="label">已确认:</span>
-                    <span class="value">${stats.confirmedOrders}</span>
-                </div>
-                <div class="stat-box">
-                    <span class="label">待确认:</span>
-                    <span class="value">${stats.pendingOrders}</span>
-                </div>
-                <div class="stat-box">
-                    <span class="label">总收入:</span>
-                    <span class="value">¥${stats.totalRevenue}</span>
-                </div>
-            </div>
-            <div class="orders-list-container">
-        `;
-
-        orders.forEach(order => {
-            const seats = order.seats.map(s => 
-                `${String.fromCharCode(65 + s.row)}${s.col + 1}`
-            ).join(', ');
-
-            const statusClass = `status-${order.status}`;
-            const statusText = this.orderManager.getStatusText(order.status);
-
-            html += `
-                <div class="order-card ${statusClass}">
-                    <div class="order-header">
-                        <h4>${order.id}</h4>
-                        <span class="order-status">${statusText}</span>
-                    </div>
-                    <div class="order-body">
-                        <p><strong>用户:</strong> ${order.userInfo.name}</p>
-                        <p><strong>座位:</strong> ${seats}</p>
-                        <p><strong>数量:</strong> ${order.seatCount} 张</p>
-                        <p><strong>总价:</strong> <span class="price">¥${order.totalPrice}</span></p>
-                        <p><strong>时间:</strong> ${new Date(order.timestamp).toLocaleString('zh-CN')}</p>
-                    </div>
-                    <div class="order-actions">
-                        ${order.status === 'pending' ? `
-                            <button class="btn btn-primary btn-sm" onclick="app.confirmOrder('${order.id}')">
-                                确认
-                            </button>
-                        ` : ''}
-                        <button class="btn btn-secondary btn-sm" onclick="app.showOrderReceipt('${order.id}')">
-                            收据
-                        </button>
-                        ${order.status !== 'cancelled' ? `
-                            <button class="btn btn-danger btn-sm" onclick="app.cancelOrder('${order.id}')">
-                                取消
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        });
-
-        html += '</div>';
-        ordersList.innerHTML = html;
+    saveToStorage() {
+        this.storage.saveSeatSelection(this.seatData);
     }
 
-    /**
-     * 确认订单
-     */
-    confirmOrder(orderId) {
-        const result = this.orderManager.confirmOrder(orderId);
-        if (result.success) {
-            this.a11yManager.announce('订单已确认');
-            this.updateOrdersList();
-        } else {
-            alert('确认失败: ' + result.message);
-        }
-    }
-
-    /**
-     * 取消订单
-     */
-    cancelOrder(orderId) {
-        if (confirm('确定要取消此订单吗？')) {
-            const result = this.orderManager.cancelOrder(orderId, '用户主动取消');
-            if (result.success) {
-                this.a11yManager.announce('订单已取消');
-                this.updateOrdersList();
-            }
-        }
-    }
-
-    /**
-     * 显示订单收据
-     */
-    showOrderReceipt(orderId) {
-        const receipt = this.orderManager.generateReceipt(orderId);
-        if (receipt) {
-            alert(receipt);
-        }
-    }
-
-    /**
-     * 导出数据
-     */
     handleExport() {
         const data = this.storage.exportData();
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `smartcinema_export_${new Date().getTime()}.json`;
+        a.download = `smartcinema_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        alert('✓ 数据已导出');
     }
 
-    /**
-     * 导入数据
-     */
     handleImport() {
         const input = document.createElement('input');
         input.type = 'file';
@@ -444,14 +739,13 @@ class SmartCinema {
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = (event) => {
-                if (this.storage.importData(event.target.result)) {
-                    alert('✓ 数据已导入');
+            reader.onload = (ev) => {
+                if (this.storage.importData(ev.target.result)) {
+                    alert('✓ 数据已导入，即将刷新');
                     location.reload();
                 } else {
-                    alert('✗ 导入失败，请检查文件格式');
+                    alert('✗ 导入失败');
                 }
             };
             reader.readAsText(file);
@@ -459,30 +753,28 @@ class SmartCinema {
         input.click();
     }
 
-    /**
-     * 从存储加载数据
-     */
-    loadFromStorage() {
-        const settings = this.storage.loadSettings();
-        if (settings.darkMode) {
-            document.getElementById('theme-toggle').checked = true;
-            this.toggleDarkMode(true);
-        }
-        if (settings.accessibilityMode) {
-            document.getElementById('accessibility-toggle').checked = true;
-            this.toggleAccessibilityMode(true);
-        }
+    /* ================================================================
+     * 工具
+     * ================================================================ */
+
+    _setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+
+    _toggleEl(el, show) {
+        if (el) el.style.display = show ? '' : 'none';
     }
 }
 
-// 全局应用实例
+// 全局实例
 let app;
 
-// DOM 加载完成时初始化应用
 document.addEventListener('DOMContentLoaded', () => {
     app = new SmartCinema();
-    console.log('SmartCinema 应用已初始化');
+    // 暴露到全局以便 HTML onclick 调用
+    window.app = app;
+    console.log('🎬 SmartCinema ready');
 });
 
-// 导出应用实例供外部访问
 export default SmartCinema;

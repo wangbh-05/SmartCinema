@@ -10,6 +10,7 @@ export class ScoreEngine {
 
     /**
      * 计算选择座位的综合体验评分
+     * 输出三档：极佳(≥80) / 优秀(60-79) / 一般(<60)
      */
     calculateScore() {
         const selected = this.seatData.getSelectedSeats();
@@ -17,6 +18,8 @@ export class ScoreEngine {
         if (selected.length === 0) {
             return {
                 totalScore: 0,
+                grade: '',
+                gradeText: '',
                 breakdown: {},
                 message: '请先选择座位'
             };
@@ -30,20 +33,33 @@ export class ScoreEngine {
             overall: 0
         };
 
-        // 计算总分（权重平均）
+        // 计算总分（权重平均）→ 映射到 0-100
+        // 权重参考真实影院评价体系：视角最重要，距离次之，舒适度与价格辅助
         scores.overall = (
-            scores.vision * 0.3 +
-            scores.comfort * 0.25 +
-            scores.screenDistance * 0.25 +
-            scores.price * 0.2
+            scores.vision * 0.35 +
+            scores.screenDistance * 0.30 +
+            scores.comfort * 0.20 +
+            scores.price * 0.15
         );
 
+        const totalScore = Math.round(scores.overall * 10);
+        const grade = this._scoreToGrade(totalScore);
+
         return {
-            totalScore: Math.round(scores.overall * 100),
+            totalScore,
+            grade: grade.key,
+            gradeText: grade.text,
             breakdown: scores,
             details: this.generateDetails(selected, scores),
-            recommendations: this.generateRecommendations(selected, scores)
+            recommendations: this.generateRecommendations(selected, scores, grade)
         };
+    }
+
+    /** 将百分制评分映射到三档 */
+    _scoreToGrade(score) {
+        if (score >= 80) return { key: 'excellent', text: '极佳' };
+        if (score >= 60) return { key: 'good', text: '优秀' };
+        return { key: 'average', text: '一般' };
     }
 
     /**
@@ -218,7 +234,7 @@ export class ScoreEngine {
     /**
      * 生成改进建议
      */
-    generateRecommendations(seats, scores) {
+    generateRecommendations(seats, scores, grade) {
         const recommendations = [];
 
         if (scores.vision < 6) {
@@ -242,15 +258,20 @@ export class ScoreEngine {
             });
         }
 
-        if (scores.overall < 5) {
+        if (grade.key === 'excellent') {
             recommendations.push({
                 type: 'overall',
-                message: '💡 综合体验评分较低，建议重新选择座位'
+                message: '✨ 极佳！这是观影体验最好的座位之一，强烈推荐！'
             });
-        } else if (scores.overall >= 7) {
+        } else if (grade.key === 'good') {
             recommendations.push({
                 type: 'overall',
-                message: '✨ 很好的选择！这是一个体验不错的座位'
+                message: '👍 优秀！观影体验不错的选择'
+            });
+        } else if (grade.key === 'average') {
+            recommendations.push({
+                type: 'overall',
+                message: '💡 体验一般，建议试试中间区域的座位以获得更好体验'
             });
         }
 
