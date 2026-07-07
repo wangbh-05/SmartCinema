@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="智能影院选座系统 - 基于原生 Web 技术栈实现">
+    <title>SmartCinema - 智能影院选座系统</title>
+    
+    <!-- 核心样式 -->
+    <link rel="stylesheet" href="public/styles/reset.css">
+    <link rel="stylesheet" href="public/styles/variables.css">
+    <link rel="stylesheet" href="public/styles/layout.css">
+    <link rel="stylesheet" href="public/styles/components.css">
+    <link rel="stylesheet" href="public/styles/responsive.css">
+    <link rel="stylesheet" href="public/styles/accessibility.css">
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- 顶部导航 -->
+        <header class="header" role="banner">
+            <div class="header-content">
+                <h1 class="logo">🎬 SmartCinema</h1>
+                <nav class="nav-main" role="navigation" aria-label="主导航">
+                    <ul>
+                        <li><a href="#seat-selection" class="nav-link">选座</a></li>
+                        <li><a href="#recommendations" class="nav-link">推荐</a></li>
+                        <li><a href="#orders" class="nav-link">订单</a></li>
+                        <li><a href="#settings" class="nav-link">设置</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="main-content" role="main">
+            <!-- 选座区域 -->
+            <section id="seat-selection" class="section seat-selection" aria-label="电影院选座区">
+                <div class="container">
+                    <!-- 影院顶部信息 -->
+                    <div class="cinema-info">
+                        <h2 class="cinema-title">影院布局</h2>
+                        <div class="cinema-controls">
+                            <button class="btn btn-primary" id="smart-recommend" aria-label="智能推荐">
+                                🤖 智能推荐
+                            </button>
+                            <button class="btn btn-secondary" id="manual-select" aria-label="手动选座">
+                                ✋ 手动选座
+                            </button>
+                            <button class="btn btn-secondary" id="clear-selection" aria-label="清空选择">
+                                🗑️ 清空
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Canvas 影院布局 -->
+                    <div class="canvas-container">
+                        <canvas 
+                            id="cinema-canvas" 
+                            width="1000" 
+                            height="700"
+                            class="cinema-canvas"
+                            role="img"
+                            aria-label="电影院座位布局 Canvas">
+                        </canvas>
+                        <div class="canvas-info">
+                            <p class="hint">💡 提示：点击座位选择，Ctrl+点击多选，拖拽可快速选择区域</p>
+                        </div>
+                    </div>
+
+                    <!-- 推荐参数面板 -->
+                    <section id="recommend-panel" class="recommend-panel" aria-label="智能推荐参数面板">
+                        <h3>推荐参数</h3>
+                        <form class="recommend-form" id="recommend-form">
+                            <div class="form-group">
+                                <label for="age-group">年龄段：</label>
+                                <select id="age-group" aria-label="选择年龄段">
+                                    <option value="">-- 选择年龄段 --</option>
+                                    <option value="youth">青少年 (6-17)</option>
+                                    <option value="adult">成人 (18-50)</option>
+                                    <option value="senior">老年人 (50+)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="group-size">人数：</label>
+                                <input type="number" id="group-size" min="1" max="20" value="1" aria-label="输入观影人数">
+                            </div>
+                            <div class="form-group">
+                                <label for="movie-type">观影类型：</label>
+                                <select id="movie-type" aria-label="选择观影类型">
+                                    <option value="">-- 选择类型 --</option>
+                                    <option value="couple">情侣（2人）</option>
+                                    <option value="family">家庭（3-5人）</option>
+                                    <option value="group">团体（6+人）</option>
+                                    <option value="solo">个人观影</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary" aria-label="执行推荐">
+                                执行推荐
+                            </button>
+                        </form>
+                        <div id="recommend-result" class="recommend-result" aria-live="polite">
+                            <!-- 推荐结果展示 -->
+                        </div>
+                    </section>
+
+                    <!-- 统计信息 -->
+                    <div class="stats-panel" aria-label="座位统计信息">
+                        <div class="stat-item">
+                            <span class="stat-label">已选：</span>
+                            <span class="stat-value" id="selected-count">0</span> 个
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">可用：</span>
+                            <span class="stat-value" id="available-count">0</span> 个
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">已售：</span>
+                            <span class="stat-value" id="sold-count">0</span> 个
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 观影体验评分区 -->
+            <section id="experience-score" class="section experience-score" aria-label="观影体验评分">
+                <div class="container">
+                    <h2>观影体验评分</h2>
+                    <div id="score-details" class="score-details" aria-live="polite">
+                        <!-- 评分详情展示 -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 热度地图区 -->
+            <section id="heatmap" class="section heatmap" aria-label="影院热度分布地图">
+                <div class="container">
+                    <h2>影院热度地图</h2>
+                    <div class="heatmap-container">
+                        <canvas 
+                            id="heatmap-canvas" 
+                            width="800" 
+                            height="400"
+                            class="heatmap-canvas"
+                            role="img"
+                            aria-label="影院热度分布热力图">
+                        </canvas>
+                        <div class="heatmap-legend">
+                            <span class="legend-item">
+                                <span class="legend-box" style="background: #00AA00;"></span> 冷
+                            </span>
+                            <span class="legend-item">
+                                <span class="legend-box" style="background: #FFFF00;"></span> 温
+                            </span>
+                            <span class="legend-item">
+                                <span class="legend-box" style="background: #FF0000;"></span> 热
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 订单中心 -->
+            <section id="orders" class="section orders-center" aria-label="订单中心">
+                <div class="container">
+                    <h2>订单中心</h2>
+                    <div class="orders-list" id="orders-list" aria-label="订单列表">
+                        <!-- 订单项展示 -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 设置 -->
+            <section id="settings" class="section settings" aria-label="系统设置">
+                <div class="container">
+                    <h2>设置</h2>
+                    <div class="settings-panel">
+                        <div class="setting-item">
+                            <label for="theme-toggle">深色模式：</label>
+                            <input type="checkbox" id="theme-toggle" aria-label="切换深色模式">
+                        </div>
+                        <div class="setting-item">
+                            <label for="accessibility-toggle">无障碍模式：</label>
+                            <input type="checkbox" id="accessibility-toggle" aria-label="启用无障碍模式">
+                        </div>
+                        <div class="setting-item">
+                            <label for="voice-toggle">语音提示：</label>
+                            <input type="checkbox" id="voice-toggle" aria-label="启用语音提示">
+                        </div>
+                        <button class="btn btn-secondary" id="export-data" aria-label="导出数据">
+                            💾 导出数据
+                        </button>
+                        <button class="btn btn-secondary" id="import-data" aria-label="导入数据">
+                            📂 导入数据
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 底部 -->
+        <footer class="footer" role="contentinfo">
+            <p>&copy; 2024 SmartCinema. 原生 Web 技术实训项目</p>
+        </footer>
+    </div>
+
+    <!-- 模态窗口 -->
+    <div id="modal-container" class="modal-container" role="dialog" aria-hidden="true">
+        <!-- 动态模态内容 -->
+    </div>
+
+    <!-- 主应用脚本 -->
+    <script type="module" src="src/app.js"></script>
+</body>
+</html>

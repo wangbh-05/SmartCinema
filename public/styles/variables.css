@@ -1,0 +1,100 @@
+/* ===== CSS 变量定义 ===== */
+
+:root {
+    /* 色彩系统 */
+    --color-primary: #FF6B35;
+    --color-primary-dark: #E55A2B;
+    --color-secondary: #004E89;
+    --color-secondary-light: #1E88E5;
+    --color-success: #00AA00;
+    --color-warning: #FFBB00;
+    --color-danger: #FF4444;
+    --color-error: #D32F2F;
+    
+    /* 中性色 */
+    --color-white: #FFFFFF;
+    --color-black: #000000;
+    --color-gray-50: #F9FAFB;
+    --color-gray-100: #F3F4F6;
+    --color-gray-200: #E5E7EB;
+    --color-gray-300: #D1D5DB;
+    --color-gray-400: #9CA3AF;
+    --color-gray-500: #6B7280;
+    --color-gray-600: #4B5563;
+    --color-gray-700: #374151;
+    --color-gray-800: #1F2937;
+    --color-gray-900: #111827;
+    
+    /* 座位颜色 */
+    --seat-available: #E0F2F1;
+    --seat-available-hover: #B2DFDB;
+    --seat-selected: #FF6B35;
+    --seat-unavailable: #BDBDBD;
+    --seat-recommended: #FFBB00;
+    
+    /* 热度地图 */
+    --heatmap-cold: #00AA00;
+    --heatmap-warm: #FFFF00;
+    --heatmap-hot: #FF0000;
+    
+    /* 间距 */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --spacing-2xl: 48px;
+    
+    /* 圆角 */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+    
+    /* 阴影 */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    
+    /* 过渡 */
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* 字体大小 */
+    --font-xs: 0.75rem;
+    --font-sm: 0.875rem;
+    --font-base: 1rem;
+    --font-lg: 1.125rem;
+    --font-xl: 1.25rem;
+    --font-2xl: 1.5rem;
+    --font-3xl: 1.875rem;
+    --font-4xl: 2.25rem;
+    
+    /* Z-index */
+    --z-base: 0;
+    --z-dropdown: 100;
+    --z-modal: 1000;
+    --z-tooltip: 1100;
+    --z-notification: 1200;
+}
+
+/* 深色模式 */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-white: #1F2937;
+        --color-black: #F9FAFB;
+        color: #E5E7EB;
+        background-color: #111827;
+    }
+}
+
+/* 用户启用深色模式类 */
+body.dark-mode {
+    --color-white: #1F2937;
+    --color-black: #F9FAFB;
+    color: #E5E7EB;
+    background-color: #111827;
+}

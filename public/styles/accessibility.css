@@ -1,0 +1,225 @@
+/* ===== 无障碍 & 辅助功能 ===== */
+
+/* 跳过链接 (Skip Links) */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--color-primary);
+    color: white;
+    padding: var(--spacing-md);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    z-index: 9999;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* 焦点可见性 */
+:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* 减少动画 */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: more) {
+    body {
+        color: var(--color-black);
+        background-color: var(--color-white);
+    }
+
+    .btn-primary {
+        border: 2px solid var(--color-black);
+    }
+
+    .btn-secondary {
+        border: 2px solid var(--color-black);
+    }
+
+    input,
+    select {
+        border: 2px solid var(--color-black);
+    }
+
+    .section h2 {
+        color: var(--color-black);
+    }
+}
+
+/* 深色模式下的对比度优化 */
+body.dark-mode {
+    --color-gray-700: #E5E7EB;
+    --color-gray-800: #F3F4F6;
+}
+
+/* 无障碍模式 */
+body.accessibility-mode {
+    font-size: 18px;
+    line-height: 1.8;
+}
+
+body.accessibility-mode .section h2 {
+    font-size: 1.5em;
+    font-weight: 700;
+}
+
+body.accessibility-mode .form-group label {
+    font-weight: 700;
+    font-size: 1.1em;
+}
+
+body.accessibility-mode .btn {
+    min-height: 48px;
+    padding: 12px 20px;
+    font-size: 1.1em;
+}
+
+body.accessibility-mode input,
+body.accessibility-mode select {
+    min-height: 48px;
+    font-size: 18px;
+    padding: 12px;
+}
+
+/* 屏幕阅读器优化 */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* 键盘导航 */
+.keyboard-focus:focus {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 3px;
+    box-shadow: inset 0 0 0 3px var(--color-white);
+}
+
+/* 颜色盲友好 */
+body.colorblind-mode .seat-available {
+    background-color: #E8D9FF;
+}
+
+body.colorblind-mode .seat-available-hover {
+    background-color: #D4B5FF;
+}
+
+body.colorblind-mode .seat-selected {
+    background-color: #FF7F50;
+    border: 2px solid #000;
+}
+
+body.colorblind-mode .seat-recommended {
+    background-color: #B0B0B0;
+    border: 3px solid #000;
+}
+
+/* 减少视觉杂乱 */
+body.minimal-mode .section {
+    border-bottom: 1px solid var(--color-gray-300);
+}
+
+body.minimal-mode .btn {
+    border-width: 1px;
+}
+
+/* 大字体模式 */
+body.large-text {
+    font-size: 18px;
+}
+
+body.large-text .section h2 {
+    font-size: 2em;
+}
+
+body.large-text .btn {
+    padding: 12px 24px;
+}
+
+/* 高亮焦点 */
+body.highlight-focus *:focus {
+    background-color: #ffff00;
+    outline: 2px solid #000;
+}
+
+/* Aria 活跃区域 */
+[aria-live] {
+    position: relative;
+}
+
+[aria-live="polite"] {
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-md);
+}
+
+/* 标记必填字段 */
+.form-group label[aria-required="true"]::after {
+    content: " *";
+    color: var(--color-danger);
+    font-weight: 700;
+}
+
+/* 禁用状态 */
+button:disabled,
+input:disabled,
+select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* 加载状态 */
+.loading::after {
+    content: "";
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 错误状态 */
+.error {
+    color: var(--color-danger);
+    border-color: var(--color-danger) !important;
+}
+
+.error-message {
+    color: var(--color-danger);
+    font-size: var(--font-sm);
+    margin-top: var(--spacing-xs);
+}
+
+/* 成功状态 */
+.success {
+    color: var(--color-success);
+}
+
+.success-message {
+    color: var(--color-success);
+    font-size: var(--font-sm);
+    margin-top: var(--spacing-xs);
+}

@@ -1,0 +1,24 @@
+{
+  "name": "smartcinema",
+  "version": "1.0.0",
+  "description": "智能影院选座系统 - 基于原生 Web 技术栈实现",
+  "type": "module",
+  "main": "index.html",
+  "scripts": {
+    "start": "node scripts/server.js",
+    "test": "node tests/runner.js",
+    "lint": "echo 'No linter configured - using native JavaScript'",
+    "build": "echo 'No build tool needed - pure browser JavaScript'"
+  },
+  "keywords": [
+    "cinema",
+    "seat-selection",
+    "canvas",
+    "vanilla-js",
+    "web"
+  ],
+  "author": "SmartCinema Team",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}
