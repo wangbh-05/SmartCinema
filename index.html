@@ -253,6 +253,84 @@
         /* 全局过渡 */
         .section-card { transition: border-color 0.2s; }
         .section-card:hover { border-color: #3B4A5E; }
+
+        /* AI 聊天机器人 */
+        #ai-chatbot { position: fixed; bottom: 24px; right: 24px; z-index: 999; }
+        #ai-chat-toggle {
+            width: 56px; height: 56px; border-radius: 50%; border: none;
+            background: linear-gradient(135deg, #8B5CF6, #6366F1);
+            color: #fff; font-size: 1.5em; cursor: pointer;
+            box-shadow: 0 4px 16px rgba(99,102,241,0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #ai-chat-toggle:hover { transform: scale(1.1); box-shadow: 0 6px 24px rgba(99,102,241,0.6); }
+        #ai-chat-panel {
+            position: absolute; bottom: 68px; right: 0;
+            width: 340px; max-height: 480px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            display: flex; flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .ai-chat-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #8B5CF6, #6366F1);
+            color: #fff; font-weight: 700; font-size: 0.95em;
+        }
+        .ai-chat-header button {
+            background: none; border: none; color: #fff; cursor: pointer;
+            font-size: 1.1em; opacity: 0.8;
+        }
+        .ai-chat-header button:hover { opacity: 1; }
+        #ai-chat-messages {
+            flex: 1; overflow-y: auto; padding: 12px;
+            display: flex; flex-direction: column; gap: 8px;
+            max-height: 260px;
+        }
+        .ai-chat-msg {
+            max-width: 85%; padding: 8px 12px; border-radius: 10px;
+            font-size: 0.85em; line-height: 1.5; white-space: pre-line;
+        }
+        .ai-chat-msg.bot { background: var(--bg-card); color: var(--text-primary); align-self: flex-start; border-bottom-left-radius: 3px; }
+        .ai-chat-msg.user { background: #6366F1; color: #fff; align-self: flex-end; border-bottom-right-radius: 3px; }
+        #ai-chat-suggestions {
+            display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px;
+        }
+        .ai-chat-chip {
+            padding: 4px 10px; border-radius: 14px; border: 1px solid var(--border-color);
+            background: var(--bg-card); color: var(--text-secondary);
+            font-size: 0.78em; cursor: pointer; transition: all 0.15s;
+        }
+        .ai-chat-chip:hover { border-color: #8B5CF6; color: #A78BFA; }
+        .ai-chat-input-row {
+            display: flex; gap: 6px; padding: 8px 12px 12px;
+            border-top: 1px solid var(--border-color);
+        }
+        .ai-chat-input-row input {
+            flex: 1; padding: 8px 10px; border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary); color: var(--text-primary);
+            font-size: 0.85em;
+        }
+        .ai-chat-input-row input:focus { outline: none; border-color: #8B5CF6; }
+        .ai-chat-input-row button {
+            padding: 8px 14px; border-radius: 8px; border: none;
+            background: #8B5CF6; color: #fff; font-weight: 600;
+            cursor: pointer; font-size: 0.85em; transition: background 0.15s;
+        }
+        .ai-chat-input-row button:hover { background: #7C3AED; }
+
+        /* 主题色选择 */
+        .theme-dot {
+            display: inline-block; width: 22px; height: 22px; border-radius: 50%;
+            cursor: pointer; border: 2px solid transparent; transition: all 0.2s;
+            vertical-align: middle;
+        }
+        .theme-dot:hover { transform: scale(1.25); border-color: #fff; }
+        .theme-dot.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
     </style>
 </head>
 <body>
@@ -267,6 +345,12 @@
                 <option value="large">大厅 (300座)</option>
             </select>
             <span id="hall-name-display" style="color:var(--text-secondary);font-size:0.85em">中厅</span>
+            <!-- 日期切换 -->
+            <select id="day-selector" aria-label="切换日期">
+                <option value="0">周一</option><option value="1">周二</option><option value="2">周三</option>
+                <option value="3" selected>周四</option><option value="4">周五</option>
+                <option value="5">周六</option><option value="6">周日</option>
+            </select>
             <!-- 认证按钮 -->
             <span id="user-info" style="display:none;align-items:center;gap:8px;font-size:0.9em;"></span>
             <button class="btn btn-accent btn-sm" id="btn-login">登录</button>
@@ -340,6 +424,15 @@
                         <option value="">-- 请先选择人数 --</option>
                     </select>
                 </div>
+                <!-- ④ 姓名/成员（人数决定显示方式） -->
+                <div class="form-group" id="name-single-wrapper">
+                    <label for="user-name">④ 姓名</label>
+                    <input type="text" id="user-name" placeholder="请输入您的姓名" maxlength="30">
+                </div>
+                <div class="form-group" id="name-group-wrapper" style="display:none;">
+                    <label for="member-names">④ 成员姓名（每行一个，共需 <span id="member-count-hint">2</span> 人）</label>
+                    <textarea id="member-names" rows="4" placeholder="张三&#10;李四" maxlength="500"></textarea>
+                </div>
                 <button type="submit" class="btn btn-primary" style="width:100%">🎯 执行推荐</button>
             </form>
             <div class="recommend-result" id="recommend-result">
@@ -352,6 +445,28 @@
             <h2>📊 观影体验评分</h2>
             <div id="score-details">
                 <p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>
+            </div>
+            <!-- 观众手动评分 -->
+            <div id="manual-score-panel" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);">
+                <h3 style="font-size:0.95em;color:var(--accent);margin-bottom:12px;">✍️ 我的评分（0-10分）</h3>
+                <div class="form-group">
+                    <label>👁️ 视野质量 <span id="manual-vision-val" style="color:var(--text-secondary);">5</span></label>
+                    <input type="range" id="manual-vision" min="0" max="10" value="5" step="0.5" style="width:100%;">
+                </div>
+                <div class="form-group">
+                    <label>📺 屏幕距离 <span id="manual-distance-val" style="color:var(--text-secondary);">5</span></label>
+                    <input type="range" id="manual-distance" min="0" max="10" value="5" step="0.5" style="width:100%;">
+                </div>
+                <div class="form-group">
+                    <label>🛋️ 舒适度 <span id="manual-comfort-val" style="color:var(--text-secondary);">5</span></label>
+                    <input type="range" id="manual-comfort" min="0" max="10" value="5" step="0.5" style="width:100%;">
+                </div>
+                <div class="form-group">
+                    <label>💰 价格划算度 <span id="manual-price-val" style="color:var(--text-secondary);">5</span></label>
+                    <input type="range" id="manual-price" min="0" max="10" value="5" step="0.5" style="width:100%;">
+                </div>
+                <div id="combined-score-result" style="display:none;margin-top:12px;padding:10px;background:var(--bg-card);border-radius:8px;text-align:center;font-size:0.9em;"></div>
+                <button class="btn btn-primary btn-sm" id="btn-submit-score" style="width:100%;margin-top:8px;">📝 提交我的评分</button>
             </div>
         </section>
 
@@ -381,8 +496,21 @@
                 <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
                     <input type="checkbox" id="voice-toggle"> 语音提示
                 </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="colorblind-toggle"> 色盲友好模式
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                    <input type="checkbox" id="realtime-toggle"> 实时模拟（WebSocket）
+                </label>
                 <button class="btn btn-sm" id="export-data">💾 导出数据</button>
                 <button class="btn btn-sm" id="import-data">📂 导入数据</button>
+                <span style="margin-left:12px;font-size:0.85em;color:var(--text-secondary);">主题色</span>
+                <span class="theme-dot" data-accent="#58A6FF" style="background:#58A6FF;" title="默认蓝"></span>
+                <span class="theme-dot" data-accent="#10B981" style="background:#10B981;" title="翡翠绿"></span>
+                <span class="theme-dot" data-accent="#F59E0B" style="background:#F59E0B;" title="琥珀金"></span>
+                <span class="theme-dot" data-accent="#EC4899" style="background:#EC4899;" title="玫瑰粉"></span>
+                <span class="theme-dot" data-accent="#8B5CF6" style="background:#8B5CF6;" title="紫罗兰"></span>
+                <input type="color" id="accent-picker" value="#58A6FF" title="自定义主题色" style="width:28px;height:28px;border:none;border-radius:50%;cursor:pointer;padding:0;">
             </div>
         </section>
     </div>
@@ -417,6 +545,23 @@
                 </div>
             </form>
             <button class="btn btn-sm" id="auth-modal-close" style="width:100%;margin-top:8px;">关闭</button>
+        </div>
+    </div>
+
+    <!-- ==================== AI 观影顾问 ==================== -->
+    <div id="ai-chatbot">
+        <button id="ai-chat-toggle" title="AI 观影顾问">💬</button>
+        <div id="ai-chat-panel" style="display:none;">
+            <div class="ai-chat-header">
+                <span>🤖 AI 观影顾问</span>
+                <button id="ai-chat-close">✕</button>
+            </div>
+            <div id="ai-chat-messages"></div>
+            <div id="ai-chat-suggestions"></div>
+            <div class="ai-chat-input-row">
+                <input type="text" id="ai-chat-input" placeholder="输入问题，如「推荐座位」..." maxlength="200">
+                <button id="ai-chat-send">发送</button>
+            </div>
         </div>
     </div>
 

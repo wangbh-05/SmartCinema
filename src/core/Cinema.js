@@ -16,6 +16,20 @@ const CLR = {
     tooltipBg:'rgba(255,255,255,0.96)',tooltipBd:'#D1D5DB',tooltipTxt:'#1F2937',
 };
 
+// 色盲友好配色（蓝/橙调，对红绿色盲友好）
+const CLR_CB = {
+    bg:'#FFFFFF', bgGrid:'rgba(0,0,0,0.04)', screen:'#2563EB',
+    avail:'#F0F4FF',availS:'#BFDBFE', select:'#F97316',selectS:'#EA580C',
+    sold:'#78716C',soldS:'#57534E', rec:'#1D4ED8',recS:'#1E3A8A',
+    rowLabel:'#6B7280',legend:'#4B5563',hallInfo:'#6B7280',dragLine:'#FBBF24',
+    tooltipBg:'rgba(255,255,255,0.96)',tooltipBd:'#D1D5DB',tooltipTxt:'#1F2937',
+};
+const HEAT_CB = {
+    hot:  {r:234, g:88,  b:12 },  // 深橙 — 热门区
+    warm: {r:250, g:165, b:60 },  // 中等橙 — 一般区
+    cold: {r:59,  g:130, b:246},  // 蓝 — 冷门区
+};
+
 // 热度光晕色值（供径向渐变使用）—— 柔和浅色调
 const HEAT = {
     hot:  {r:245, g:120, b:120},  // 浅红 — 高价热门区
@@ -29,6 +43,9 @@ export class Cinema {
         this.ctx = canvas.getContext('2d');
         this.sd = seatData;
         this.dragStart=null;this.dragEnd=null;this._hover=null;this.isDragging=false;this._tooltip=null;
+        this._clr = CLR; this._heatColors = HEAT;  // 可切换配色
+        this._animations = [];  // 座位动画队列
+        this._animFrame = null;
         this.bindEvents();
         this.relayout();
         this.redraw();
@@ -127,19 +144,48 @@ export class Cinema {
     _t(e){const t=e.touches[0];return{clientX:t.clientX,clientY:t.clientY,ctrlKey:false};}
     _cp(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.dispW/r.width),y:(e.clientY-r.top)*(this.dispH/r.height)};}
     _hit(px,py){const s=this._seatSize;const{rows,cols}=this.sd;for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const p=this._pos[r][c];if(px>=p.x-3&&px<=p.x+s+3&&py>=p.y-3&&py<=p.y+s+3)return{row:r,col:c};}return null;}
-    _click(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(!s)return;const seat=this.sd.getSeat(s.row,s.col);if(!seat||seat.status===SEAT_STATUS.OCCUPIED)return;seat.isSelected?this.sd.deselectSeat(s.row,s.col):this.sd.selectSeat(s.row,s.col);this._heat=this._calcHeat();this.redraw();this._emit();}
+    _click(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(!s)return;const seat=this.sd.getSeat(s.row,s.col);if(!seat||seat.status===SEAT_STATUS.OCCUPIED)return;seat.isSelected?this.sd.deselectSeat(s.row,s.col):this.sd.selectSeat(s.row,s.col);this._triggerBounce(s.row,s.col);this._heat=this._calcHeat();this.redraw();this._emit();}
     _down(e){const p=this._cp(e);this.dragStart=this._hit(p.x,p.y);this.isDragging=false;}
     _move(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(this.dragStart&&s&&(s.row!==this.dragStart.row||s.col!==this.dragStart.col)){this.isDragging=true;this.dragEnd=s;this.redraw();return;}const prev=this._hover;if(!s&&!prev)return;if(s&&prev&&s.row===prev.row&&s.col===prev.col)return;this._hover=s;this._tooltip=s;this.redraw();this.canvas.style.cursor=s?'pointer':'default';}
     _up(e){if(this.isDragging&&this.dragStart&&this.dragEnd){const r1=Math.min(this.dragStart.row,this.dragEnd.row),r2=Math.max(this.dragStart.row,this.dragEnd.row);const c1=Math.min(this.dragStart.col,this.dragEnd.col),c2=Math.max(this.dragStart.col,this.dragEnd.col);for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++){const st=this.sd.getSeat(r,c);if(st&&st.status===SEAT_STATUS.AVAILABLE)this.sd.selectSeat(r,c);}this._heat=this._calcHeat();this.redraw();this._emit();}this.dragStart=null;this.dragEnd=null;this.isDragging=false;}
     _leave(){this.dragStart=null;this.dragEnd=null;this.isDragging=false;this._hover=null;this._tooltip=null;this.redraw();}
     _emit(){this.canvas.dispatchEvent(new CustomEvent('selectionChange',{detail:{selectedSeats:this.sd.getSelectedSeats(),stats:this.sd.getStats()}}));}
 
+    /* ========== 座位弹性动画 ========== */
+    _triggerBounce(row,col){
+        this._animations.push({row,col,start:performance.now(),duration:350});
+        if(!this._animFrame)this._runAnimations();
+    }
+    _runAnimations(){
+        const now=performance.now();
+        this._animations=this._animations.filter(a=>now-a.start<a.duration);
+        this.redraw();
+        if(this._animations.length>0){
+            this._animFrame=requestAnimationFrame(()=>this._runAnimations());
+        }else{
+            this._animFrame=null;
+        }
+    }
+    /** 获取某座位的动画缩放系数 (1.0=无动画) */
+    _getAnimScale(row,col){
+        for(const a of this._animations){
+            if(a.row===row&&a.col===col){
+                const t=(performance.now()-a.start)/a.duration;  // 0→1
+                // 弹性缓出: scale 1.0→1.28→0.92→1.0
+                if(t>=1)return 1;
+                const s=1+0.28*Math.sin(t*Math.PI*2.3)*Math.exp(-t*3.5);
+                return Math.max(0.7,Math.min(1.35,s));
+            }
+        }
+        return 1;
+    }
+
     /* ========== 绘制 ========== */
     redraw(){
         const ctx=this.ctx,W=this.dispW,H=this.dispH;ctx.clearRect(0,0,W,H);
         const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#F8FAFC');bg.addColorStop(1,'#FFFFFF');
         ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-        ctx.strokeStyle=CLR.bgGrid;ctx.lineWidth=1;
+        ctx.strokeStyle=this._clr.bgGrid;ctx.lineWidth=1;
         for(let x=0;x<W;x+=48){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
         for(let y=0;y<H;y+=48){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
         this._drawScreen();this._drawColLabels();this._drawRowLabels();
@@ -185,7 +231,7 @@ export class Cinema {
 
         // 银幕曲线
         ctx.beginPath();ctx.moveTo(sx,sy);ctx.quadraticCurveTo(this.arcX,sy-14,sx+sw,sy);
-        ctx.strokeStyle=CLR.screen;ctx.lineWidth=3;ctx.stroke();
+        ctx.strokeStyle=this._clr.screen;ctx.lineWidth=3;ctx.stroke();
 
         // 发光条
         const bar=ctx.createLinearGradient(0,sy-8,0,sy+8);
@@ -202,7 +248,7 @@ export class Cinema {
     _drawColLabels(){
         const ctx=this.ctx,{cols}=this.sd,r0=this._pos[0];
         if(!r0||cols<6)return;
-        ctx.fillStyle=CLR.rowLabel;ctx.font='9px "Microsoft YaHei",sans-serif';
+        ctx.fillStyle=this._clr.rowLabel;ctx.font='9px "Microsoft YaHei",sans-serif';
         ctx.textAlign='center';ctx.textBaseline='bottom';
         const step=Math.max(1,Math.floor(cols/12));
         for(let c=0;c<cols;c+=step){const p=r0[c];if(!p)continue;ctx.fillText(`${c+1}`,p.cx,this._topPad-4);}
@@ -210,7 +256,7 @@ export class Cinema {
 
     _drawRowLabels(){
         const ctx=this.ctx,{rows}=this.sd,s=this._seatSize;
-        ctx.fillStyle=CLR.rowLabel;ctx.font=`${Math.max(10,s*0.5)}px "Microsoft YaHei",sans-serif`;
+        ctx.fillStyle=this._clr.rowLabel;ctx.font=`${Math.max(10,s*0.5)}px "Microsoft YaHei",sans-serif`;
         ctx.textAlign='right';ctx.textBaseline='middle';
         for(let r=0;r<rows;r++){const p=this._pos[r][0];ctx.fillText(`${r+1}排`,p.x-s/2-8,p.cy);}
     }
@@ -229,13 +275,16 @@ export class Cinema {
      * ================================================================ */
     _drawOne(x,y,seat,hovered,r,c){
         const ctx=this.ctx, s=this._seatSize, rad=Math.max(3,s*0.25);
+        // 弹性动画缩放
+        const scale=this._getAnimScale(r,c);
+        if(scale!==1){const cx=x+s/2,cy=y+s/2;ctx.save();ctx.translate(cx,cy);ctx.scale(scale,scale);ctx.translate(-cx,-cy);}
 
         // 热度 → 边框颜色
         const hv=this._heat[r]?.[c]||0;
         let heatStroke='';
-        if(hv>0.6)heatStroke=`rgb(${HEAT.hot.r},${HEAT.hot.g},${HEAT.hot.b})`;
-        else if(hv>0.3)heatStroke=`rgb(${HEAT.warm.r},${HEAT.warm.g},${HEAT.warm.b})`;
-        else heatStroke=`rgb(${HEAT.cold.r},${HEAT.cold.g},${HEAT.cold.b})`;
+        if(hv>0.6)heatStroke=`rgb(${this._heatColors.hot.r},${this._heatColors.hot.g},${this._heatColors.hot.b})`;
+        else if(hv>0.3)heatStroke=`rgb(${this._heatColors.warm.r},${this._heatColors.warm.g},${this._heatColors.warm.b})`;
+        else heatStroke=`rgb(${this._heatColors.cold.r},${this._heatColors.cold.g},${this._heatColors.cold.b})`;
 
         // --- 悬停光晕（仅非已售座位）---
         if(hovered&&seat.status!==SEAT_STATUS.OCCUPIED){
@@ -264,13 +313,13 @@ export class Cinema {
         // --- 座位本体 ---
         let fill,stroke;
         if(seat.status===SEAT_STATUS.OCCUPIED){
-            fill=CLR.sold; stroke=heatStroke;          // 灰色填充+热度边框
+            fill=this._clr.sold; stroke=heatStroke;          // 灰色填充+热度边框
         }else if(seat.isSelected){
-            fill=CLR.select; stroke=CLR.selectS;        // 琥珀色，固定边框
+            fill=this._clr.select; stroke=this._clr.selectS;        // 琥珀色，固定边框
         }else if(seat.isRecommended){
-            fill=CLR.rec; stroke=CLR.recS;              // 紫色，固定边框
+            fill=this._clr.rec; stroke=this._clr.recS;              // 紫色，固定边框
         }else{
-            fill=CLR.avail; stroke=heatStroke;          // 白色填充+热度边框
+            fill=this._clr.avail; stroke=heatStroke;          // 白色填充+热度边框
         }
 
         ctx.fillStyle=fill;ctx.strokeStyle=stroke;
@@ -282,6 +331,7 @@ export class Cinema {
             ctx.fillStyle='#1C1917';ctx.font=`bold ${Math.max(9,s*0.48)}px Arial`;
             ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',x+s/2,y+s/2);
         }
+        if(scale!==1)ctx.restore();
     }
 
     _drawDragBox(){
@@ -289,7 +339,7 @@ export class Cinema {
         const p1=this._pos[this.dragStart.row][this.dragStart.col],p2=this._pos[this.dragEnd.row][this.dragEnd.col];
         const x=Math.min(p1.x,p2.x),y=Math.min(p1.y,p2.y);
         const w=Math.abs(p2.x-p1.x)+this._seatSize,h=Math.abs(p2.y-p1.y)+this._seatSize;
-        const ctx=this.ctx;ctx.save();ctx.setLineDash([5,5]);ctx.strokeStyle=CLR.dragLine;ctx.lineWidth=2;
+        const ctx=this.ctx;ctx.save();ctx.setLineDash([5,5]);ctx.strokeStyle=this._clr.dragLine;ctx.lineWidth=2;
         ctx.strokeRect(x-2,y-2,w+4,h+4);ctx.setLineDash([]);ctx.restore();
     }
 
@@ -300,20 +350,20 @@ export class Cinema {
         const text=`${s.row+1}排${s.col+1}座  ¥${seat.price}`;ctx.font='12px "Microsoft YaHei",sans-serif';
         const tw=ctx.measureText(text).width+16,th=26;let tx=p.cx-tw/2,ty=p.y-th-6;
         if(ty<4)ty=p.y+this._seatSize+6;if(tx<4)tx=4;if(tx+tw>this.dispW)tx=this.dispW-tw-4;
-        ctx.fillStyle=CLR.tooltipBg;ctx.strokeStyle=CLR.tooltipBd;ctx.lineWidth=1;
+        ctx.fillStyle=this._clr.tooltipBg;ctx.strokeStyle=this._clr.tooltipBd;ctx.lineWidth=1;
         this._rr(ctx,tx,ty,tw,th,6);ctx.fill();ctx.stroke();
-        ctx.fillStyle=CLR.tooltipTxt;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,tx+tw/2,ty+th/2);
+        ctx.fillStyle=this._clr.tooltipTxt;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,tx+tw/2,ty+th/2);
     }
 
     _drawLegend(){
         const items=[
-            {c:CLR.avail,t:'空座',border:`rgb(${HEAT.hot.r},${HEAT.hot.g},${HEAT.hot.b})`},
-            {c:CLR.select,t:'已选',border:CLR.selectS},
-            {c:CLR.sold,t:'已售',border:CLR.soldS},
-            {c:CLR.rec,t:'推荐',border:CLR.recS},
-            {c:`rgb(${HEAT.hot.r},${HEAT.hot.g},${HEAT.hot.b})`,t:'热门(中)',border:null},
-            {c:`rgb(${HEAT.warm.r},${HEAT.warm.g},${HEAT.warm.b})`,t:'一般',border:null},
-            {c:`rgb(${HEAT.cold.r},${HEAT.cold.g},${HEAT.cold.b})`,t:'冷门(边)',border:null},
+            {c:this._clr.avail,t:'空座',border:`rgb(${this._heatColors.hot.r},${this._heatColors.hot.g},${this._heatColors.hot.b})`},
+            {c:this._clr.select,t:'已选',border:this._clr.selectS},
+            {c:this._clr.sold,t:'已售',border:this._clr.soldS},
+            {c:this._clr.rec,t:'推荐',border:this._clr.recS},
+            {c:`rgb(${this._heatColors.hot.r},${this._heatColors.hot.g},${this._heatColors.hot.b})`,t:'热门(中)',border:null},
+            {c:`rgb(${this._heatColors.warm.r},${this._heatColors.warm.g},${this._heatColors.warm.b})`,t:'一般',border:null},
+            {c:`rgb(${this._heatColors.cold.r},${this._heatColors.cold.g},${this._heatColors.cold.b})`,t:'冷门(边)',border:null},
         ];
         const ctx=this.ctx,y=this.dispH-26,startX=this.dispW-items.length*68-10;
         ctx.font='11px "Microsoft YaHei",sans-serif';
@@ -322,18 +372,23 @@ export class Cinema {
             ctx.fillStyle=it.c;
             ctx.fillRect(x,y-5,10,10);
             if(it.border){ctx.strokeStyle=it.border;ctx.lineWidth=1.5;ctx.strokeRect(x,y-5,10,10);}
-            ctx.fillStyle=CLR.legend;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(it.t,x+14,y);
+            ctx.fillStyle=this._clr.legend;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(it.t,x+14,y);
         });
     }
 
     _drawHallInfo(){
         const hall=HALL_CONFIG[this.sd.hallType],ctx=this.ctx;
-        ctx.fillStyle=CLR.hallInfo;ctx.font='11px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
+        ctx.fillStyle=this._clr.hallInfo;ctx.font='11px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
         ctx.fillText(`${hall.name}·${hall.desc}·${hall.total}座`,10,this.dispH-22);
     }
 
     _rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();}
 
+    setColorblindMode(enabled){
+        this._clr = enabled ? CLR_CB : CLR;
+        this._heatColors = enabled ? HEAT_CB : HEAT;
+        this.redraw();
+    }
     reload(){this.relayout();this.redraw();}
     resize(){this.relayout();this.redraw();}
 }

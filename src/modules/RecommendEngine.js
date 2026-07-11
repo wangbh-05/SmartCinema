@@ -73,6 +73,16 @@ export class RecommendEngine {
             case TYPE.FAMILY:
                 result = this._recommendFamily(groupSize, forbiddenRows);
                 break;
+            case 'friends':
+                // 朋友：>=2人用家庭策略，1人用单人策略
+                result = groupSize >= 2
+                    ? this._recommendFamily(groupSize, forbiddenRows)
+                    : this._recommendSolo(ageGroup, forbiddenRows);
+                break;
+            case 'parent_child':
+                // 亲子：类似家庭，优先中后排
+                result = this._recommendFamily(groupSize, forbiddenRows);
+                break;
             case TYPE.GROUP:
                 result = this._recommendGroup(groupSize, ageGroup, forbiddenRows);
                 break;
@@ -95,14 +105,15 @@ export class RecommendEngine {
      * 辅助方法
      * ================================================================ */
 
-    /** 获取某年龄段的禁排 */
+    /** 获取某年龄段的禁排（支持逗号分隔的多年龄段） */
     _getForbiddenRows(ageGroup) {
         const { rows } = this.seatData;
         const forbidden = new Set();
-        if (ageGroup === AGE.YOUTH) {
+        const groups = ageGroup.split(',');
+        if (groups.includes(AGE.YOUTH)) {
             [0, 1, 2].forEach(r => forbidden.add(r));
         }
-        if (ageGroup === AGE.SENIOR) {
+        if (groups.includes(AGE.SENIOR)) {
             [rows - 3, rows - 2, rows - 1].forEach(r => forbidden.add(r));
         }
         return forbidden;
@@ -265,7 +276,7 @@ export class RecommendEngine {
 
     _generateReason(seats, ageGroup, groupSize, movieType, strategy) {
         const ageNames = { youth: '少年', adult: '成年人', senior: '老年人' };
-        const typeNames = { solo: '个人观影', couple: '情侣', family: '家庭', group: '团体' };
+        const typeNames = { solo: '个人观影', couple: '情侣', family: '家庭', group: '团体', friends: '朋友', parent_child: '亲子' };
         const { rows } = this.seatData;
 
         const seatStrs = seats.map(s => `${s.row + 1}排${s.col + 1}座`);
@@ -274,16 +285,21 @@ export class RecommendEngine {
             return sum + (seat ? seat.price : 0);
         }, 0);
 
+        // 多年龄段友好显示
+        const groups = ageGroup.split(',');
+        const ageLabel = groups.map(g => ageNames[g] || g).join('+');
+
         let lines = [];
-        lines.push(`【${ageNames[ageGroup] || '成人'} · ${typeNames[movieType] || '观影'} · ${groupSize}人】`);
+        lines.push(`【${ageLabel} · ${typeNames[movieType] || '观影'} · ${groupSize}人】`);
         lines.push(`推荐策略: ${strategy}`);
         lines.push(`推荐座位: ${seatStrs.join('、')}`);
         lines.push(`总价: ¥${totalPrice}`);
 
-        // 规则说明
-        if (ageGroup === AGE.YOUTH) {
+        // 规则说明（支持多年龄段）
+        if (groups.includes(AGE.YOUTH)) {
             lines.push('📌 已避开前三排 (少年观影视力保护)');
-        } else if (ageGroup === AGE.SENIOR) {
+        }
+        if (groups.includes(AGE.SENIOR)) {
             lines.push('📌 已避开最后三排 (老年人便利出行)');
         }
         if (movieType === TYPE.COUPLE) {

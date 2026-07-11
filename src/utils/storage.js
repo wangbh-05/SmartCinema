@@ -124,6 +124,7 @@ export class Storage {
         return this.load('settings', {
             darkMode: false,
             accessibilityMode: false,
+            colorblindMode: false,
             voiceEnabled: false,
             language: 'zh-CN'
         });

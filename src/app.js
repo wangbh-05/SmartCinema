@@ -12,6 +12,8 @@ import { ScoreEngine } from './modules/ScoreEngine.js';
 
 import { OrderManager } from './modules/OrderManager.js';
 import { AuthManager } from './modules/AuthManager.js';
+import { AIChatbot } from './modules/AIChatbot.js';
+import { RealtimeSimulator } from './modules/RealtimeSimulator.js';
 import { Storage } from './utils/storage.js';
 import { AccessibilityManager } from './utils/accessibility.js';
 
@@ -32,6 +34,9 @@ class SmartCinema {
         this.orderManager = new OrderManager(this.storage);
         this.a11yManager = new AccessibilityManager();
 
+        // AI 顾问
+        this.chatbot = new AIChatbot(this.seatData);
+
         // DOM 引用
         this.cinemaCanvas = document.getElementById('cinema-canvas');
         this.recommendForm = document.getElementById('recommend-form');
@@ -49,6 +54,12 @@ class SmartCinema {
 
         // 渲染引擎
         this.cinema = new Cinema(this.cinemaCanvas, this.seatData);
+
+        // WebSocket 实时模拟器
+        this.realtime = new RealtimeSimulator(this.seatData, this.cinema, {
+            interval: 6000,
+            onEvent: (evt) => this._onRealtimeEvent(evt),
+        });
 
         // 状态
         this.authMode = 'login'; // 'login' | 'register'
@@ -81,6 +92,11 @@ class SmartCinema {
                 this.switchHall(e.target.value);
             });
         }
+
+        // ★ 日期切换（热度图动态变化）
+        document.getElementById('day-selector')?.addEventListener('change', (e) => {
+            this.switchDay(parseInt(e.target.value));
+        });
 
         // 推荐表单
         if (this.recommendForm) {
@@ -137,6 +153,20 @@ class SmartCinema {
         document.getElementById('voice-toggle')?.addEventListener('change', (e) => {
             this.a11yManager.setVoiceEnabled(e.target.checked);
         });
+        document.getElementById('colorblind-toggle')?.addEventListener('change', (e) => {
+            this.toggleColorblindMode(e.target.checked);
+        });
+        document.getElementById('realtime-toggle')?.addEventListener('change', (e) => {
+            this.toggleRealtime(e.target.checked);
+        });
+
+        // ★ 主题色自定义
+        document.querySelectorAll('.theme-dot').forEach(dot => {
+            dot.addEventListener('click', () => this.setAccentColor(dot.dataset.accent));
+        });
+        document.getElementById('accent-picker')?.addEventListener('input', (e) => {
+            this.setAccentColor(e.target.value);
+        });
 
         // 认证事件
         this.loginBtn?.addEventListener('click', () => this.showAuthModal('login'));
@@ -161,6 +191,14 @@ class SmartCinema {
             this.cinema.resize();
         });
 
+        // ★ AI 观影顾问
+        document.getElementById('ai-chat-toggle')?.addEventListener('click', () => this.toggleChatbot());
+        document.getElementById('ai-chat-close')?.addEventListener('click', () => this.toggleChatbot(false));
+        document.getElementById('ai-chat-send')?.addEventListener('click', () => this.sendChatMessage());
+        document.getElementById('ai-chat-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.sendChatMessage();
+        });
+
         // 键盘快捷键
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'z') {
@@ -180,8 +218,10 @@ class SmartCinema {
         // 保存当前状态
         this.saveToStorage();
 
+        const dayIndex = parseInt(document.getElementById('day-selector')?.value) || 3;
+
         // 切换数据层
-        this.seatData.switchHall(hallType);
+        this.seatData.switchHall(hallType, dayIndex);
         this.recommendEngine = new RecommendEngine(this.seatData);
         this.scoreEngine = new ScoreEngine(this.seatData);
 
@@ -203,6 +243,19 @@ class SmartCinema {
         if (nameEl1) nameEl1.textContent = HALL_CONFIG[hallType].name;
 
         this.a11yManager.announce(`已切换到${HALL_CONFIG[hallType].name}`);
+    }
+
+    /** 切换日期（热度图动态变化） */
+    switchDay(dayIndex) {
+        this.seatData.switchDay(dayIndex);
+        this.cinema.sd = this.seatData;
+        this.cinema.relayout();
+        this.cinema.redraw();
+        this.updateUI();
+        this.updateScore();
+
+        const days = ['周一','周二','周三','周四','周五','周六','周日'];
+        this.a11yManager.announce(`已切换到${days[dayIndex]}`);
     }
 
     /* ================================================================
@@ -230,6 +283,14 @@ class SmartCinema {
         const chkContainer = document.getElementById('age-check-container');
         if (selContainer) selContainer.style.display = multiAge ? 'none' : 'block';
         if (chkContainer) chkContainer.style.display = multiAge ? 'block' : 'none';
+
+        // 切换姓名输入方式
+        const nameSingle = document.getElementById('name-single-wrapper');
+        const nameGroup = document.getElementById('name-group-wrapper');
+        const hint = document.getElementById('member-count-hint');
+        if (nameSingle) nameSingle.style.display = multiAge ? 'none' : 'block';
+        if (nameGroup) nameGroup.style.display = multiAge ? 'block' : 'none';
+        if (hint) hint.textContent = groupSize;
 
         // 动态更新观影类型
         const movieSelect = document.getElementById('movie-type');
@@ -274,8 +335,24 @@ class SmartCinema {
         const movieType = document.getElementById('movie-type')?.value;
 
         if (!ageGroup || !movieType || isNaN(groupSize) || groupSize < 1) {
-            alert('请填写完整的推荐参数（人数→年龄段→观影类型）');
+            alert('请填写完整的推荐参数（人数→年龄段→观影类型→姓名）');
             return;
+        }
+
+        // 收集姓名
+        let userNames = [];
+        if (groupSize === 1) {
+            const name = document.getElementById('user-name')?.value?.trim();
+            if (!name) { alert('请输入您的姓名'); return; }
+            userNames = [name];
+        } else {
+            const raw = document.getElementById('member-names')?.value?.trim();
+            if (!raw) { alert('请输入成员姓名'); return; }
+            userNames = raw.split('\n').map(s => s.trim()).filter(Boolean);
+            if (userNames.length < groupSize) {
+                alert(`请输入至少 ${groupSize} 位成员的姓名（当前 ${userNames.length} 人）`);
+                return;
+            }
         }
 
         const result = this.recommendEngine.recommend(ageGroup, groupSize, movieType);
@@ -292,8 +369,10 @@ class SmartCinema {
         // 显示推荐结果
         const resultDiv = document.getElementById('recommend-result');
         if (resultDiv) {
+            const nameLabel = groupSize === 1 ? userNames[0] : userNames.join('、');
             resultDiv.innerHTML = `
                 <h4>🎯 推荐结果</h4>
+                <p>👤 ${nameLabel}</p>
                 <p>${result.reason.replace(/\n/g, '<br>')}</p>
                 <button class="btn btn-primary" id="btn-apply-recommend">
                     ✓ 应用推荐
@@ -333,18 +412,23 @@ class SmartCinema {
     updateScore() {
         const result = this.scoreEngine.calculateScore();
         const scoreDiv = document.getElementById('score-details');
+        const manualPanel = document.getElementById('manual-score-panel');
         if (!scoreDiv) return;
 
         if (result.totalScore === 0) {
             scoreDiv.innerHTML = '<p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>';
+            if (manualPanel) manualPanel.style.display = 'none';
             return;
         }
+
+        // 显示手动评分面板
+        if (manualPanel) { manualPanel.style.display = 'block'; this._bindManualScore(); }
 
         const gradeColor = result.grade === 'excellent' ? '#FFD700' : result.grade === 'good' ? '#58A6FF' : '#8B949E';
 
         let html = `
             <div class="score-total-row" style="text-align:center;padding:12px 0;border-bottom:1px solid #30363D;margin-bottom:12px;">
-                <span style="font-size:2em;font-weight:700;color:${gradeColor};">${result.totalScore}</span>
+                <span id="score-anim-num" style="font-size:2em;font-weight:700;color:${gradeColor};">0</span>
                 <span style="font-size:0.9em;color:#8B949E;"> / 100</span>
                 <span style="display:inline-block;margin-left:12px;font-size:1.3em;font-weight:700;color:${gradeColor};">${result.gradeText}</span>
             </div>
@@ -373,6 +457,75 @@ class SmartCinema {
         }
 
         scoreDiv.innerHTML = html;
+
+        // 数字滚动动画
+        this._animateScoreNum(result.totalScore);
+    }
+
+    /** 评分数字滚动动画 */
+    _animateScoreNum(target) {
+        const el = document.getElementById('score-anim-num');
+        if (!el) return;
+        const start = performance.now();
+        const duration = 400;
+        const step = (now) => {
+            const t = Math.min(1, (now - start) / duration);
+            // easeOutCubic
+            const val = Math.round(target * (1 - Math.pow(1 - t, 3)));
+            el.textContent = val;
+            if (t < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }
+
+    /** 绑定手动评分滑块（仅首次） */
+    _bindManualScore() {
+        if (this._manualScoreBound) return;
+        this._manualScoreBound = true;
+
+        const sliders = ['vision','distance','comfort','price'];
+        sliders.forEach(key => {
+            const el = document.getElementById(`manual-${key}`);
+            const valEl = document.getElementById(`manual-${key}-val`);
+            if (el && valEl) {
+                el.addEventListener('input', () => { valEl.textContent = el.value; });
+            }
+        });
+
+        document.getElementById('btn-submit-score')?.addEventListener('click', () => {
+            this._submitManualScore();
+        });
+    }
+
+    /** 提交手动评分并显示综合结果 */
+    _submitManualScore() {
+        const system = this.scoreEngine.calculateScore();
+        if (system.totalScore === 0) return;
+
+        const uVision = parseFloat(document.getElementById('manual-vision')?.value) || 5;
+        const uDist = parseFloat(document.getElementById('manual-distance')?.value) || 5;
+        const uComfort = parseFloat(document.getElementById('manual-comfort')?.value) || 5;
+        const uPrice = parseFloat(document.getElementById('manual-price')?.value) || 5;
+
+        // 用户评分（相同权重）
+        const userOverall = uVision * 0.35 + uDist * 0.30 + uComfort * 0.20 + uPrice * 0.15;
+        const userTotal = Math.round(userOverall * 10);
+
+        // 综合：系统60% + 用户40%
+        const combined = Math.round(system.totalScore * 0.6 + userTotal * 0.4);
+        const grade = combined >= 80 ? '极佳' : combined >= 60 ? '优秀' : '一般';
+
+        const div = document.getElementById('combined-score-result');
+        if (div) {
+            div.style.display = 'block';
+            div.innerHTML = `
+                <div style="margin-bottom:6px;font-size:0.85em;color:var(--text-secondary);">
+                    系统评分 <b>${system.totalScore}</b> · 我的评分 <b>${userTotal}</b>
+                </div>
+                <div style="font-size:1.3em;font-weight:700;color:#FDD835;">
+                    ⭐ 综合评分：${combined} / 100 · ${grade}
+                </div>`;
+        }
     }
 
     /* ================================================================
@@ -685,8 +838,66 @@ class SmartCinema {
     }
 
     /* ================================================================
-     * 设置 & 数据
+     * AI 观影顾问
      * ================================================================ */
+
+    toggleChatbot(show) {
+        const panel = document.getElementById('ai-chat-panel');
+        if (!panel) return;
+        const visible = show !== undefined ? show : (panel.style.display === 'none' || !panel.style.display);
+        panel.style.display = visible ? 'flex' : 'none';
+        if (visible) {
+            this._renderSuggestions();
+            document.getElementById('ai-chat-input')?.focus();
+        }
+    }
+
+    _renderSuggestions() {
+        const el = document.getElementById('ai-chat-suggestions');
+        if (!el) return;
+        const chips = ['推荐座位', '票价多少', '哪个位置好', '怎么看评分', '放映厅信息', '帮助'];
+        el.innerHTML = chips.map(c =>
+            `<span class="ai-chat-chip" data-q="${c}">${c}</span>`
+        ).join('');
+        el.querySelectorAll('.ai-chat-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.getElementById('ai-chat-input').value = chip.dataset.q;
+                this.sendChatMessage();
+            });
+        });
+    }
+
+    sendChatMessage() {
+        const input = document.getElementById('ai-chat-input');
+        const msgDiv = document.getElementById('ai-chat-messages');
+        if (!input || !msgDiv) return;
+        const text = input.value.trim();
+        if (!text) return;
+
+        // 更新 chatbot 的 seatData 引用
+        this.chatbot.sd = this.seatData;
+
+        // 显示用户消息
+        this._appendChatMsg('user', text);
+        input.value = '';
+
+        // 模拟思考延迟（200-600ms）
+        setTimeout(() => {
+            const reply = this.chatbot.chat(text);
+            this._appendChatMsg('bot', reply);
+            msgDiv.scrollTop = msgDiv.scrollHeight;
+        }, 200 + Math.random() * 400);
+    }
+
+    _appendChatMsg(role, text) {
+        const msgDiv = document.getElementById('ai-chat-messages');
+        if (!msgDiv) return;
+        const div = document.createElement('div');
+        div.className = `ai-chat-msg ${role}`;
+        div.textContent = text;
+        msgDiv.appendChild(div);
+        msgDiv.scrollTop = msgDiv.scrollHeight;
+    }
 
     toggleDarkMode(enabled) {
         document.body.classList.toggle('dark-mode', enabled);
@@ -703,6 +914,77 @@ class SmartCinema {
         if (enabled) this.a11yManager.speak('无障碍模式已启用');
     }
 
+    toggleColorblindMode(enabled) {
+        document.body.classList.toggle('colorblind-mode', enabled);
+        this.cinema.setColorblindMode(enabled);
+        const settings = this.storage.loadSettings();
+        settings.colorblindMode = enabled;
+        this.storage.saveSettings(settings);
+    }
+
+    /* ================================================================
+     * 实时模拟（模拟WebSocket）
+     * ================================================================ */
+    _onRealtimeEvent(evt) {
+        if (evt.type === 'purchase') {
+            this._showToast(`🔔 ${evt.userName} 刚刚购买了 ${evt.posLabel}`);
+        } else {
+            this._showToast(`👆 ${evt.userName} 正在查看 ${evt.posLabel}`);
+        }
+        this.updateUI();
+    }
+
+    _showToast(msg) {
+        let toast = document.getElementById('global-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'global-toast';
+            toast.style.cssText = `
+                position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2000;
+                background:#21262D;color:#C9D1D9;border:1px solid #30363D;
+                padding:10px 20px;border-radius:8px;font-size:0.9em;font-weight:600;
+                pointer-events:none;opacity:0;transition:opacity 0.3s;
+                box-shadow:0 4px 16px rgba(0,0,0,0.4);
+            `;
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+    }
+
+    toggleRealtime(enabled) {
+        if (enabled) {
+            this.realtime = new RealtimeSimulator(this.seatData, this.cinema, {
+                interval: 6000,
+                onEvent: (evt) => this._onRealtimeEvent(evt),
+            });
+            this.realtime.start();
+        } else {
+            if (this.realtime) this.realtime.stop();
+        }
+        const settings = this.storage.loadSettings();
+        settings.realtimeEnabled = enabled;
+        this.storage.saveSettings(settings);
+    }
+
+    /** 设置主题强调色 */
+    setAccentColor(color) {
+        document.documentElement.style.setProperty('--accent', color);
+        // 同步 color picker
+        const picker = document.getElementById('accent-picker');
+        if (picker) picker.value = color;
+        // 更新主题圆点 active 状态
+        document.querySelectorAll('.theme-dot').forEach(d => {
+            d.classList.toggle('active', d.dataset.accent === color);
+        });
+        // 持久化
+        const settings = this.storage.loadSettings();
+        settings.accentColor = color;
+        this.storage.saveSettings(settings);
+    }
+
     loadSettings() {
         const settings = this.storage.loadSettings();
         if (settings.darkMode) {
@@ -714,6 +996,14 @@ class SmartCinema {
             const cb = document.getElementById('accessibility-toggle');
             if (cb) cb.checked = true;
             this.toggleAccessibilityMode(true);
+        }
+        if (settings.colorblindMode) {
+            const cb = document.getElementById('colorblind-toggle');
+            if (cb) cb.checked = true;
+            this.toggleColorblindMode(true);
+        }
+        if (settings.accentColor) {
+            this.setAccentColor(settings.accentColor);
         }
     }
 

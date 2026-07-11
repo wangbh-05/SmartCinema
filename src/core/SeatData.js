@@ -15,6 +15,12 @@ export const HALL_CONFIG = {
     large:  { name: '大厅', rows: 10, cols: 30, total: 300, desc: '10排×30座' }
 };
 
+/** 简单种子随机（用于确定性已售生成） */
+function seedRandom(seed) {
+    let x = Math.sin(seed * 9301 + 49297) * 233280;
+    return x - Math.floor(x);
+}
+
 // 座位状态常量
 export const SEAT_STATUS = {
     AVAILABLE: 'available',   // 空座（绿色）
@@ -36,15 +42,29 @@ export class SeatData {
 
     /**
      * 初始化座位数据
-     * 默认全部为空座，随机模拟一些已售座位（约25%）
+     * @param {number} dayIndex - 0-6 表示周一到周日，用于确定性已售分布
      */
-    initializeSeats() {
+    initializeSeats(dayIndex = 3) {
         this.seats = [];
+        const isWeekend = (dayIndex >= 5);  // 周六日上座率更高
+        const baseRate = isWeekend ? 0.45 : 0.25;
+        // 热门区域上座率加成
+        const hotBoost = isWeekend ? 0.20 : 0.10;
+
         for (let row = 0; row < this.rows; row++) {
             this.seats[row] = [];
             for (let col = 0; col < this.cols; col++) {
-                // 随机模拟约25%的已售座位
-                const isOccupied = Math.random() < 0.25;
+                // 确定性随机：同一日期 + 同一座位 = 同样结果
+                const seed = dayIndex * 10000 + row * 100 + col;
+                const roll = seedRandom(seed);
+
+                // 中心区域上座率更高（真实影院规律）
+                const centerRow = this.rows / 2;
+                const centerCol = this.cols / 2;
+                const distToCenter = Math.abs(row - centerRow) / this.rows + Math.abs(col - centerCol) / this.cols;
+                const effectiveRate = distToCenter < 0.4 ? baseRate + hotBoost : baseRate;
+
+                const isOccupied = roll < effectiveRate;
                 this.seats[row][col] = {
                     row,
                     col,
@@ -62,8 +82,9 @@ export class SeatData {
     /**
      * 切换放映厅
      * @param {string} hallType - 'small' | 'medium' | 'large'
+     * @param {number} dayIndex - 0-6 周一到周日
      */
-    switchHall(hallType) {
+    switchHall(hallType, dayIndex = 3) {
         if (!HALL_CONFIG[hallType]) {
             console.error(`Invalid hall type: ${hallType}`);
             return false;
@@ -71,7 +92,25 @@ export class SeatData {
         this.hallType = hallType;
         this.rows = HALL_CONFIG[hallType].rows;
         this.cols = HALL_CONFIG[hallType].cols;
-        this.initializeSeats();
+        this.initializeSeats(dayIndex);
+        return true;
+    }
+
+    /**
+     * 切换日期（仅重新生成已售，不影响选座）
+     * @param {number} dayIndex - 0-6 周一到周日
+     */
+    switchDay(dayIndex) {
+        // 保存当前选中
+        const selected = this.getSelectedSeats();
+        this.initializeSeats(dayIndex);
+        // 若之前选中的座位在新数据中未被售出，恢复选中
+        selected.forEach(seat => {
+            const s = this.getSeat(seat.row, seat.col);
+            if (s && s.status === SEAT_STATUS.AVAILABLE) {
+                this.selectSeat(seat.row, seat.col);
+            }
+        });
         return true;
     }
 
