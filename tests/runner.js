@@ -6,6 +6,7 @@
 import TestSeatData from './test-seatdata.js';
 import TestRecommendEngine from './test-recommend.js';
 import TestScoreEngine from './test-score.js';
+import TestOrderManager from './test-order.js';
 
 class TestRunner {
     constructor() {
@@ -35,8 +36,34 @@ class TestRunner {
         const scoreResult = scoreTest.runAll();
         this.results.push({ name: 'ScoreEngine', ...scoreResult });
 
+        // 运行 OrderManager 测试
+        const orderTest = new TestOrderManager();
+        const orderResult = orderTest.runAll();
+        this.results.push({ name: 'OrderManager', ...orderResult });
+
         // 打印总摘要
         this.printGlobalSummary();
+
+        return this.getGlobalSummary();
+    }
+
+    getGlobalSummary() {
+        let totalPassed = 0;
+        let totalFailed = 0;
+        let totalTests = 0;
+
+        this.results.forEach(result => {
+            totalPassed += result.passed;
+            totalFailed += result.failed;
+            totalTests += result.total;
+        });
+
+        return {
+            passed: totalPassed,
+            failed: totalFailed,
+            total: totalTests,
+            successRate: totalTests === 0 ? 0 : Number(((totalPassed / totalTests) * 100).toFixed(1))
+        };
     }
 
     /**
@@ -53,7 +80,7 @@ class TestRunner {
             totalTests += result.total;
         });
 
-        const rate = ((totalPassed / totalTests) * 100).toFixed(1);
+        const rate = totalTests === 0 ? '0.0' : ((totalPassed / totalTests) * 100).toFixed(1);
 
         console.log('\n╔════════════════════════════════════════╗');
         console.log('║           全局测试摘要                 ║');

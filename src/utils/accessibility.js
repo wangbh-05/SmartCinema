@@ -171,8 +171,7 @@ export class AccessibilityManager {
                     <ul>
                         <li><kbd>↑↓←→</kbd> - 在座位间导航（在 Canvas 聚焦时）</li>
                         <li><kbd>Enter</kbd> - 选中/取消选中座位</li>
-                        <li><kbd>Ctrl + A</kbd> - 全选可用座位</li>
-                        <li><kbd>Ctrl + D</kbd> - 取消所有选择</li>
+                        <li><kbd>Space</kbd> - 选中/取消选中座位</li>
                     </ul>
 
                     <h3>其他</h3>

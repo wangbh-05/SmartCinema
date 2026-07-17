@@ -42,7 +42,7 @@ export class Cinema {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.sd = seatData;
-        this.dragStart=null;this.dragEnd=null;this._hover=null;this.isDragging=false;this._tooltip=null;
+        this.dragStart=null;this.dragEnd=null;this._hover=null;this._focus={row:0,col:0};this.isDragging=false;this._tooltip=null;
         this._clr = CLR; this._heatColors = HEAT;  // 可切换配色
         this._animations = [];  // 座位动画队列
         this._animFrame = null;
@@ -104,6 +104,10 @@ export class Cinema {
             }
             this._pos[r]=rowPos;
         }
+        this._focus={
+            row:Math.min(this._focus?.row||0, rows-1),
+            col:Math.min(this._focus?.col||0, cols-1)
+        };
         this._heat=this._calcHeat();
     }
 
@@ -140,6 +144,7 @@ export class Cinema {
         el.addEventListener('touchstart',e=>{e.preventDefault();this._down(this._t(e));},{passive:false});
         el.addEventListener('touchmove',e=>{e.preventDefault();this._move(this._t(e));},{passive:false});
         el.addEventListener('touchend',e=>this._up({ctrlKey:false}));
+        el.addEventListener('keydown',e=>this._key(e));
     }
     _t(e){const t=e.touches[0];return{clientX:t.clientX,clientY:t.clientY,ctrlKey:false};}
     _cp(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.dispW/r.width),y:(e.clientY-r.top)*(this.dispH/r.height)};}
@@ -150,6 +155,27 @@ export class Cinema {
     _up(e){if(this.isDragging&&this.dragStart&&this.dragEnd){const r1=Math.min(this.dragStart.row,this.dragEnd.row),r2=Math.max(this.dragStart.row,this.dragEnd.row);const c1=Math.min(this.dragStart.col,this.dragEnd.col),c2=Math.max(this.dragStart.col,this.dragEnd.col);for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++){const st=this.sd.getSeat(r,c);if(st&&st.status===SEAT_STATUS.AVAILABLE)this.sd.selectSeat(r,c);}this._heat=this._calcHeat();this.redraw();this._emit();}this.dragStart=null;this.dragEnd=null;this.isDragging=false;}
     _leave(){this.dragStart=null;this.dragEnd=null;this.isDragging=false;this._hover=null;this._tooltip=null;this.redraw();}
     _emit(){this.canvas.dispatchEvent(new CustomEvent('selectionChange',{detail:{selectedSeats:this.sd.getSelectedSeats(),stats:this.sd.getStats()}}));}
+    _key(e){
+        const keys=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter',' '];
+        if(!keys.includes(e.key))return;
+        e.preventDefault();
+        const {rows,cols}=this.sd;
+        let {row,col}=this._focus||{row:0,col:0};
+        if(e.key==='ArrowUp')row=Math.max(0,row-1);
+        else if(e.key==='ArrowDown')row=Math.min(rows-1,row+1);
+        else if(e.key==='ArrowLeft')col=Math.max(0,col-1);
+        else if(e.key==='ArrowRight')col=Math.min(cols-1,col+1);
+        else{
+            const seat=this.sd.getSeat(row,col);
+            if(seat&&seat.status!==SEAT_STATUS.OCCUPIED){
+                seat.isSelected?this.sd.deselectSeat(row,col):this.sd.selectSeat(row,col);
+                this._triggerBounce(row,col);
+                this._heat=this._calcHeat();
+                this._emit();
+            }
+        }
+        this._focus={row,col};this._hover={row,col};this._tooltip={row,col};this.redraw();
+    }
 
     /* ========== 座位弹性动画 ========== */
     _triggerBounce(row,col){

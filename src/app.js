@@ -5,10 +5,11 @@
  * 加载顺序: Auth → SeatData → Cinema → Modules → UI Bindings
  */
 
-import { SeatData, HALL_CONFIG } from './core/SeatData.js';
+import { SeatData, HALL_CONFIG, SEAT_STATUS } from './core/SeatData.js';
 import { Cinema } from './core/Cinema.js';
 import { RecommendEngine } from './modules/RecommendEngine.js';
 import { ScoreEngine } from './modules/ScoreEngine.js';
+import { HeatmapEngine } from './modules/HeatmapEngine.js';
 
 import { OrderManager } from './modules/OrderManager.js';
 import { AuthManager } from './modules/AuthManager.js';
@@ -51,9 +52,11 @@ class SmartCinema {
         this.authSubmit = document.getElementById('auth-submit');
         this.authSwitch = document.getElementById('auth-switch');
         this.authError = document.getElementById('auth-error');
+        this.heatmapCanvas = document.getElementById('heatmap-canvas');
 
         // 渲染引擎
         this.cinema = new Cinema(this.cinemaCanvas, this.seatData);
+        this.heatmap = this.heatmapCanvas ? new HeatmapEngine(this.heatmapCanvas, this.seatData) : null;
 
         // WebSocket 实时模拟器
         this.realtime = new RealtimeSimulator(this.seatData, this.cinema, {
@@ -63,6 +66,10 @@ class SmartCinema {
 
         // 状态
         this.authMode = 'login'; // 'login' | 'register'
+        this.applyPersistedSoldSeats();
+        this.restoreSeatSelection();
+        this.cinema.redraw();
+        this.updateHeatmap();
 
         // 绑定事件
         this.bindEvents();
@@ -189,6 +196,7 @@ class SmartCinema {
         // 窗口缩放
         window.addEventListener('resize', () => {
             this.cinema.resize();
+            this.updateHeatmap();
         });
 
         // ★ AI 观影顾问
@@ -222,6 +230,7 @@ class SmartCinema {
 
         // 切换数据层
         this.seatData.switchHall(hallType, dayIndex);
+        this.applyPersistedSoldSeats();
         this.recommendEngine = new RecommendEngine(this.seatData);
         this.scoreEngine = new ScoreEngine(this.seatData);
 
@@ -229,6 +238,7 @@ class SmartCinema {
         this.cinema.sd = this.seatData;
         this.cinema.relayout();
         this.cinema.redraw();
+        this.updateHeatmap();
 
         // 更新UI
         this.updateUI();
@@ -248,9 +258,11 @@ class SmartCinema {
     /** 切换日期（热度图动态变化） */
     switchDay(dayIndex) {
         this.seatData.switchDay(dayIndex);
+        this.applyPersistedSoldSeats();
         this.cinema.sd = this.seatData;
         this.cinema.relayout();
         this.cinema.redraw();
+        this.updateHeatmap();
         this.updateUI();
         this.updateScore();
 
@@ -266,6 +278,7 @@ class SmartCinema {
         this.updateStats(detail.stats);
         this.updateScore();
         this.updateSubmitButton();
+        this.updateHeatmap();
         this.saveToStorage();
     }
 
@@ -303,8 +316,12 @@ class SmartCinema {
             options.push({v:'couple', t:'💑 情侣'});
             options.push({v:'friends', t:'👫 朋友'});
             options.push({v:'parent_child', t:'👨‍👧 亲子'});
-        } else if (groupSize >= 3 && groupSize <= 5) {
+        } else if (groupSize >= 3 && groupSize <= 4) {
             options.push({v:'family', t:'👨‍👩‍👧 家庭'});
+            options.push({v:'friends', t:'👫 朋友'});
+        } else if (groupSize === 5) {
+            options.push({v:'family', t:'👨‍👩‍👧 家庭'});
+            options.push({v:'group', t:'👥 团体'});
             options.push({v:'friends', t:'👫 朋友'});
         } else {
             options.push({v:'group', t:'👥 团体'});
@@ -385,6 +402,7 @@ class SmartCinema {
         }
 
         this.cinema.redraw();
+        this.updateHeatmap();
     }
 
     applyRecommendation() {
@@ -394,15 +412,20 @@ class SmartCinema {
             this.seatData.selectSeat(seat.row, seat.col);
         });
         this.cinema.redraw();
+        this.updateHeatmap();
+        this.updateUI();
         this.updateScore();
+        this.saveToStorage();
     }
 
     handleClear() {
         this.seatData.clearSelection();
         this.seatData.clearRecommended();
         this.cinema.redraw();
+        this.updateHeatmap();
         this.updateUI();
         this.updateScore();
+        this.saveToStorage();
     }
 
     /* ================================================================
@@ -566,12 +589,14 @@ class SmartCinema {
         const user = this.auth.getCurrentUser();
         const totalPrice = selected.reduce((s, seat) => s + seat.price, 0);
         const avgPrice = Math.round(totalPrice / selected.length);
+        const dayIndex = parseInt(document.getElementById('day-selector')?.value) || 3;
 
         // 把订单摘要写入 sessionStorage 供 order.html 读取
         const summary = {
             hallType: this.seatData.hallType,
             hallName: this.seatData.getHallConfig().name,
             hallDesc: this.seatData.getHallConfig().desc,
+            dayIndex,
             seats: selected.map(s => ({ row: s.row, col: s.col, price: s.price })),
             totalPrice,
             avgPrice,
@@ -613,10 +638,16 @@ class SmartCinema {
         orders.slice(0, 5).forEach(order => {
             const seats = order.seats.map(s => `${s.row+1}排${s.col+1}座`).join(' ');
             const statusText = this.orderManager.getStatusText(order.status);
+            const actionLabel = order.status === 'confirmed' ? '退票' :
+                (order.status === 'pending' ? '取消' : '');
             html += `<div class="order-card status-${order.status}" style="font-size:0.78em;padding:8px;">
                 <div class="order-header-row"><span class="order-id">${order.id}</span>
                 <span class="order-status-badge">${statusText}</span></div>
-                <div>${seats} | ¥${order.totalPrice}</div>
+                <div>${order.hallName ? order.hallName + ' · ' : ''}${seats} | ¥${order.totalPrice}</div>
+                <div class="order-actions-row">
+                    <button class="btn btn-sm" data-order-receipt="${order.id}">收据</button>
+                    ${actionLabel ? `<button class="btn btn-danger btn-sm" data-order-cancel="${order.id}">${actionLabel}</button>` : ''}
+                </div>
             </div>`;
         });
 
@@ -626,6 +657,58 @@ class SmartCinema {
         }
 
         container.innerHTML = html;
+        container.querySelectorAll('[data-order-cancel]').forEach(btn => {
+            btn.addEventListener('click', () => this.handleCancelOrder(btn.dataset.orderCancel));
+        });
+        container.querySelectorAll('[data-order-receipt]').forEach(btn => {
+            btn.addEventListener('click', () => this.showOrderReceipt(btn.dataset.orderReceipt));
+        });
+    }
+
+    handleCancelOrder(orderId) {
+        const order = this.orderManager.getOrder(orderId);
+        if (!order) {
+            alert('订单不存在');
+            return;
+        }
+
+        const action = order.status === 'confirmed' ? '退票' : '取消订单';
+        if (!confirm(`确定要${action}吗？`)) return;
+
+        const result = this.orderManager.cancelOrder(orderId, action);
+        if (!result.success) {
+            alert(result.message);
+            return;
+        }
+
+        const hallType = order.hallType || this.seatData.hallType;
+        const seatKeys = order.seatKeys || order.seats.map(s => `${s.row}-${s.col}`);
+        this.storage.removeSoldSeats(hallType, seatKeys);
+
+        if (hallType === this.seatData.hallType) {
+            const dayIndex = parseInt(document.getElementById('day-selector')?.value) || 3;
+            this.seatData.switchDay(dayIndex);
+            this.applyPersistedSoldSeats();
+            this.cinema.sd = this.seatData;
+            this.cinema.relayout();
+            this.cinema.redraw();
+            this.updateHeatmap();
+            this.updateUI();
+            this.updateScore();
+        }
+
+        const container = document.getElementById('orders-mini-list');
+        if (container) this._renderOrdersMini(container);
+        this.a11yManager.announce(`${action}成功`);
+    }
+
+    showOrderReceipt(orderId) {
+        const receipt = this.orderManager.generateReceipt(orderId);
+        if (!receipt) {
+            alert('订单不存在');
+            return;
+        }
+        alert(receipt);
     }
 
     /* ================================================================
@@ -837,6 +920,12 @@ class SmartCinema {
         }
     }
 
+    updateHeatmap() {
+        if (!this.heatmap) return;
+        this.heatmap.seatData = this.seatData;
+        this.heatmap.reload();
+    }
+
     /* ================================================================
      * AI 观影顾问
      * ================================================================ */
@@ -1005,6 +1094,32 @@ class SmartCinema {
         if (settings.accentColor) {
             this.setAccentColor(settings.accentColor);
         }
+    }
+
+    applyPersistedSoldSeats() {
+        const soldKeys = this.storage.loadSoldSeats(this.seatData.hallType);
+        soldKeys.forEach(key => {
+            const [row, col] = key.split('-').map(Number);
+            const seat = this.seatData.getSeat(row, col);
+            if (seat) {
+                seat.status = SEAT_STATUS.OCCUPIED;
+                seat.isSelected = false;
+                this.seatData.selectedSeats.delete(key);
+            }
+        });
+    }
+
+    restoreSeatSelection() {
+        const saved = this.storage.loadSeatSelection();
+        if (!saved || !Array.isArray(saved.seats)) return;
+        if (saved.stats?.hallType && saved.stats.hallType !== this.seatData.hallType) return;
+
+        saved.seats.forEach(key => {
+            const [row, col] = key.split('-').map(Number);
+            if (this.seatData.isSeatAvailable(row, col)) {
+                this.seatData.selectSeat(row, col);
+            }
+        });
     }
 
     saveToStorage() {

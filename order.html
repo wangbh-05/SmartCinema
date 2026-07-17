@@ -192,6 +192,7 @@
 
             const summary = JSON.parse(summaryJSON);
             const seatData = new SeatData(summary.hallType);
+            seatData.initializeSeats(summary.dayIndex ?? 3);
 
             // 恢复已售座位
             if (summary.occupiedSeats) {
@@ -271,6 +272,7 @@
 
                 // 恢复座位数据以创建订单
                 const sd = new SeatData(summary.hallType);
+                sd.initializeSeats(summary.dayIndex ?? 3);
                 if (summary.occupiedSeats) {
                     summary.occupiedSeats.forEach(k => {
                         const [r, c] = k.split('-').map(Number);
@@ -280,25 +282,28 @@
                 }
                 // 把要购买的座位标记为选中
                 summary.seats.forEach(s => {
-                    const seat = sd.getSeat(s.row, s.col);
-                    if (seat) seat.isSelected = true;
+                    sd.selectSeat(s.row, s.col);
                 });
 
                 const selectedSeats = sd.getSelectedSeats();
                 const result = orderManager.createOrder(selectedSeats, {
                     name: user.name,
-                    email: user.email || ''
+                    email: user.email || '',
+                    hallType: summary.hallType,
+                    hallName: summary.hallName,
+                    hallDesc: summary.hallDesc
                 });
 
                 if (result.success) {
+                    const confirmed = orderManager.confirmOrder(result.order.id);
+                    if (!confirmed.success) {
+                        showToast('确认失败: ' + confirmed.message);
+                        return;
+                    }
+
                     sd.confirmPurchase();
-                    // 保存回主页面
-                    const appData = storage.loadSeatSelection ? storage.loadSeatSelection() : {};
-                    // 简单方案：把已售键写入 localStorage 供主页读取
                     const soldKeys = summary.seats.map(s => `${s.row}-${s.col}`);
-                    const existingSold = JSON.parse(localStorage.getItem('smartcinema_order_sold') || '[]');
-                    localStorage.setItem('smartcinema_order_sold',
-                        JSON.stringify([...existingSold, ...soldKeys]));
+                    storage.addSoldSeats(summary.hallType, soldKeys);
 
                     sessionStorage.removeItem('smartcinema_order_summary');
                     showToast('订单已确认！即将返回...');

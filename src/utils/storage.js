@@ -111,6 +111,40 @@ export class Storage {
     }
 
     /**
+     * 加载指定放映厅的已售座位键
+     */
+    loadSoldSeats(hallType) {
+        const soldByHall = this.load('sold_seats', {});
+        return soldByHall[hallType] || [];
+    }
+
+    /**
+     * 保存指定放映厅的已售座位键
+     */
+    saveSoldSeats(hallType, seatKeys) {
+        const soldByHall = this.load('sold_seats', {});
+        soldByHall[hallType] = Array.from(new Set(seatKeys));
+        return this.save('sold_seats', soldByHall);
+    }
+
+    /**
+     * 追加指定放映厅的已售座位键
+     */
+    addSoldSeats(hallType, seatKeys) {
+        const existing = this.loadSoldSeats(hallType);
+        return this.saveSoldSeats(hallType, [...existing, ...seatKeys]);
+    }
+
+    /**
+     * 移除指定放映厅的已售座位键（用于退票）
+     */
+    removeSoldSeats(hallType, seatKeys) {
+        const removeSet = new Set(seatKeys);
+        const remaining = this.loadSoldSeats(hallType).filter(key => !removeSet.has(key));
+        return this.saveSoldSeats(hallType, remaining);
+    }
+
+    /**
      * 保存用户设置
      */
     saveSettings(settings) {
@@ -137,6 +171,7 @@ export class Storage {
         const data = {
             seatSelection: this.loadSeatSelection(),
             orders: this.loadOrders(),
+            soldSeats: this.load('sold_seats', {}),
             settings: this.loadSettings(),
             exportTime: new Date().toISOString()
         };
@@ -151,6 +186,7 @@ export class Storage {
             const data = JSON.parse(jsonString);
             if (data.seatSelection) this.save('seat_selection', data.seatSelection);
             if (data.orders) this.save('orders', data.orders);
+            if (data.soldSeats) this.save('sold_seats', data.soldSeats);
             if (data.settings) this.save('settings', data.settings);
             return true;
         } catch (error) {

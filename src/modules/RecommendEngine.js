@@ -54,8 +54,8 @@ export class RecommendEngine {
         if (movieType === TYPE.FAMILY && (groupSize < 3 || groupSize > 5)) {
             return { success: false, message: '家庭票建议3-5人' };
         }
-        if (movieType === TYPE.GROUP && (groupSize < 6)) {
-            return { success: false, message: '团体票至少6人，最多20人' };
+        if (movieType === TYPE.GROUP && (groupSize < 5)) {
+            return { success: false, message: '团体票至少5人，最多20人' };
         }
 
         // 获取禁排

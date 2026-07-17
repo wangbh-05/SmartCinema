@@ -372,7 +372,7 @@
                 <button class="btn btn-sm" id="clear-selection">🗑️ 清空</button>
             </div>
             <div class="canvas-container">
-                <canvas id="cinema-canvas" role="img" aria-label="影院座位布局图"></canvas>
+                <canvas id="cinema-canvas" role="img" aria-label="影院座位布局图" tabindex="0"></canvas>
             </div>
             <!-- 座位统计 -->
             <div class="stats-row">
@@ -481,6 +481,14 @@
                 <button class="btn btn-sm" style="width:100%" id="btn-view-orders">📋 查看历史订单</button>
             </div>
             <div id="orders-mini-list" style="display:none;margin-top:12px;max-height:200px;overflow-y:auto;"></div>
+        </section>
+
+        <!-- 独立热度地图 -->
+        <section class="section-card" id="heatmap-section" style="grid-column: 1 / -1;">
+            <h2>🔥 影院热度地图</h2>
+            <div class="canvas-container">
+                <canvas id="heatmap-canvas" role="img" aria-label="影院热度地图，红色表示热门，黄色表示一般，蓝色表示冷门"></canvas>
+            </div>
         </section>
 
         <!-- 设置 -->

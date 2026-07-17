@@ -29,8 +29,12 @@ export class OrderManager {
                 col: seat.col,
                 price: seat.price
             })),
+            seatKeys: seats.map(seat => `${seat.row}-${seat.col}`),
             totalPrice: seats.reduce((sum, s) => sum + s.price, 0),
             seatCount: seats.length,
+            hallType: userInfo.hallType || 'medium',
+            hallName: userInfo.hallName || '',
+            hallDesc: userInfo.hallDesc || '',
             userInfo: {
                 name: userInfo.name || '匿名用户',
                 phone: userInfo.phone || '',
@@ -229,6 +233,7 @@ export class OrderManager {
 订单号: ${order.id}
 状态: ${this.getStatusText(order.status)}
 创建时间: ${new Date(order.timestamp).toLocaleString('zh-CN')}
+放映厅: ${order.hallName || order.hallType || '未记录'}
 
 用户信息:
   姓名: ${order.userInfo.name}

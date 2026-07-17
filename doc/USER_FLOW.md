@@ -99,13 +99,17 @@ flowchart TD
     A[index.html<br/>选择座位] -->|sessionStorage| B[order.html<br/>订单确认页]
 
     B --> C{用户操作}
-    C -->|✅ 确认支付| D[OrderManager.createOrder]
-    D --> E[SeatData.confirmPurchase<br/>座位→已售]
-    E --> F[localStorage 持久化]
+    C -->|✅ 确认支付| D[OrderManager.createOrder<br/>+ confirmOrder]
+    D --> E[Storage.addSoldSeats<br/>座位→已售]
+    E --> F[localStorage 持久化订单和已售座位]
     F --> G[返回 index.html]
 
     C -->|❌ 取消| H[清除 sessionStorage]
     H --> G
+
+    G --> I[历史订单]
+    I -->|已确认订单退票| J[OrderManager.cancelOrder<br/>Storage.removeSoldSeats]
+    J --> K[座位恢复为空座<br/>刷新座位图]
 
     style B fill:#D29922,color:#000
     style D fill:#238636,color:#fff
@@ -115,7 +119,8 @@ flowchart TD
 
 - **选座页 → 订单页**：`sessionStorage.setItem('smartcinema_order_summary', JSON)`
 - **订单持久化**：`localStorage.setItem('smartcinema_orders', JSON)`
-- **跨页已售同步**：`localStorage.setItem('smartcinema_order_sold', JSON)`
+- **跨页已售同步**：`localStorage.setItem('smartcinema_sold_seats', JSON)`，按放映厅保存已售座位
+- **退票恢复**：历史订单触发 `cancelOrder()`，再从 `smartcinema_sold_seats` 移除对应座位
 
 ---
 

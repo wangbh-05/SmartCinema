@@ -41,21 +41,23 @@ class TestScoreEngine {
 
         // 测试评分
         this.test('应该能计算空选择的评分', () => {
-            const data = new SeatData(10, 20);
+            const data = new SeatData('medium');
             const engine = new ScoreEngine(data);
             const result = engine.calculateScore();
             this.assertEqual(result.totalScore, 0);
         });
 
         this.test('应该能计算选定座位的评分', () => {
-            const data = new SeatData(10, 20);
+            const data = new SeatData('medium');
             // 选择一些座位
-            for (let r = 0; r < 3; r++) {
-                for (let c = 0; c < 3; c++) {
+            for (let r = 0; r < data.rows; r++) {
+                for (let c = 0; c < data.cols; c++) {
                     if (data.isSeatAvailable(r, c)) {
                         data.selectSeat(r, c);
+                        if (data.getSelectedSeats().length >= 3) break;
                     }
                 }
+                if (data.getSelectedSeats().length >= 3) break;
             }
             
             const engine = new ScoreEngine(data);
@@ -64,20 +66,22 @@ class TestScoreEngine {
         });
 
         this.test('评分应该返回详细信息', () => {
-            const data = new SeatData(10, 20);
-            if (data.isSeatAvailable(0, 0)) {
-                data.selectSeat(0, 0);
-            }
+            const data = new SeatData('medium');
+            const found = this._findAvailableSeat(data);
+            this.assertTrue(found !== null);
+            data.selectSeat(found.row, found.col);
             
             const engine = new ScoreEngine(data);
             const result = engine.calculateScore();
             this.assertTrue(result.breakdown);
             this.assertTrue(result.details);
+            this.assertEqual(result.details.length, 4);
+            this.assertTrue(['excellent', 'good', 'average'].includes(result.grade));
         });
 
         this.test('不同座位应该得到不同评分', () => {
-            const data1 = new SeatData(10, 20);
-            const data2 = new SeatData(10, 20);
+            const data1 = new SeatData('medium');
+            const data2 = new SeatData('medium');
             
             // 选择不同位置的座位
             if (data1.isSeatAvailable(0, 0)) {
@@ -96,7 +100,16 @@ class TestScoreEngine {
             this.assertTrue(true);
         });
 
-        this.printSummary();
+        return this.printSummary();
+    }
+
+    _findAvailableSeat(data) {
+        for (let r = 0; r < data.rows; r++) {
+            for (let c = 0; c < data.cols; c++) {
+                if (data.isSeatAvailable(r, c)) return { row: r, col: c };
+            }
+        }
+        return null;
     }
 
     printSummary() {

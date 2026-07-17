@@ -2,7 +2,7 @@
  * 单元测试 - SeatData 模块
  */
 
-import { SeatData } from '../src/core/SeatData.js';
+import { SeatData, SEAT_STATUS } from '../src/core/SeatData.js';
 
 class TestSeatData {
     constructor() {
@@ -60,32 +60,47 @@ class TestSeatData {
     runAll() {
         console.log('\n========== SeatData 模块测试 ==========\n');
 
-        // 测试初始化
-        this.test('应该初始化指定行列的座位', () => {
-            const data = new SeatData(5, 10);
-            this.assertEqual(data.rows, 5);
+        // 测试三厅初始化
+        this.test('应该初始化小厅 100 座', () => {
+            const data = new SeatData('small');
+            this.assertEqual(data.rows, 10);
             this.assertEqual(data.cols, 10);
+            this.assertEqual(data.getStats().total, 100);
+        });
+
+        this.test('应该初始化中厅 200 座', () => {
+            const data = new SeatData('medium');
+            this.assertEqual(data.rows, 10);
+            this.assertEqual(data.cols, 20);
+            this.assertEqual(data.getStats().total, 200);
+        });
+
+        this.test('应该初始化大厅 300 座', () => {
+            const data = new SeatData('large');
+            this.assertEqual(data.rows, 10);
+            this.assertEqual(data.cols, 30);
+            this.assertEqual(data.getStats().total, 300);
         });
 
         // 测试获取座位
         this.test('应该能获取有效座位', () => {
-            const data = new SeatData(5, 10);
+            const data = new SeatData('small');
             const seat = data.getSeat(0, 0);
             this.assertTrue(seat !== null);
         });
 
         this.test('应该返回 null 获取无效座位', () => {
-            const data = new SeatData(5, 10);
+            const data = new SeatData('small');
             const seat = data.getSeat(10, 10);
             this.assertEqual(seat, null);
         });
 
         // 测试座位选择
         this.test('应该能选择可用座位', () => {
-            const data = new SeatData(5, 10);
+            const data = new SeatData('small');
             // 找一个可用座位
-            for (let r = 0; r < 5; r++) {
-                for (let c = 0; c < 10; c++) {
+            for (let r = 0; r < data.rows; r++) {
+                for (let c = 0; c < data.cols; c++) {
                     if (data.isSeatAvailable(r, c)) {
                         const result = data.selectSeat(r, c);
                         this.assertTrue(result);
@@ -98,16 +113,16 @@ class TestSeatData {
 
         // 测试座位统计
         this.test('应该能统计座位', () => {
-            const data = new SeatData(5, 10);
+            const data = new SeatData('small');
             const stats = data.getStats();
-            this.assertEqual(stats.total, 50);
+            this.assertEqual(stats.total, 100);
             this.assertTrue(stats.available >= 0);
             this.assertTrue(stats.occupied >= 0);
         });
 
         // 测试清空选择
         this.test('应该能清空所有选择', () => {
-            const data = new SeatData(5, 10);
+            const data = new SeatData('small');
             // 选择一些座位
             for (let r = 0; r < 2; r++) {
                 for (let c = 0; c < 2; c++) {
@@ -118,7 +133,19 @@ class TestSeatData {
             this.assertEqual(data.selectedSeats.size, 0);
         });
 
-        this.printSummary();
+        this.test('应该能确认购买并退票恢复为空座', () => {
+            const data = new SeatData('small');
+            const found = data.findConsecutiveInRow(5, 1);
+            this.assertTrue(found && found.length === 1);
+            const seat = found[0];
+            this.assertTrue(data.selectSeat(seat.row, seat.col));
+            data.confirmPurchase();
+            this.assertEqual(data.getSeat(seat.row, seat.col).status, SEAT_STATUS.OCCUPIED);
+            data.refundSeats([`${seat.row}-${seat.col}`]);
+            this.assertEqual(data.getSeat(seat.row, seat.col).status, SEAT_STATUS.AVAILABLE);
+        });
+
+        return this.printSummary();
     }
 
     /**

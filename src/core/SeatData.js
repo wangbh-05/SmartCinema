@@ -23,9 +23,9 @@ function seedRandom(seed) {
 
 // 座位状态常量
 export const SEAT_STATUS = {
-    AVAILABLE: 'available',   // 空座（绿色）
+    AVAILABLE: 'available',   // 空座（白色）
     SELECTED:  'selected',    // 选中未售（黄色）
-    OCCUPIED:  'occupied'     // 已售（红色）
+    OCCUPIED:  'occupied'     // 已售（灰色）
 };
 
 export class SeatData {
