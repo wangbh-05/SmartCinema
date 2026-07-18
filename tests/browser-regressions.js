@@ -312,6 +312,8 @@ async function run() {
         try {
             const doc = frame.contentDocument;
             const win = frame.contentWindow;
+            doc.querySelectorAll('[data-catalog-type="date"]')[1].click();
+            await delay();
             openHold(doc);
             doc.getElementById('confirm-order').click();
             doc.getElementById('auth-switch').click();
@@ -391,6 +393,38 @@ async function run() {
             assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 2, '未重新推荐合法连座');
             assertContract(doc.getElementById('seat-conflict').hidden, '恢复后冲突提示未清除');
             assertContract(!doc.getElementById('continue-booking').disabled, '重新推荐后仍不能继续');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
+    await regression('UX-009', '电影、影院与日期切换应更新上下文并清除旧座位', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            assertContract(doc.querySelectorAll('[data-catalog-type="movie"]').length === 3, '影片目录不是 3 部');
+            assertContract(doc.querySelectorAll('[data-catalog-type="cinema"]').length === 2, '影院目录不是 2 家');
+            assertContract(doc.querySelectorAll('[data-catalog-type="date"]').length === 3, '营业日目录不是 3 天');
+            recommend(doc);
+            await delay();
+            assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 2, '切换前未形成座位选择');
+
+            doc.querySelectorAll('[data-catalog-type="date"]')[1].click();
+            await delay();
+            assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 0, '切换日期后保留了旧座位');
+
+            doc.querySelector('[data-catalog-value="movie-letters-in-rain"]').click();
+            await delay();
+            assertContract(doc.getElementById('movie-title').textContent === '雨夜来信', '切换影片后上下文未更新');
+
+            doc.querySelector('[data-catalog-value="cinema-riverside"]').click();
+            await delay();
+            assertContract(doc.getElementById('cinema-name').textContent.includes('滨江里'), '切换影院后场次上下文未更新');
+            assertContract(doc.querySelectorAll('.showtime-option').length === 1, '组合筛选没有收敛到对应场次');
+            await waitFor(
+                () => doc.activeElement?.dataset.catalogValue === 'cinema-riverside',
+                '目录重绘后归还触发按钮焦点'
+            );
         } finally {
             disposeFrame(frame);
         }
@@ -654,8 +688,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 18 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：17 个商业、架构与运维回归，加运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 19 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：18 个商业、架构与运维回归，加运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);

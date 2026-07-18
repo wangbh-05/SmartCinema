@@ -77,12 +77,12 @@ export default class TestCommercialComposition {
     runAll() {
         console.log('\n========== Commercial Composition 测试 ==========\n');
 
-        this.test('空白浏览器应连续初始化 v2、v3 与四个场次库存', () => {
+        this.test('空白浏览器应连续初始化 v2、v3 与三日目录库存', () => {
             const deps = this._deps();
             const initialized = deps.app.initialize();
             this.assertTrue(initialized.ok);
-            this.assertEqual(initialized.value.createdInventories, 4);
-            this.assertEqual(Object.keys(initialized.value.state.inventoriesByShowtime).length, 4);
+            this.assertEqual(initialized.value.createdInventories, 24);
+            this.assertEqual(Object.keys(initialized.value.state.inventoriesByShowtime).length, 24);
             this.assertTrue(deps.localStorage.getItem('smartcinema_state_v2') !== null);
             this.assertTrue(deps.localStorage.getItem('smartcinema_state_v3') !== null);
         });

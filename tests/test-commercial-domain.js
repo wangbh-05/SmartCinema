@@ -347,11 +347,20 @@ class TestCommercialDomain {
             this.assertEqual(booking.inventory.soldSeatIds.length, 2);
         });
 
-        this.test('DemoCatalog 应提供完整场次引用、价格区和无障碍席位', () => {
+        this.test('DemoCatalog 应提供多电影、多影院、多营业日与完整场次引用', () => {
             const catalog = createDemoCatalog('2026-07-18');
             const repository = new DemoCatalogRepository(catalog);
             const showtimes = repository.listShowtimes({ businessDate: '2026-07-18' });
-            this.assertEqual(showtimes.length, 4);
+            this.assertEqual(repository.listMovies().length, 3);
+            this.assertEqual(repository.listCinemas().length, 2);
+            this.assertEqual(repository.listBusinessDates().length, 3);
+            this.assertEqual(repository.listShowtimes().length, 24);
+            this.assertEqual(showtimes.length, 8);
+            this.assertTrue(repository.listShowtimes({
+                movieId: 'movie-letters-in-rain',
+                cinemaId: 'cinema-riverside',
+                businessDate: '2026-07-19'
+            }).length > 0);
             const auditorium = repository.getAuditorium(showtimes[0].auditoriumId);
             this.assertEqual(auditorium.seats.length, 180);
             this.assertEqual(auditorium.seats.filter(seat => seat.kind === 'wheelchair').length, 2);

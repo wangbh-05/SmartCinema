@@ -17,6 +17,12 @@ function addMinutes(isoString, minutes) {
     return `${shifted.toISOString().slice(0, 19)}.000+08:00`;
 }
 
+function addDays(businessDate, days) {
+    const value = new Date(`${businessDate}T12:00:00.000+08:00`);
+    value.setUTCDate(value.getUTCDate() + days);
+    return value.toISOString().slice(0, 10);
+}
+
 function sectionForColumn(columnIndex) {
     if (columnIndex < 4) return 'left';
     if (columnIndex < 14) return 'center';
@@ -75,39 +81,99 @@ function createSeatPlan() {
 }
 
 export function createDemoCatalog(businessDate) {
-    const movie = createMovie({
-        id: 'movie-echoes-beyond',
-        title: '星际回响',
-        originalTitle: 'Echoes Beyond',
-        durationMinutes: 128,
-        audienceRating: '12+',
-        genres: ['科幻', '剧情'],
-        synopsis: '一支深空测绘队收到来自失落殖民地的回声，在返航与追寻真相之间作出选择。',
-        artwork: null
-    });
-    const cinema = createCinema({
-        id: 'cinema-lumen-center',
-        name: 'SmartCinema 光影中心',
-        city: '上海',
-        address: '浦东新区示范路 88 号 6 层',
-        serviceFeatures: [
-            'mobile-ticket',
-            'step-free-access',
-            'free-parking-2h',
-            'hearing-assistance'
-        ]
-    });
-    const auditorium = createAuditorium({
-        id: 'auditorium-imax-1',
-        cinemaId: cinema.id,
-        name: '1 号 IMAX 厅',
-        seats: createSeatPlan(),
-        accessibilityFeatures: [
-            'wheelchair-spaces',
-            'step-free-access',
-            'hearing-assistance'
-        ]
-    });
+    const movies = [
+        createMovie({
+            id: 'movie-echoes-beyond',
+            title: '星际回响',
+            originalTitle: 'Echoes Beyond',
+            durationMinutes: 128,
+            audienceRating: '12+',
+            genres: ['科幻', '剧情'],
+            synopsis: '一支深空测绘队收到来自失落殖民地的回声，在返航与追寻真相之间作出选择。',
+            artwork: 'cosmic-orbit'
+        }),
+        createMovie({
+            id: 'movie-letters-in-rain',
+            title: '雨夜来信',
+            originalTitle: 'Letters in the Rain',
+            durationMinutes: 103,
+            audienceRating: '全年龄',
+            genres: ['剧情', '爱情'],
+            synopsis: '两封寄错地址的信，让一对素未谋面的城市夜归人逐渐走进彼此的生活。',
+            artwork: 'rain-letter'
+        }),
+        createMovie({
+            id: 'movie-little-planet',
+            title: '小小星球',
+            originalTitle: 'The Little Planet',
+            durationMinutes: 96,
+            audienceRating: '全年龄',
+            genres: ['动画', '家庭'],
+            synopsis: '一颗迷路的小行星和地球女孩组成临时搭档，寻找各自在宇宙中的家。',
+            artwork: 'little-planet'
+        })
+    ];
+    const cinemas = [
+        createCinema({
+            id: 'cinema-lumen-center',
+            name: 'SmartCinema 光影中心',
+            city: '上海',
+            address: '浦东新区示范路 88 号 6 层',
+            serviceFeatures: [
+                'mobile-ticket',
+                'step-free-access',
+                'free-parking-2h',
+                'hearing-assistance'
+            ]
+        }),
+        createCinema({
+            id: 'cinema-riverside',
+            name: 'SmartCinema 滨江里',
+            city: '上海',
+            address: '徐汇区滨江示范路 16 号 4 层',
+            serviceFeatures: [
+                'mobile-ticket',
+                'step-free-access',
+                'metro-connected',
+                'hearing-assistance'
+            ]
+        })
+    ];
+    const auditoriums = [
+        createAuditorium({
+            id: 'auditorium-imax-1',
+            cinemaId: cinemas[0].id,
+            name: '1 号 IMAX 厅',
+            seats: createSeatPlan(),
+            accessibilityFeatures: [
+                'wheelchair-spaces',
+                'step-free-access',
+                'hearing-assistance'
+            ]
+        }),
+        createAuditorium({
+            id: 'auditorium-dolby-3',
+            cinemaId: cinemas[0].id,
+            name: '3 号杜比全景声厅',
+            seats: createSeatPlan(),
+            accessibilityFeatures: [
+                'wheelchair-spaces',
+                'step-free-access',
+                'hearing-assistance'
+            ]
+        }),
+        createAuditorium({
+            id: 'auditorium-riverside-6',
+            cinemaId: cinemas[1].id,
+            name: '6 号激光厅',
+            seats: createSeatPlan(),
+            accessibilityFeatures: [
+                'wheelchair-spaces',
+                'step-free-access',
+                'hearing-assistance'
+            ]
+        })
+    ];
     const ticketTypes = [
         createTicketType({
             id: 'adult',
@@ -168,38 +234,47 @@ export function createDemoCatalog(businessDate) {
         currency: 'CNY',
         summary: '开场前 60 分钟可整单退票，每单收取 5 元服务费'
     });
+    const businessDates = Object.freeze([0, 1, 2].map(offset => addDays(businessDate, offset)));
     const showtimeDefinitions = [
-        ['showtime-matinee', '12:40', 'pricing-matinee'],
-        ['showtime-afternoon', '16:10', 'pricing-matinee'],
-        ['showtime-prime', '19:30', 'pricing-prime'],
-        ['showtime-late', '22:10', 'pricing-late']
+        { key: 'echo-lumen-day', movie: 0, cinema: 0, auditorium: 0, time: '12:40', pricing: 'pricing-matinee', format: 'IMAX-2D', language: '英语', subtitle: '中文字幕' },
+        { key: 'rain-lumen', movie: 1, cinema: 0, auditorium: 1, time: '15:20', pricing: 'pricing-matinee', format: '杜比全景声', language: '普通话', subtitle: '' },
+        { key: 'planet-lumen', movie: 2, cinema: 0, auditorium: 1, time: '10:30', pricing: 'pricing-matinee', format: '2D', language: '普通话', subtitle: '' },
+        { key: 'echo-riverside', movie: 0, cinema: 1, auditorium: 2, time: '18:40', pricing: 'pricing-prime', format: '激光 2D', language: '英语', subtitle: '中文字幕' },
+        { key: 'rain-riverside', movie: 1, cinema: 1, auditorium: 2, time: '20:10', pricing: 'pricing-prime', format: '激光 2D', language: '普通话', subtitle: '' },
+        { key: 'planet-riverside', movie: 2, cinema: 1, auditorium: 2, time: '13:10', pricing: 'pricing-matinee', format: '激光 2D', language: '普通话', subtitle: '' },
+        { key: 'echo-lumen-prime', movie: 0, cinema: 0, auditorium: 0, time: '19:30', pricing: 'pricing-prime', format: 'IMAX-2D', language: '英语', subtitle: '中文字幕' },
+        { key: 'echo-lumen-late', movie: 0, cinema: 0, auditorium: 0, time: '22:10', pricing: 'pricing-late', format: 'IMAX-2D', language: '英语', subtitle: '中文字幕' }
     ];
-    const showtimes = showtimeDefinitions.map(([id, time, pricingPolicyId]) => {
-        const startsAt = isoAt(businessDate, time);
+    const showtimes = businessDates.flatMap(date => showtimeDefinitions.map(definition => {
+        const movie = movies[definition.movie];
+        const cinema = cinemas[definition.cinema];
+        const auditorium = auditoriums[definition.auditorium];
+        const startsAt = isoAt(date, definition.time);
         return createShowtime({
-            id: `${id}:${businessDate}`,
+            id: `showtime:${definition.key}:${date}`,
             movieId: movie.id,
             cinemaId: cinema.id,
             auditoriumId: auditorium.id,
             startsAt,
             endsAt: addMinutes(startsAt, movie.durationMinutes),
-            format: 'IMAX-2D',
-            language: '英语',
-            subtitle: '中文字幕',
+            format: definition.format,
+            language: definition.language,
+            subtitle: definition.subtitle,
             accessibilityFeatures: [...auditorium.accessibilityFeatures],
             salesState: 'on-sale',
-            pricingPolicyId,
+            pricingPolicyId: definition.pricing,
             refundPolicyId: refundPolicy.id,
             bookingOpensAt: addMinutes(startsAt, -7 * 24 * 60),
             bookingClosesAt: addMinutes(startsAt, -10)
         });
-    });
+    }));
 
     return Object.freeze({
         businessDate,
-        movies: Object.freeze({ [movie.id]: movie }),
-        cinemas: Object.freeze({ [cinema.id]: cinema }),
-        auditoriums: Object.freeze({ [auditorium.id]: auditorium }),
+        businessDates,
+        movies: Object.freeze(Object.fromEntries(movies.map(item => [item.id, item]))),
+        cinemas: Object.freeze(Object.fromEntries(cinemas.map(item => [item.id, item]))),
+        auditoriums: Object.freeze(Object.fromEntries(auditoriums.map(item => [item.id, item]))),
         ticketTypes: Object.freeze(Object.fromEntries(ticketTypes.map(item => [item.id, item]))),
         pricingPolicies: Object.freeze(Object.fromEntries(pricingPolicies.map(item => [item.id, item]))),
         refundPolicies: Object.freeze({ [refundPolicy.id]: refundPolicy }),
@@ -217,7 +292,22 @@ export class DemoCatalogRepository {
             (movieId === null || showtime.movieId === movieId) &&
             (cinemaId === null || showtime.cinemaId === cinemaId) &&
             (businessDate === null || showtime.startsAt.startsWith(businessDate))
-        );
+        ).sort((left, right) => {
+            const timeDifference = Date.parse(left.startsAt) - Date.parse(right.startsAt);
+            return timeDifference === 0 ? left.id.localeCompare(right.id) : timeDifference;
+        });
+    }
+
+    listMovies() {
+        return Object.values(this.catalog.movies);
+    }
+
+    listCinemas() {
+        return Object.values(this.catalog.cinemas);
+    }
+
+    listBusinessDates() {
+        return [...this.catalog.businessDates];
     }
 
     getMovie(id) {

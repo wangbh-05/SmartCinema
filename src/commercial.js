@@ -2,6 +2,7 @@ import { createBrowserCommercialApplication } from './bootstrapCommercial.js';
 import { AuthViewAdapter } from './ui/adapters/AuthViewAdapter.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
 import { CommercialCheckoutController } from './ui/controllers/CommercialCheckoutController.js';
+import { CommercialCatalogController } from './ui/controllers/CommercialCatalogController.js';
 import { CommercialOrdersController } from './ui/controllers/CommercialOrdersController.js';
 import { CommercialPreferencesController } from './ui/controllers/CommercialPreferencesController.js';
 import { CommercialSeatMapController } from './ui/controllers/CommercialSeatMapController.js';
@@ -22,6 +23,7 @@ class CommercialBookingPage {
         this.app = app;
         this.booking = app.booking;
         this.context = null;
+        this.allShowtimes = [];
         this.showtimes = [];
         this.inventory = null;
         this.draft = null;
@@ -43,15 +45,25 @@ class CommercialBookingPage {
         this.bindStaticEvents();
         this.updateAccountHeader();
 
+        const navigation = this.booking.getCatalogNavigation();
         const showtimes = this.booking.listShowtimes();
-        if (!showtimes.ok || showtimes.value.length === 0) {
-            this.renderFatalError(showtimes.error?.message || '当前没有可购买的场次');
+        if (!navigation.ok || !showtimes.ok || showtimes.value.length === 0) {
+            this.renderFatalError(
+                navigation.error?.message || showtimes.error?.message || '当前没有可购买的场次'
+            );
             return;
         }
-        this.showtimes = showtimes.value;
-        const now = Date.parse(this.app.clock.now());
-        const initial = this.showtimes.find(item => Date.parse(item.showtime.bookingClosesAt) > now) ||
-            this.showtimes[this.showtimes.length - 1];
+        this.allShowtimes = showtimes.value;
+        this.catalogController = new CommercialCatalogController({
+            navigation: navigation.value,
+            showtimes: this.allShowtimes,
+            onSelect: selection => this.selectCatalogValue(selection)
+        });
+        const initial = this.allShowtimes.find(item => item.availability.bookable);
+        if (!initial) {
+            this.renderFatalError('未来三天暂时没有可购买的场次');
+            return;
+        }
         this.restoreBookingSession(initial.showtime.id);
     }
 
@@ -149,6 +161,33 @@ class CommercialBookingPage {
         element('mobile-continue').addEventListener('click', event => this.placeHold(event.currentTarget));
     }
 
+    selectCatalogValue({ type, value }) {
+        if (this.checkout.isHolding()) {
+            this.notify('请先完成或关闭当前锁座确认，再更换观影安排');
+            return;
+        }
+        const selection = this.catalogSelection();
+        const key = { movie: 'movieId', cinema: 'cinemaId', date: 'businessDate' }[type];
+        if (!key || selection[key] === value) return;
+        const candidate = this.catalogController.bestMatch(type, value, selection);
+        if (!candidate) {
+            this.notify('这个组合暂时没有可购买的场次');
+            return;
+        }
+        const hadSeats = this.draft.selectedSeatIds.length > 0;
+        if (!this.selectShowtime(candidate.showtime.id)) return;
+        if (hadSeats) this.notify('观影安排已变化，原座位选择已清除');
+        this.catalogController.focus(type, value);
+    }
+
+    catalogSelection() {
+        return {
+            movieId: this.context.movie.id,
+            cinemaId: this.context.cinema.id,
+            businessDate: this.context.showtime.startsAt.slice(0, 10)
+        };
+    }
+
     restoreBookingSession(fallbackShowtimeId) {
         const savedDraft = this.app.bookingDrafts.get();
         if (!savedDraft.ok) {
@@ -195,9 +234,9 @@ class CommercialBookingPage {
         }
 
         const draft = savedDraft.ok ? savedDraft.value : null;
-        const draftShowtime = draft && this.showtimes.some(item =>
+        const draftShowtime = draft && this.allShowtimes.some(item =>
             item.showtime.id === draft.showtimeId &&
-            Date.parse(item.showtime.bookingClosesAt) > Date.parse(this.app.clock.now())
+            item.availability.bookable
         ) ? draft.showtimeId : fallbackShowtimeId;
         if (draft && draftShowtime === draft.showtimeId) {
             this.setTicketItems(draft.ticketItems);
@@ -243,6 +282,7 @@ class CommercialBookingPage {
             return false;
         }
         this.context = context.value;
+        this.showtimes = this.catalogController.list(this.catalogSelection());
         this.inventory = inventory.value;
         const knownSeatIds = new Set(this.context.auditorium.seats.map(seat => seat.id));
         const restoredSeatIds = (restoredDraft?.selectedSeatIds || []).filter(seatId =>
@@ -263,7 +303,10 @@ class CommercialBookingPage {
             this.notify('部分座位已不可用，已保留仍可选择的座位');
         }
         if (announce) {
-            this.announce(`已切换到 ${formatTime(this.context.showtime.startsAt)} 场次`);
+            this.announce(
+                `已切换到 ${this.context.movie.title}，${this.context.cinema.name}，` +
+                `${formatDate(this.context.showtime.startsAt)} ${formatTime(this.context.showtime.startsAt)} 场次`
+            );
         }
         return true;
     }
@@ -402,6 +445,7 @@ class CommercialBookingPage {
     }
 
     renderAll() {
+        this.catalogController.render(this.catalogSelection());
         this.renderContext();
         this.renderShowtimes();
         this.renderTickets();
@@ -414,6 +458,10 @@ class CommercialBookingPage {
         element('movie-title').textContent = movie.title;
         element('movie-original').textContent = movie.originalTitle;
         element('movie-synopsis').textContent = movie.synopsis;
+        const poster = element('movie-poster');
+        poster.dataset.artwork = movie.artwork || 'cosmic-orbit';
+        poster.setAttribute('aria-label', `${movie.title}电影海报图形`);
+        element('poster-title').textContent = movie.originalTitle || movie.title;
         const meta = element('movie-meta');
         meta.replaceChildren();
         [...movie.genres, `${movie.durationMinutes} 分钟`, movie.audienceRating].forEach(value =>
@@ -433,7 +481,6 @@ class CommercialBookingPage {
     renderShowtimes() {
         const list = element('showtime-list');
         list.replaceChildren();
-        const now = Date.parse(this.app.clock.now());
         this.showtimes.forEach(item => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -441,10 +488,15 @@ class CommercialBookingPage {
             button.dataset.showtimeId = item.showtime.id;
             button.setAttribute('role', 'listitem');
             button.setAttribute('aria-pressed', String(item.showtime.id === this.context.showtime.id));
-            button.disabled = Date.parse(item.showtime.bookingClosesAt) <= now;
+            button.disabled = !item.availability.bookable;
             appendText(button, 'strong', formatTime(item.showtime.startsAt));
             appendText(button, 'small', `${item.showtime.format} · ${item.showtime.language}`);
-            appendText(button, 'span', button.disabled ? '已停售' : `${formatAmount(item.priceFrom)}起`, 'showtime-price');
+            appendText(
+                button,
+                'span',
+                button.disabled ? item.availability.label : `${formatAmount(item.priceFrom)}起`,
+                'showtime-price'
+            );
             list.append(button);
         });
     }

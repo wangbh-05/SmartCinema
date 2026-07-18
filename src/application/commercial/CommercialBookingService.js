@@ -22,6 +22,14 @@ export class CommercialBookingService {
         this.idGenerator = idGenerator;
     }
 
+    getCatalogNavigation() {
+        return ok(Object.freeze({
+            movies: Object.freeze(this.catalogRepository.listMovies()),
+            cinemas: Object.freeze(this.catalogRepository.listCinemas()),
+            businessDates: Object.freeze(this.catalogRepository.listBusinessDates())
+        }));
+    }
+
     listShowtimes(filters = {}) {
         const showtimes = this.catalogRepository.listShowtimes(filters);
         return ok(showtimes.map(showtime => this._contextForShowtime(showtime)));
@@ -371,7 +379,8 @@ export class CommercialBookingService {
             auditorium: this.catalogRepository.getAuditorium(showtime.auditoriumId),
             pricingPolicy,
             refundPolicy: this.catalogRepository.getRefundPolicy(showtime.refundPolicyId),
-            priceFrom: pricingPolicy?.baseTicketPrice ?? null
+            priceFrom: pricingPolicy?.baseTicketPrice ?? null,
+            availability: this._availabilityForShowtime(showtime, this.clock.now())
         });
     }
 
@@ -383,17 +392,33 @@ export class CommercialBookingService {
     _validateShowtimeForSale(showtimeId, now) {
         const showtime = this.catalogRepository.getShowtime(showtimeId);
         if (!showtime) return err('SHOWTIME_NOT_FOUND', '场次不存在或已下架', { showtimeId });
+        const availability = this._availabilityForShowtime(showtime, now);
+        if (!availability.bookable) return err(availability.code, availability.label, {
+            salesState: showtime.salesState
+        });
+        return ok(showtime);
+    }
+
+    _availabilityForShowtime(showtime, now) {
         if (!['on-sale', 'few-seats'].includes(showtime.salesState)) {
-            return err('SHOWTIME_NOT_ON_SALE', '当前场次不可购票', { salesState: showtime.salesState });
+            return Object.freeze({
+                bookable: false,
+                code: 'SHOWTIME_NOT_ON_SALE',
+                label: showtime.salesState === 'sold-out' ? '已售罄' : '当前场次不可购票'
+            });
         }
         const timestamp = Date.parse(now);
         if (showtime.bookingOpensAt && timestamp < Date.parse(showtime.bookingOpensAt)) {
-            return err('BOOKING_NOT_OPEN', '当前场次尚未开售');
+            return Object.freeze({ bookable: false, code: 'BOOKING_NOT_OPEN', label: '尚未开售' });
         }
         if (timestamp >= Date.parse(showtime.bookingClosesAt)) {
-            return err('BOOKING_CLOSED', '当前场次已停止售票');
+            return Object.freeze({ bookable: false, code: 'BOOKING_CLOSED', label: '已停售' });
         }
-        return ok(showtime);
+        return Object.freeze({
+            bookable: true,
+            code: null,
+            label: showtime.salesState === 'few-seats' ? '余票紧张' : '可购票'
+        });
     }
 
     _persistHoldAndInventory(currentState, result) {

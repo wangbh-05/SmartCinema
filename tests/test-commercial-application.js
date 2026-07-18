@@ -91,6 +91,24 @@ class TestCommercialApplication {
             this.assertTrue(context.value.priceFrom > 0);
         });
 
+        this.test('目录导航应提供电影、影院、日期并支持组合筛选', () => {
+            const deps = this._deps();
+            const navigation = deps.service.getCatalogNavigation();
+            this.assertTrue(navigation.ok);
+            this.assertEqual(navigation.value.movies.length, 3);
+            this.assertEqual(navigation.value.cinemas.length, 2);
+            this.assertEqual(navigation.value.businessDates.length, 3);
+            const filtered = deps.service.listShowtimes({
+                movieId: 'movie-little-planet',
+                cinemaId: 'cinema-riverside',
+                businessDate: '2026-07-19'
+            });
+            this.assertTrue(filtered.ok);
+            this.assertEqual(filtered.value.length, 1);
+            this.assertEqual(filtered.value[0].movie.title, '小小星球');
+            this.assertEqual(filtered.value[0].cinema.name, 'SmartCinema 滨江里');
+        });
+
         this.test('应用层应创建票种草稿并原子持久化 hold 与库存', () => {
             const deps = this._deps();
             const draft = this._completeDraft(deps);
@@ -364,7 +382,7 @@ class TestCommercialApplication {
         this.assertTrue(initialized.ok);
         const catalog = createDemoCatalog('2026-07-18');
         const catalogRepository = new DemoCatalogRepository(catalog);
-        const showtimeId = catalogRepository.listShowtimes()[0].id;
+        const showtimeId = 'showtime:echo-lumen-day:2026-07-18';
         const service = new CommercialBookingService({
             catalogRepository,
             stateRepository: repository,

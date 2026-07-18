@@ -104,8 +104,8 @@ export default class TestCommercialOperations {
             const deps = this._adminDeps();
             const result = deps.operations.getDashboard();
             this.assertTrue(result.ok, result.error?.message);
-            this.assertEqual(result.value.summary.showtimeCount, 4);
-            this.assertEqual(result.value.showtimes.length, 4);
+            this.assertEqual(result.value.summary.showtimeCount, 24);
+            this.assertEqual(result.value.showtimes.length, 24);
             this.assertEqual(result.value.summary.userCount, 1);
             this.assertEqual(result.value.operator.role, 'admin');
             this.assertTrue(result.value.users.every(user => user.credential === undefined));

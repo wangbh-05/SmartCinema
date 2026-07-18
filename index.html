@@ -20,7 +20,7 @@
                 <span class="brand-mark" aria-hidden="true">S</span>
                 <span class="brand-copy">
                     <strong>SmartCinema</strong>
-                    <span>光影中心</span>
+                    <span>电影 · 影院 · 选座</span>
                 </span>
             </a>
             <nav class="header-actions" aria-label="账户导航">
@@ -49,10 +49,34 @@
             </ol>
         </nav>
 
+        <section class="catalog-picker" aria-labelledby="catalog-title">
+            <div class="catalog-heading">
+                <div>
+                    <span class="step-kicker">观影安排</span>
+                    <h2 id="catalog-title">选择影片、影院与日期</h2>
+                </div>
+                <p>切换安排会清除尚未锁定的座位选择</p>
+            </div>
+            <div class="catalog-selector-grid">
+                <div class="catalog-control">
+                    <span class="catalog-label" id="movie-picker-label">影片</span>
+                    <div class="catalog-options movie-options" id="movie-list" role="group" aria-labelledby="movie-picker-label"></div>
+                </div>
+                <div class="catalog-control">
+                    <span class="catalog-label" id="cinema-picker-label">影院</span>
+                    <div class="catalog-options cinema-options" id="cinema-list" role="group" aria-labelledby="cinema-picker-label"></div>
+                </div>
+                <div class="catalog-control">
+                    <span class="catalog-label" id="date-picker-label">日期</span>
+                    <div class="catalog-options date-options" id="date-list" role="group" aria-labelledby="date-picker-label"></div>
+                </div>
+            </div>
+        </section>
+
         <section class="movie-context" aria-labelledby="movie-title">
-            <div class="movie-poster" role="img" aria-label="星际回响电影海报占位图">
+            <div class="movie-poster" id="movie-poster" role="img" aria-label="电影海报">
                 <span class="poster-orbit" aria-hidden="true"></span>
-                <span class="poster-title">ECHOES<br>BEYOND</span>
+                <span class="poster-title" id="poster-title">SMARTCINEMA</span>
             </div>
             <div class="movie-copy">
                 <div class="context-eyebrow">正在购票</div>
