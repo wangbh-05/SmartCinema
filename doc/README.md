@@ -5,6 +5,9 @@
 - `REFACTOR_ROADMAP.md`：长程目标、阶段顺序、退出门槛、决策与进度日志；
 - `REFACTOR_BASELINE.md`：基线提交、真实测试范围、浏览器证据、存储契约和 Bug 台账。
 - `REFACTOR_TEST_MATRIX.md`：Node/浏览器 XFAIL 入口、12 个 Bug 的回归映射和转正规则。
+- `REFACTOR_ARCHITECTURE.md`：目标分层、依赖方向、状态所有权、端口与迁移切片。
+- `DOMAIN_CONTRACTS.md`：场次、库存、选择、远端占座、用户、订单和错误码契约。
+- `STORAGE_SCHEMA_V2.md`：单 envelope 存储结构、校验、迁移、quarantine 与恢复协议。
 
 继续本轮重构前应先阅读以上两个文件，并确认当前分支为 `zcjx/smart_cinema`。下面的内容是仓库早期保留的通用文档包说明，不代表 SmartCinema 当前架构。
 
