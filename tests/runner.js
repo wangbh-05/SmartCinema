@@ -10,6 +10,7 @@ import TestOrderManager from './test-order.js';
 import TestDomainContracts from './test-domain-contracts.js';
 import TestStorageV2 from './test-storage-v2.js';
 import TestMigrationV2 from './test-migration-v2.js';
+import TestApplicationV2 from './test-application-v2.js';
 import TestRegressionContracts from './test-regressions.js';
 
 class TestRunner {
@@ -59,6 +60,11 @@ class TestRunner {
         const migrationV2Test = new TestMigrationV2();
         const migrationV2Result = migrationV2Test.runAll();
         this.results.push({ name: 'MigrationV2', ...migrationV2Result });
+
+        // Auth、Selection、Booking、Settings 应用用例
+        const applicationV2Test = new TestApplicationV2();
+        const applicationV2Result = applicationV2Test.runAll();
+        this.results.push({ name: 'ApplicationV2', ...applicationV2Result });
 
         // 已知缺陷契约：修复前稳定 XFAIL，异常或意外通过会计为失败
         const regressionTest = new TestRegressionContracts();

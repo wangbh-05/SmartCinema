@@ -327,3 +327,13 @@ src/
 - 新增 `MigrateV1ToV2.js`，先备份 v1，再迁移可靠数据，并将无 owner/showtime 的订单与无日期 sold seats 放入 quarantine；
 - 新增 Storage v2 9 项、migration 6 项测试；全局普通测试增至 54/54，XFAIL 仍为 2；
 - 下一切片实现 Auth、Selection、Booking、Settings 应用用例和内存 AppState。
+
+### 2026-07-18 · 阶段 3 · 切片 3
+
+- 新增 Register/Login/Logout，用例统一通过 StateRepository 写 session，认证失败不泄露用户名是否存在；
+- 新增 StartCheckout/ConfirmCheckout/CancelOrder/ListOrders，覆盖用户隔离、幂等键、订单与库存同 envelope 提交和权限检查；
+- 新增 AppState、ChangeShowtime、ToggleSeat、ApplyRemoteHold，远端 hold 与本地 selection 保持分离；
+- 新增 UpdateSettings，设置按当前 userId 或 guest 持久化；
+- 新增 BrowserClock/BrowserIdGenerator，仅基础设施层访问当前时间、crypto 和随机数；
+- 新增 9 项 Application v2 测试；全局普通测试增至 63/63，XFAIL 仍为 2；
+- 下一切片建立 bootstrap/legacy adapter，让生产页面逐步改用 v2 用例。
