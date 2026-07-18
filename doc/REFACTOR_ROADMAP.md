@@ -390,3 +390,13 @@ src/
 - 边界扫描确认 `src/app.js`、`order.html`、`src/ui` 与 `src/application` 不再引用旧 Storage 或直接访问浏览器存储；
 - 浏览器回归矩阵再次实测 PASS 9、XFAIL 1、XPASS 0、ERROR 0；唯一剩余已知缺陷仍是 BUG-006；
 - 下一切片提取设置、订单与通知页面控制器，再迁移推荐/评分协调，之后拆分 Canvas 输入、布局和绘制职责。
+
+### 2026-07-18 · 阶段 3 · 切片 9
+
+- 新增 SettingsController，集中绑定设置控件并协调 AppController、无障碍语音、Canvas 色盲投影和 realtime 生命周期；持久化失败时恢复当前可信设置，不应用失败请求的副作用；
+- 新增 OrdersPanelController，负责订单摘要、历史列表、安全 DOM 渲染、收据与退票交互；订单事实仍只来自 LegacyOrderFacade/AppController，退票后通过回调请求主页面刷新当前场次；
+- 新增 ToastController，将通知文本、`role="status"`/`aria-live` 语义、可替换计时器和显示状态从 `src/app.js` 提取；样式移出运行时内联字符串；
+- 历史订单视图改用 `hidden` 和 DOM `textContent` 构造，不再拼接订单字段到 `innerHTML`；设置、导入/导出和订单列表事件由各自控制器绑定；
+- 新增 6 项 UI Controller 测试，覆盖设置加载、写失败回滚、Toast 计时、结算摘要、安全文本渲染和退票回调；Node 全局实测 89/89 通过；
+- `src/app.js` 从 1204 行降至 1062 行；浏览器矩阵仍为 PASS 9、XFAIL 1、XPASS 0、ERROR 0；真实页面验证历史订单空态与注册成功通知；
+- 下一切片把推荐、系统评分和用户评分协调迁入 application/UI 边界，并删除页面入口中的派生状态与大段模板拼接。

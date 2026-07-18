@@ -103,6 +103,31 @@
     border-left: 4px solid var(--color-secondary-light);
 }
 
+.global-toast {
+    position: fixed;
+    top: var(--spacing-lg);
+    left: 50%;
+    z-index: var(--z-notification);
+    max-width: min(90vw, 520px);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-lg);
+    color: var(--text-primary);
+    font-size: var(--font-sm);
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -4px);
+    transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+
+.global-toast[data-visible="true"] {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
 /* 加载条 */
 .loading-bar {
     position: fixed;
@@ -648,6 +673,35 @@ pre code {
 
 .order-actions button {
     flex: 1;
+}
+
+.orders-mini-list {
+    max-height: 200px;
+    margin-top: var(--spacing-md);
+    overflow-y: auto;
+}
+
+.orders-mini-empty,
+.orders-mini-more {
+    padding: var(--spacing-md);
+    color: var(--text-secondary);
+    font-size: var(--font-xs);
+    text-align: center;
+}
+
+.orders-mini-stats {
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-secondary);
+    font-size: var(--font-xs);
+}
+
+.orders-mini-card {
+    padding: var(--spacing-sm);
+    font-size: var(--font-xs);
+}
+
+.orders-mini-detail {
+    margin: var(--spacing-xs) 0;
 }
 
 /* ===== 键盘帮助模态框 ===== */

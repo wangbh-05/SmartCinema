@@ -17,6 +17,9 @@ import { createBrowserAppController, createBrowserRealtimeSimulator } from './bo
 import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
 import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
+import { OrdersPanelController } from './ui/controllers/OrdersPanelController.js';
+import { SettingsController } from './ui/controllers/SettingsController.js';
+import { ToastController } from './ui/components/ToastController.js';
 
 class SmartCinema {
     constructor() {
@@ -49,6 +52,7 @@ class SmartCinema {
         this.logoutBtn = document.getElementById('btn-logout');
         this.adminBtn = document.getElementById('btn-admin');
         this.heatmapCanvas = document.getElementById('heatmap-canvas');
+        this.toast = new ToastController({ document, scheduler: window });
         this.authDialog = new AuthDialogController({
             auth: this.auth,
             onAuthChanged: () => {
@@ -56,7 +60,7 @@ class SmartCinema {
                 this.loadSettings();
             },
             onAnnounce: message => this.a11yManager.announce(message),
-            onNotify: message => this._showToast(message)
+            onNotify: message => this.toast.show(message)
         });
 
         // 渲染引擎
@@ -68,6 +72,24 @@ class SmartCinema {
             getContext: () => this._getRealtimeContext(),
             interval: 6000,
             onEvent: event => this._onRealtimeEvent(event)
+        });
+        this.settingsController = new SettingsController({
+            controller: this.controller,
+            document,
+            a11yManager: this.a11yManager,
+            cinema: this.cinema,
+            realtime: this.realtime,
+            onExport: () => this.handleExport(),
+            onImport: () => this.handleImport(),
+            onError: message => this.toast.show(message)
+        });
+        this.ordersPanel = new OrdersPanelController({
+            orderManager: this.orderManager,
+            document,
+            confirmAction: message => window.confirm(message),
+            notify: message => window.alert(message),
+            onCancelled: order => this._refreshAfterOrderCancellation(order),
+            onAnnounce: message => this.a11yManager.announce(message)
         });
 
         // 状态
@@ -93,6 +115,9 @@ class SmartCinema {
      * ================================================================ */
 
     bindEvents() {
+        this.settingsController.bind();
+        this.ordersPanel.bind();
+
         // Canvas 座位选择变更
         this.cinemaCanvas.addEventListener('selectionChange', (e) => {
             this.onSelectionChange(e.detail);
@@ -131,11 +156,6 @@ class SmartCinema {
             this.handleSubmitOrder();
         });
 
-        // ★ 查看历史订单
-        document.getElementById('btn-view-orders')?.addEventListener('click', () => {
-            this.toggleOrdersMini();
-        });
-
         // 清空选择
         document.getElementById('clear-selection')?.addEventListener('click', () => {
             this.handleClear();
@@ -149,35 +169,6 @@ class SmartCinema {
         // 手动选座按钮
         document.getElementById('manual-select')?.addEventListener('click', () => {
             this.cinemaCanvas.scrollIntoView({ behavior: 'smooth' });
-        });
-
-        // 导出/导入
-        document.getElementById('export-data')?.addEventListener('click', () => this.handleExport());
-        document.getElementById('import-data')?.addEventListener('click', () => this.handleImport());
-
-        // 设置
-        document.getElementById('theme-toggle')?.addEventListener('change', (e) => {
-            this.toggleDarkMode(e.target.checked);
-        });
-        document.getElementById('accessibility-toggle')?.addEventListener('change', (e) => {
-            this.toggleAccessibilityMode(e.target.checked);
-        });
-        document.getElementById('voice-toggle')?.addEventListener('change', (e) => {
-            this.toggleVoice(e.target.checked);
-        });
-        document.getElementById('colorblind-toggle')?.addEventListener('change', (e) => {
-            this.toggleColorblindMode(e.target.checked);
-        });
-        document.getElementById('realtime-toggle')?.addEventListener('change', (e) => {
-            this.toggleRealtime(e.target.checked);
-        });
-
-        // ★ 主题色自定义
-        document.querySelectorAll('.theme-dot').forEach(dot => {
-            dot.addEventListener('click', () => this.setAccentColor(dot.dataset.accent));
-        });
-        document.getElementById('accent-picker')?.addEventListener('input', (e) => {
-            this.setAccentColor(e.target.value);
         });
 
         // 认证事件
@@ -568,23 +559,10 @@ class SmartCinema {
 
     /** 更新提交订单按钮状态和摘要 */
     updateSubmitButton() {
-        const btn = document.getElementById('btn-submit-order');
-        const summary = document.getElementById('order-summary-mini');
-        if (!btn || !summary) return;
-
-        const selected = this.seatData.getSelectedSeats();
-        const loggedIn = this.auth.isLoggedIn();
-
-        if (selected.length === 0) {
-            summary.textContent = '暂未选择座位';
-            btn.disabled = true;
-            btn.textContent = '📋 提交订单';
-        } else {
-            const total = selected.reduce((s, seat) => s + seat.price, 0);
-            summary.innerHTML = `已选 <b>${selected.length}</b> 座 · 合计 <b style="color:#FDD835;">¥${total}</b>`;
-            btn.disabled = !loggedIn;
-            btn.textContent = loggedIn ? `📋 提交订单 (¥${total})` : '📋 请先登录';
-        }
+        this.ordersPanel.updateCheckoutSummary(
+            this.seatData.getSelectedSeats(),
+            this.auth.isLoggedIn()
+        );
     }
 
     /** 提交订单 → 跳转独立确认页 */
@@ -617,76 +595,18 @@ class SmartCinema {
 
     /** 迷你订单历史（侧边栏） */
     toggleOrdersMini() {
-        const container = document.getElementById('orders-mini-list');
-        if (!container) return;
-
-        if (container.style.display === 'none' || !container.style.display) {
-            container.style.display = 'block';
-            this._renderOrdersMini(container);
-        } else {
-            container.style.display = 'none';
-        }
+        return this.ordersPanel.toggle();
     }
 
-    _renderOrdersMini(container) {
-        const orders = this.orderManager.getOrders({ sort: 'newest' });
-        const stats = this.orderManager.getStatistics();
-
-        if (orders.length === 0) {
-            container.innerHTML = '<p style="text-align:center;color:var(--text-secondary);padding:12px;">暂无订单</p>';
-            return;
-        }
-
-        let html = `<div style="font-size:0.8em;color:var(--text-secondary);margin-bottom:8px;">
-            共${stats.totalOrders}单 · 已确认${stats.confirmedOrders} · 收入¥${stats.totalRevenue}
-        </div>`;
-
-        orders.slice(0, 5).forEach(order => {
-            const seats = order.seats.map(s => `${s.row+1}排${s.col+1}座`).join(' ');
-            const statusText = this.orderManager.getStatusText(order.status);
-            const actionLabel = order.status === 'confirmed' ? '退票' :
-                (order.status === 'pending' ? '取消' : '');
-            html += `<div class="order-card status-${order.status}" style="font-size:0.78em;padding:8px;">
-                <div class="order-header-row"><span class="order-id">${order.id}</span>
-                <span class="order-status-badge">${statusText}</span></div>
-                <div>${order.hallName ? order.hallName + ' · ' : ''}${seats} | ¥${order.totalPrice}</div>
-                <div class="order-actions-row">
-                    <button class="btn btn-sm" data-order-receipt="${order.id}">收据</button>
-                    ${actionLabel ? `<button class="btn btn-danger btn-sm" data-order-cancel="${order.id}">${actionLabel}</button>` : ''}
-                </div>
-            </div>`;
-        });
-
-        if (orders.length > 5) {
-            html += `<p style="text-align:center;font-size:0.8em;color:var(--text-secondary);">
-                还有 ${orders.length - 5} 单...</p>`;
-        }
-
-        container.innerHTML = html;
-        container.querySelectorAll('[data-order-cancel]').forEach(btn => {
-            btn.addEventListener('click', () => this.handleCancelOrder(btn.dataset.orderCancel));
-        });
-        container.querySelectorAll('[data-order-receipt]').forEach(btn => {
-            btn.addEventListener('click', () => this.showOrderReceipt(btn.dataset.orderReceipt));
-        });
+    _renderOrdersMini() {
+        return this.ordersPanel.render();
     }
 
     handleCancelOrder(orderId) {
-        const order = this.orderManager.getOrder(orderId);
-        if (!order) {
-            alert('订单不存在');
-            return;
-        }
+        return this.ordersPanel.cancel(orderId);
+    }
 
-        const action = order.status === 'confirmed' ? '退票' : '取消订单';
-        if (!confirm(`确定要${action}吗？`)) return;
-
-        const result = this.orderManager.cancelOrder(orderId, action);
-        if (!result.success) {
-            alert(result.message);
-            return;
-        }
-
+    _refreshAfterOrderCancellation(order) {
         const hallType = order.hallType || this.seatData.hallType;
         if (hallType === this.seatData.hallType && order.dayIndex === this._getDayIndex()) {
             const dayIndex = this._getDayIndex();
@@ -699,19 +619,10 @@ class SmartCinema {
             this.updateUI();
             this.updateScore();
         }
-
-        const container = document.getElementById('orders-mini-list');
-        if (container) this._renderOrdersMini(container);
-        this.a11yManager.announce(`${action}成功`);
     }
 
     showOrderReceipt(orderId) {
-        const receipt = this.orderManager.generateReceipt(orderId);
-        if (!receipt) {
-            alert('订单不存在');
-            return;
-        }
-        alert(receipt);
+        return this.ordersPanel.showReceipt(orderId);
     }
 
     /* ================================================================
@@ -933,25 +844,19 @@ class SmartCinema {
     }
 
     toggleDarkMode(enabled, persist = true) {
-        document.body.classList.toggle('dark-mode', enabled);
-        if (persist) this.controller.updateSettings({ theme: enabled ? 'dark' : 'light' });
+        return this.settingsController.setTheme(enabled ? 'dark' : 'light', persist);
     }
 
     toggleAccessibilityMode(enabled, persist = true) {
-        document.body.classList.toggle('accessibility-mode', enabled);
-        if (persist) this.controller.updateSettings({ accessibilityMode: enabled });
-        if (enabled && persist) this.a11yManager.speak('无障碍模式已启用');
+        return this.settingsController.setAccessibilityMode(enabled, persist);
     }
 
     toggleVoice(enabled, persist = true) {
-        this.a11yManager.setVoiceEnabled(enabled);
-        if (persist) this.controller.updateSettings({ voiceEnabled: enabled });
+        return this.settingsController.setVoiceEnabled(enabled, persist);
     }
 
     toggleColorblindMode(enabled, persist = true) {
-        document.body.classList.toggle('colorblind-mode', enabled);
-        this.cinema.setColorblindMode(enabled);
-        if (persist) this.controller.updateSettings({ colorblindMode: enabled });
+        return this.settingsController.setColorblindMode(enabled, persist);
     }
 
     /* ================================================================
@@ -978,67 +883,20 @@ class SmartCinema {
     }
 
     _showToast(msg) {
-        let toast = document.getElementById('global-toast');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'global-toast';
-            toast.style.cssText = `
-                position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2000;
-                background:#21262D;color:#C9D1D9;border:1px solid #30363D;
-                padding:10px 20px;border-radius:8px;font-size:0.9em;font-weight:600;
-                pointer-events:none;opacity:0;transition:opacity 0.3s;
-                box-shadow:0 4px 16px rgba(0,0,0,0.4);
-            `;
-            document.body.appendChild(toast);
-        }
-        toast.textContent = msg;
-        toast.style.opacity = '1';
-        clearTimeout(this._toastTimer);
-        this._toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+        return this.toast.show(msg);
     }
 
     toggleRealtime(enabled, persist = true) {
-        if (enabled) {
-            this.realtime.start();
-        } else {
-            if (this.realtime) this.realtime.stop();
-        }
-        if (persist) this.controller.updateSettings({ realtimeEnabled: enabled });
+        return this.settingsController.setRealtimeEnabled(enabled, persist);
     }
 
     /** 设置主题强调色 */
     setAccentColor(color, persist = true) {
-        document.documentElement.style.setProperty('--accent', color);
-        // 同步 color picker
-        const picker = document.getElementById('accent-picker');
-        if (picker) picker.value = color;
-        // 更新主题圆点 active 状态
-        document.querySelectorAll('.theme-dot').forEach(d => {
-            d.classList.toggle('active', d.dataset.accent.toUpperCase() === color.toUpperCase());
-        });
-        if (persist) this.controller.updateSettings({ accentColor: color });
+        return this.settingsController.setAccentColor(color, persist);
     }
 
     loadSettings() {
-        const settings = this.controller.getState().settings;
-        const darkMode = settings.theme === 'dark';
-        const controls = {
-            'theme-toggle': darkMode,
-            'accessibility-toggle': settings.accessibilityMode,
-            'voice-toggle': settings.voiceEnabled,
-            'colorblind-toggle': settings.colorblindMode,
-            'realtime-toggle': settings.realtimeEnabled
-        };
-        Object.entries(controls).forEach(([id, checked]) => {
-            const control = document.getElementById(id);
-            if (control) control.checked = checked;
-        });
-        this.toggleDarkMode(darkMode, false);
-        this.toggleAccessibilityMode(settings.accessibilityMode, false);
-        this.toggleVoice(settings.voiceEnabled, false);
-        this.toggleColorblindMode(settings.colorblindMode, false);
-        this.toggleRealtime(settings.realtimeEnabled, false);
-        this.setAccentColor(settings.accentColor, false);
+        return this.settingsController.load();
     }
 
     applyPersistedSoldSeats() {
