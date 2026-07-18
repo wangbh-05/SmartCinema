@@ -12,6 +12,7 @@ import TestStorageV2 from './test-storage-v2.js';
 import TestMigrationV2 from './test-migration-v2.js';
 import TestApplicationV2 from './test-application-v2.js';
 import TestAppController from './test-app-controller.js';
+import TestLegacyFacades from './test-legacy-facades.js';
 import TestRegressionContracts from './test-regressions.js';
 
 class TestRunner {
@@ -71,6 +72,11 @@ class TestRunner {
         const appControllerTest = new TestAppController();
         const appControllerResult = appControllerTest.runAll();
         this.results.push({ name: 'AppController', ...appControllerResult });
+
+        // 生产页面迁移期间的 facade，不得回退到旧 Storage 事实源
+        const legacyFacadesTest = new TestLegacyFacades();
+        const legacyFacadesResult = legacyFacadesTest.runAll();
+        this.results.push({ name: 'LegacyFacades', ...legacyFacadesResult });
 
         // 已知缺陷契约：修复前稳定 XFAIL，异常或意外通过会计为失败
         const regressionTest = new TestRegressionContracts();

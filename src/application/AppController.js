@@ -2,8 +2,9 @@ import { err, ok } from '../shared/Result.js';
 import { createSeatInventory } from '../domain/cinema/SeatInventory.js';
 import { replaceSelection } from '../domain/cinema/LocalSelection.js';
 import { sanitizeUser } from '../domain/user/User.js';
-import { createAppState } from './AppState.js';
+import { createAppState, invalidateSelectionDerivedState } from './AppState.js';
 import { loginUser } from './auth/Login.js';
+import { listUsers } from './auth/ListUsers.js';
 import { logoutUser } from './auth/Logout.js';
 import { registerUser } from './auth/Register.js';
 import { cancelUserOrder } from './booking/CancelOrder.js';
@@ -61,6 +62,10 @@ export class AppController {
         return this.getCurrentUser()?.role === 'admin';
     }
 
+    listUsers() {
+        return listUsers(this._deps());
+    }
+
     register(input) {
         return this._applyPersistentResult(registerUser(this._deps(), input));
     }
@@ -75,6 +80,14 @@ export class AppController {
 
     startCheckout(input) {
         return startCheckout(this._deps(), input);
+    }
+
+    getCheckoutIntent() {
+        return this.checkoutIntentRepository.get();
+    }
+
+    clearCheckoutIntent() {
+        return this.checkoutIntentRepository.clear();
     }
 
     confirmCheckout() {
@@ -105,6 +118,25 @@ export class AppController {
         const result = toggleSeat(this.appState, seatKey, this.clock.now());
         if (result.ok) this.appState = result.value;
         return result;
+    }
+
+    replaceSelection(seatKeys) {
+        if (!this.appState) return err('VALIDATION_ERROR', 'AppController 尚未初始化');
+        try {
+            const result = replaceSelection(
+                this.appState.selection,
+                seatKeys,
+                this.appState.inventory,
+                this.appState.remoteHoldsBySeatKey,
+                this.clock.now()
+            );
+            if (result.ok) {
+                this.appState = invalidateSelectionDerivedState(this.appState, result.value);
+            }
+            return result.ok ? ok(this.appState) : result;
+        } catch (error) {
+            return err('VALIDATION_ERROR', error.message);
+        }
     }
 
     applyRemoteHold(event) {
