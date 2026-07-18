@@ -412,3 +412,13 @@ src/
 - 新增 7 项派生状态测试和 2 项 UI 控制器测试；Node 全局实测 98/98 通过；application/domain 边界扫描无 DOM、浏览器存储或 UI 反向依赖；
 - `src/app.js` 从 1062 行降至 858 行；真实浏览器完成“注册 → 推荐 → 应用 → 系统评分 → 用户综合评分”，最终显示系统 95、用户 50、综合 77；
 - 浏览器矩阵再次实测 PASS 9、XFAIL 1、XPASS 0、ERROR 0；下一切片拆分 Canvas 输入、布局与绘制职责。
+
+### 2026-07-18 · 阶段 3 · 切片 11
+
+- 新增纯 CinemaLayout，按 rows/cols 和可用容器尺寸计算弧形座位位置，并提供与 DOM/Canvas 无关的命中测试；Canvas display width 开始服从父容器与视口的较小值；
+- 新增 CinemaInputController，以统一 Pointer Events 取代 mouse/touch 双实现；主指针按下后使用 pointer capture，越界释放仍能完成或取消当前手势；
+- 输入状态机显式处理 click、矩形拖选、pointercancel、pointerleave、额外触点、方向键、Enter/Space，并统一复用已售与 remote-held 不可选规则；
+- Cinema 暂时保留绘制职责，但布局与输入已通过组合委托；`#cinema-canvas` 增加 `touch-action: none`，避免触控拖选与页面手势竞争；
+- 新增 5 项 CanvasInteraction 测试；Node 全局实测 103/103 通过；浏览器矩阵保持 PASS 9、XFAIL 1、XPASS 0、ERROR 0；
+- BUG-006 在 768/800/900px 的溢出宽度有所下降但尚未关闭，仍等待完整响应式网格修复；
+- 下一切片把颜色、热度、动画和所有 draw 方法迁入独立 CinemaRenderer，让 Cinema 只保留组合与兼容接口。

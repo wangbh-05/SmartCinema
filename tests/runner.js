@@ -15,6 +15,7 @@ import TestApplicationV2 from './test-application-v2.js';
 import TestDerivedState from './test-derived-state.js';
 import TestAppController from './test-app-controller.js';
 import TestUiControllers from './test-ui-controllers.js';
+import TestCanvasInteraction from './test-canvas-interaction.js';
 import TestLegacyFacades from './test-legacy-facades.js';
 import TestRealtimeV2 from './test-realtime-v2.js';
 import TestRegressionContracts from './test-regressions.js';
@@ -91,6 +92,11 @@ class TestRunner {
         const uiControllersTest = new TestUiControllers();
         const uiControllersResult = uiControllersTest.runAll();
         this.results.push({ name: 'UiControllers', ...uiControllersResult });
+
+        // Canvas 纯布局、Pointer capture 与键盘输入状态机
+        const canvasInteractionTest = new TestCanvasInteraction();
+        const canvasInteractionResult = canvasInteractionTest.runAll();
+        this.results.push({ name: 'CanvasInteraction', ...canvasInteractionResult });
 
         // 生产页面迁移期间的 facade，不得回退到旧 Storage 事实源
         const legacyFacadesTest = new TestLegacyFacades();
