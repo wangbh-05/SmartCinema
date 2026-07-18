@@ -48,7 +48,7 @@ export class CommercialSeatMapController {
     }
 
     render({ focusSeat = false } = {}) {
-        const { context, draft, inventory } = this.getState();
+        const { context, draft, inventory, popularityBySeat = {}, showPopularity = false } = this.getState();
         const activeSeatId = document.activeElement?.dataset?.seatId || null;
         const previousFocus = activeSeatId || this.lastFocusedSeatId;
         const selected = new Set(draft.selectedSeatIds);
@@ -60,6 +60,11 @@ export class CommercialSeatMapController {
             rows.get(seat.rowIndex).push(seat);
         });
 
+        const columnCount = Math.max(...context.auditorium.seats.map(seat => seat.columnIndex)) + 1;
+        this.map.style.setProperty('--seat-column-count', String(columnCount));
+        this.map.dataset.auditoriumSize = columnCount <= 10 ? 'small' : (columnCount <= 20 ? 'medium' : 'large');
+        this.map.classList.toggle('shows-popularity', showPopularity);
+
         this.map.replaceChildren();
         let firstAvailableId = null;
         [...rows.entries()].sort(([left], [right]) => left - right).forEach(([, seats]) => {
@@ -67,14 +72,19 @@ export class CommercialSeatMapController {
             row.className = 'seat-row';
             const label = appendText(row, 'span', seats[0].rowLabel, 'seat-row-label');
             label.setAttribute('aria-hidden', 'true');
-            seats.sort((left, right) => left.columnIndex - right.columnIndex).forEach(seat => {
+            seats.sort((left, right) => left.columnIndex - right.columnIndex).forEach((seat, index) => {
                 const button = this._createSeatButton({
                     context,
                     seat,
                     isSold: sold.has(seat.id),
                     isHeld: held.has(seat.id),
-                    isSelected: selected.has(seat.id)
+                    isSelected: selected.has(seat.id),
+                    popularity: popularityBySeat[seat.id] || null,
+                    showPopularity
                 });
+                if (index > 0 && seats[index - 1].sectionId !== seat.sectionId) {
+                    button.classList.add('starts-section');
+                }
                 if (!button.disabled && firstAvailableId === null) firstAvailableId = seat.id;
                 row.append(button);
             });
@@ -96,7 +106,7 @@ export class CommercialSeatMapController {
         this.selectedProgress.textContent = `${selected.size} / ${draft.ticketCount}`;
     }
 
-    _createSeatButton({ context, seat, isSold, isHeld, isSelected }) {
+    _createSeatButton({ context, seat, isSold, isHeld, isSelected, popularity, showPopularity }) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'seat-button';
@@ -108,13 +118,16 @@ export class CommercialSeatMapController {
         button.dataset.seatId = seat.id;
         button.dataset.row = String(seat.rowIndex);
         button.dataset.column = String(seat.columnIndex);
+        if (popularity) button.dataset.popularity = popularity.level;
         button.disabled = isSold || isHeld;
         button.setAttribute('aria-pressed', String(isSelected));
         button.setAttribute(
             'aria-label',
             `${seat.label}，${seat.zoneId === 'preferred' ?
                 `座位附加费${formatAmount(context.pricingPolicy.seatZoneSurcharges[seat.zoneId])}` :
-                '无座位附加费'}，${seatStatusLabel(seat, isSelected, isSold, isHeld)}`
+                '无座位附加费'}，${showPopularity && popularity ?
+                `热度参考${{ hot: '热门', warm: '一般', cool: '冷门' }[popularity.level]}，` : ''}` +
+                seatStatusLabel(seat, isSelected, isSold, isHeld)
         );
         button.textContent = seat.kind === 'wheelchair' ? '♿' :
             (seat.kind === 'companion' ? '陪' : String(seat.seatNumber));

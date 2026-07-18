@@ -18,6 +18,10 @@ import {
     releaseBookingHold
 } from '../src/domain/booking/HoldBooking.js';
 import { quoteBooking } from '../src/domain/booking/PricingQuote.js';
+import {
+    createSeatPopularityMap,
+    evaluateSeatDecision
+} from '../src/domain/booking/SeatDecisionGuide.js';
 import { validateSeatSelection } from '../src/domain/booking/SeatSelectionPolicy.js';
 import {
     createShowtimeInventory,
@@ -98,9 +102,10 @@ class TestCommercialDomain {
             }));
         });
 
-        this.test('BookingDraft 应限制 1–8 张票且座位不能超过票数', () => {
+        this.test('BookingDraft 应限制 1–20 张票且 9 张起必须使用多人同行', () => {
             const draft = this._draft();
             this.assertEqual(draft.ticketCount, 2);
+            this.assertEqual(draft.partyType, 'family');
             this.assertFalse(isDraftReadyForHold(draft));
             const complete = replaceDraftSeats(draft, ['A-2', 'A-3'], LATER);
             this.assertTrue(complete.ok);
@@ -108,8 +113,23 @@ class TestCommercialDomain {
             this.assertFalse(replaceDraftSeats(draft, ['A-1', 'A-2', 'A-3'], LATER).ok);
             this.assertThrows(() => createBookingDraft({
                 ...draft,
-                ticketItems: [{ ticketTypeId: 'adult', quantity: 9 }]
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 21 }]
             }));
+            this.assertThrows(() => createBookingDraft({
+                ...draft,
+                partyType: 'solo'
+            }));
+            this.assertThrows(() => createBookingDraft({
+                ...draft,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 9 }],
+                partyType: 'family'
+            }));
+            const group = createBookingDraft({
+                ...draft,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 20 }],
+                partyType: 'group'
+            });
+            this.assertEqual(group.ticketCount, 20);
         });
 
         this.test('PricingQuote 应从票种、价格区和服务费重算总价', () => {
@@ -127,6 +147,40 @@ class TestCommercialDomain {
             this.assertEqual(quote.value.seatSurcharge.amount, 1000);
             this.assertEqual(quote.value.serviceFee.amount, 600);
             this.assertEqual(quote.value.total.amount, 12100);
+        });
+
+        this.test('座位决策辅助应给出四维体验并生成文字可解释的热度层', () => {
+            const catalog = createDemoCatalog('2026-07-18');
+            const repository = new DemoCatalogRepository(catalog);
+            const showtime = repository.getShowtime('showtime:echo-lumen-day:2026-07-18');
+            const auditorium = repository.getAuditorium(showtime.auditoriumId);
+            const inventory = createShowtimeInventory({
+                showtimeId: showtime.id,
+                soldSeatIds: ['D-09', 'D-12', 'F-08'],
+                updatedAt: NOW
+            });
+            const pricingPolicy = repository.getPricingPolicy(showtime.pricingPolicyId);
+            const central = evaluateSeatDecision({
+                auditorium,
+                seatIds: ['F-10', 'F-11'],
+                inventory,
+                pricingPolicy
+            });
+            const edge = evaluateSeatDecision({
+                auditorium,
+                seatIds: ['A-01', 'A-02'],
+                inventory,
+                pricingPolicy
+            });
+            this.assertEqual(central.dimensions.length, 4);
+            this.assertTrue(central.score > edge.score);
+            this.assertTrue(['极佳', '优秀', '舒适', '基础'].includes(central.grade));
+
+            const popularity = createSeatPopularityMap({ auditorium, inventory });
+            this.assertEqual(Object.keys(popularity).length, 200);
+            const levels = new Set(Object.values(popularity).map(item => item.level));
+            this.assertTrue(levels.has('hot'));
+            this.assertTrue(levels.has('cool'));
         });
 
         this.test('SeatSelectionPolicy 应拒绝数量不匹配、不可用和跨区选择', () => {
@@ -361,9 +415,15 @@ class TestCommercialDomain {
                 cinemaId: 'cinema-riverside',
                 businessDate: '2026-07-19'
             }).length > 0);
-            const auditorium = repository.getAuditorium(showtimes[0].auditoriumId);
-            this.assertEqual(auditorium.seats.length, 180);
-            this.assertEqual(auditorium.seats.filter(seat => seat.kind === 'wheelchair').length, 2);
+            const auditoriums = Object.values(catalog.auditoriums);
+            this.assertEqual(
+                auditoriums.map(auditorium => auditorium.seats.length).sort((left, right) => left - right).join(','),
+                '100,200,300'
+            );
+            auditoriums.forEach(auditorium => {
+                this.assertEqual(auditorium.seats.filter(seat => seat.kind === 'wheelchair').length, 2);
+                this.assertEqual(auditorium.seats.filter(seat => seat.kind === 'companion').length, 2);
+            });
             this.assertEqual(repository.listTicketTypes().length, 4);
             showtimes.forEach(showtime => {
                 this.assertTrue(Boolean(repository.getMovie(showtime.movieId)));

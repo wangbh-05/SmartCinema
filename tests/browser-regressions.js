@@ -68,7 +68,7 @@ async function createAppFrame(width = 1200, preserveStorage = false) {
         runtimeErrors.push(event.reason?.message || String(event.reason));
     });
     await waitFor(
-        () => frame.contentDocument?.querySelectorAll('.seat-button').length === 180,
+        () => [100, 200, 300].includes(frame.contentDocument?.querySelectorAll('.seat-button').length),
         '商业座位图初始化'
     );
     return frame;
@@ -164,7 +164,11 @@ async function run() {
         const frame = await createAppFrame();
         try {
             const doc = frame.contentDocument;
-            assertContract(doc.querySelectorAll('.seat-button').length === 180, 'DOM 座位图不完整');
+            assertContract(doc.getElementById('ticket-limit').textContent.includes('20'), '页面未披露 20 张团体上限');
+            assertContract(
+                [100, 200, 300].includes(doc.querySelectorAll('.seat-button').length),
+                '默认场次没有渲染完整的小/中/大厅座位图'
+            );
             assertContract(doc.querySelectorAll('canvas').length === 0, '生产入口仍依赖 Canvas 座位图');
             assertContract(!doc.getElementById('heatmap-section'), '消费者页面仍暴露热力图');
             assertContract(!doc.getElementById('experience-score'), '消费者页面仍暴露购前评分');
@@ -181,8 +185,24 @@ async function run() {
         const frame = await createAppFrame();
         try {
             const doc = frame.contentDocument;
+            assertContract(
+                doc.querySelector('[data-party-type="couple"]').getAttribute('aria-pressed') === 'true',
+                '双人票没有默认使用双人同行推荐'
+            );
+            assertContract(doc.querySelector('[data-party-type="solo"]').disabled, '两张票仍允许选择单人观影');
+            assertContract(doc.querySelector('[data-party-type="group"]').disabled, '两张票仍允许选择多人同行');
             recommend(doc);
             await delay();
+            assertContract(!doc.getElementById('seat-decision-guide').hidden, '选座后没有显示座位体验说明');
+            assertContract(doc.querySelectorAll('#seat-decision-metrics meter').length === 4, '座位体验缺少四个维度');
+            doc.getElementById('toggle-popularity').click();
+            await delay();
+            assertContract(
+                doc.getElementById('toggle-popularity').getAttribute('aria-pressed') === 'true',
+                '热度参考开关状态未更新'
+            );
+            assertContract(doc.getElementById('seat-map').classList.contains('shows-popularity'), '座位图未显示热度参考层');
+            assertContract(!doc.getElementById('popularity-legend').hidden, '热度参考缺少文字图例');
             const selected = doc.querySelectorAll('.seat-button.is-selected');
             const total = doc.getElementById('summary-total').textContent;
             assertContract(selected.length === 2, `推荐选择了 ${selected.length} 个座位而非 2 个`);
@@ -301,6 +321,17 @@ async function run() {
                     }
                 }
             }
+            frame.style.width = '1440px';
+            frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
+            frame.contentDocument.documentElement.style.scrollBehavior = 'auto';
+            const seatCardTop = frame.contentDocument.querySelector('.seat-card').getBoundingClientRect().top +
+                frame.contentWindow.scrollY;
+            frame.contentWindow.scrollTo(0, seatCardTop);
+            await delay(40);
+            const stickyTop = frame.contentDocument.querySelector('.summary-sticky').getBoundingClientRect().top;
+            if (stickyTop < 70 || stickyTop > 110) {
+                failures.push(`1440px 订单摘要未保持 sticky，top=${Math.round(stickyTop)}`);
+            }
             assertContract(failures.length === 0, failures.join('；'));
         } finally {
             disposeFrame(frame);
@@ -416,10 +447,12 @@ async function run() {
             doc.querySelector('[data-catalog-value="movie-letters-in-rain"]').click();
             await delay();
             assertContract(doc.getElementById('movie-title').textContent === '雨夜来信', '切换影片后上下文未更新');
+            assertContract(doc.querySelectorAll('.seat-button').length === 100, '小厅没有渲染 100 个座位');
 
             doc.querySelector('[data-catalog-value="cinema-riverside"]').click();
             await delay();
             assertContract(doc.getElementById('cinema-name').textContent.includes('滨江里'), '切换影院后场次上下文未更新');
+            assertContract(doc.querySelectorAll('.seat-button').length === 300, '大厅没有渲染 300 个座位');
             assertContract(doc.querySelectorAll('.showtime-option').length === 1, '组合筛选没有收敛到对应场次');
             await waitFor(
                 () => doc.activeElement?.dataset.catalogValue === 'cinema-riverside',
@@ -543,20 +576,23 @@ async function run() {
             const win = frame.contentWindow;
             doc.getElementById('btn-preferences').click();
             const readable = doc.getElementById('preference-readable');
+            const contrast = doc.getElementById('preference-contrast');
             const colorblind = doc.getElementById('preference-colorblind');
             const motion = doc.getElementById('preference-motion');
-            [readable, colorblind, motion].forEach(input => {
+            [readable, contrast, colorblind, motion].forEach(input => {
                 input.checked = true;
                 input.dispatchEvent(new win.Event('change', { bubbles: true }));
             });
-            assertContract(doc.body.classList.contains('commerce-readable'), '增强可读性未即时应用');
+            assertContract(doc.body.classList.contains('commerce-readable'), '大字体未即时应用');
+            assertContract(doc.body.classList.contains('commerce-high-contrast'), '高对比度未即时应用');
             assertContract(doc.body.classList.contains('commerce-colorblind'), '色觉友好模式未即时应用');
             assertContract(doc.documentElement.dataset.commerceMotion === 'reduce', '减少动态效果未即时应用');
 
             disposeFrame(frame);
             frame = await createAppFrame(1200, true);
             doc = frame.contentDocument;
-            assertContract(doc.body.classList.contains('commerce-readable'), '刷新后丢失增强可读性偏好');
+            assertContract(doc.body.classList.contains('commerce-readable'), '刷新后丢失大字体偏好');
+            assertContract(doc.body.classList.contains('commerce-high-contrast'), '刷新后丢失高对比度偏好');
             assertContract(doc.body.classList.contains('commerce-colorblind'), '刷新后丢失色觉友好偏好');
             assertContract(doc.documentElement.dataset.commerceMotion === 'reduce', '刷新后丢失动态偏好');
         } finally {

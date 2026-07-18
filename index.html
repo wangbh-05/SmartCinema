@@ -115,9 +115,22 @@
                             <span class="step-kicker">第 1 步</span>
                             <h2 id="ticket-title">选择票种与数量</h2>
                         </div>
-                        <p id="ticket-limit">每单最多 8 张</p>
+                        <p id="ticket-limit">每单最多 20 张；9 张起为多人同行</p>
                     </div>
                     <div class="ticket-list" id="ticket-list"></div>
+                    <div class="party-selector" aria-labelledby="party-type-label">
+                        <div>
+                            <strong id="party-type-label">同行方式</strong>
+                            <span>只用于调整连座推荐，不收集成员信息</span>
+                        </div>
+                        <div class="party-type-options" id="party-type-options" role="group" aria-labelledby="party-type-label">
+                            <button type="button" data-party-type="solo">单人</button>
+                            <button type="button" data-party-type="couple">双人</button>
+                            <button type="button" data-party-type="family">家庭</button>
+                            <button type="button" data-party-type="group">多人</button>
+                        </div>
+                        <p id="party-type-note">将按票数推荐合适的同行方式</p>
+                    </div>
                     <p class="ticket-footnote">优惠票入场时可能需要出示有效证件；票数必须与所选座位数一致。</p>
                 </section>
 
@@ -131,9 +144,14 @@
                     </div>
 
                     <div class="seat-tools" aria-label="座位推荐偏好">
-                        <button class="recommend-button" id="recommend-seats" type="button">
-                            <span aria-hidden="true">✦</span> 帮我选连座
-                        </button>
+                        <div class="seat-tool-actions">
+                            <button class="recommend-button" id="recommend-seats" type="button">
+                                <span aria-hidden="true">✦</span> 帮我选连座
+                            </button>
+                            <button class="seat-guide-toggle" id="toggle-popularity" type="button" aria-pressed="false">
+                                <span aria-hidden="true">◌</span> 显示热度参考
+                            </button>
+                        </div>
                         <div class="preference-chips" id="preference-chips" aria-label="推荐偏好">
                             <button type="button" data-preference="center" aria-pressed="true">靠中间</button>
                             <button type="button" data-preference="back" aria-pressed="false">靠后排</button>
@@ -175,6 +193,24 @@
                         <span><i class="legend-seat is-sold"></i>已售/锁定</span>
                         <span><i class="legend-seat is-accessible">♿</i>无障碍</span>
                     </div>
+                    <div class="popularity-legend" id="popularity-legend" aria-label="座位热度参考说明" hidden>
+                        <strong>近期选择热度</strong>
+                        <span><i class="popularity-symbol is-hot">●</i>热门</span>
+                        <span><i class="popularity-symbol is-warm">◆</i>一般</span>
+                        <span><i class="popularity-symbol is-cool">○</i>冷门</span>
+                        <small>根据座位位置和当前场次选择情况生成，仅作选座参考</small>
+                    </div>
+                    <section class="seat-decision-guide" id="seat-decision-guide" aria-labelledby="seat-decision-title" hidden>
+                        <div class="decision-guide-heading">
+                            <div>
+                                <span>本组座位</span>
+                                <h3 id="seat-decision-title">座位体验</h3>
+                            </div>
+                            <strong id="seat-decision-grade">—</strong>
+                        </div>
+                        <div class="decision-metrics" id="seat-decision-metrics"></div>
+                        <p id="seat-decision-summary"></p>
+                    </section>
                 </section>
             </div>
 
@@ -264,8 +300,12 @@
             <p class="dialog-intro" id="preferences-scope"></p>
             <div class="preference-settings">
                 <label class="preference-setting" for="preference-readable">
-                    <span><strong>增强可读性</strong><small>提高文字、边框和焦点的辨识度</small></span>
+                    <span><strong>大字体与宽松间距</strong><small>放大辅助文字和座位，增加触控与阅读空间</small></span>
                     <input id="preference-readable" type="checkbox">
+                </label>
+                <label class="preference-setting" for="preference-contrast">
+                    <span><strong>高对比度</strong><small>加深文字和边框，强化焦点与主要操作</small></span>
+                    <input id="preference-contrast" type="checkbox">
                 </label>
                 <label class="preference-setting" for="preference-colorblind">
                     <span><strong>色觉友好座位状态</strong><small>增加纹理与轮廓，减少仅靠颜色区分</small></span>

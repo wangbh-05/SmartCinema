@@ -74,3 +74,79 @@ body.accessibility-mode textarea {
         transition-duration: 0.01ms !important;
     }
 }
+
+body.commerce-readable {
+    --commerce-muted: #4d4a45;
+    --commerce-border: #c9c3b9;
+    --seat-size: 30px;
+    --seat-gap: 7px;
+}
+
+body.commerce-readable :focus-visible {
+    outline-width: 3px;
+    outline-offset: 3px;
+}
+
+body.commerce-readable .ticket-copy span,
+body.commerce-readable .ticket-copy small,
+body.commerce-readable .refund-note,
+body.commerce-readable .hold-note,
+body.commerce-readable .movie-synopsis {
+    font-size: 12px;
+}
+
+body.commerce-high-contrast {
+    --commerce-ink: #11110f;
+    --commerce-muted: #37342f;
+    --commerce-border: #777168;
+    --commerce-accent: #b72e38;
+    --commerce-accent-strong: #8e1822;
+    --focus-ring: #005fcc;
+}
+
+body.commerce-high-contrast .booking-card,
+body.commerce-high-contrast .catalog-picker,
+body.commerce-high-contrast .showtime-section,
+body.commerce-high-contrast .commerce-dialog,
+body.commerce-high-contrast .ticket-option,
+body.commerce-high-contrast .party-selector {
+    border-width: 2px;
+}
+
+body.commerce-high-contrast .seat-button:not(.is-selected):not(:disabled) {
+    border-color: #dce3ef;
+    color: #fff;
+}
+
+body.commerce-high-contrast .seat-button.is-selected {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--commerce-accent);
+}
+
+body.commerce-high-contrast :focus-visible {
+    outline-width: 4px;
+    outline-offset: 3px;
+}
+
+body.commerce-colorblind .seat-button.is-selected {
+    border-color: #176387;
+    background: #176387;
+    box-shadow: inset 0 0 0 2px #fff;
+}
+
+body.commerce-colorblind .seat-button.is-sold,
+body.commerce-colorblind .seat-button.is-held {
+    background: repeating-linear-gradient(135deg, #2a2f38 0 4px, #4a505b 4px 6px);
+}
+
+body.commerce-colorblind .seat-button.is-premium:not(.is-selected) {
+    border-style: dashed;
+}
+
+html[data-commerce-motion="reduce"] *,
+html[data-commerce-motion="reduce"] *::before,
+html[data-commerce-motion="reduce"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+}

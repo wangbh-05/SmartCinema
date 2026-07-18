@@ -23,9 +23,10 @@ function addDays(businessDate, days) {
     return value.toISOString().slice(0, 10);
 }
 
-function sectionForColumn(columnIndex) {
-    if (columnIndex < 4) return 'left';
-    if (columnIndex < 14) return 'center';
+function sectionForColumn(columnIndex, columnCount) {
+    const sideWidth = Math.max(2, Math.round(columnCount / 6));
+    if (columnIndex < sideWidth) return 'left';
+    if (columnIndex < columnCount - sideWidth) return 'center';
     return 'right';
 }
 
@@ -35,13 +36,13 @@ function zoneForSeat(rowIndex, sectionId) {
     return 'standard';
 }
 
-function createSeatPlan() {
+function createSeatPlan(columnCount) {
     const seats = [];
     ROW_LABELS.forEach((rowLabel, rowIndex) => {
-        for (let columnIndex = 0; columnIndex < 18; columnIndex++) {
+        for (let columnIndex = 0; columnIndex < columnCount; columnIndex++) {
             const seatNumber = columnIndex + 1;
             const id = `${rowLabel}-${String(seatNumber).padStart(2, '0')}`;
-            const sectionId = sectionForColumn(columnIndex);
+            const sectionId = sectionForColumn(columnIndex, columnCount);
             let kind = zoneForSeat(rowIndex, sectionId) === 'preferred' ? 'premium' : 'standard';
             let companionForSeatId = null;
             let normalizedSectionId = sectionId;
@@ -53,12 +54,12 @@ function createSeatPlan() {
                 kind = 'companion';
                 companionForSeatId = 'H-01';
                 normalizedSectionId = 'left';
-            } else if (rowLabel === 'H' && seatNumber === 17) {
+            } else if (rowLabel === 'H' && seatNumber === columnCount - 1) {
                 kind = 'wheelchair';
                 normalizedSectionId = 'right';
-            } else if (rowLabel === 'H' && seatNumber === 18) {
+            } else if (rowLabel === 'H' && seatNumber === columnCount) {
                 kind = 'companion';
-                companionForSeatId = 'H-17';
+                companionForSeatId = `H-${String(columnCount - 1).padStart(2, '0')}`;
                 normalizedSectionId = 'right';
             }
 
@@ -143,8 +144,8 @@ export function createDemoCatalog(businessDate) {
         createAuditorium({
             id: 'auditorium-imax-1',
             cinemaId: cinemas[0].id,
-            name: '1 号 IMAX 厅',
-            seats: createSeatPlan(),
+            name: '1 号 IMAX 中厅',
+            seats: createSeatPlan(20),
             accessibilityFeatures: [
                 'wheelchair-spaces',
                 'step-free-access',
@@ -154,8 +155,8 @@ export function createDemoCatalog(businessDate) {
         createAuditorium({
             id: 'auditorium-dolby-3',
             cinemaId: cinemas[0].id,
-            name: '3 号杜比全景声厅',
-            seats: createSeatPlan(),
+            name: '3 号杜比小厅',
+            seats: createSeatPlan(10),
             accessibilityFeatures: [
                 'wheelchair-spaces',
                 'step-free-access',
@@ -165,8 +166,8 @@ export function createDemoCatalog(businessDate) {
         createAuditorium({
             id: 'auditorium-riverside-6',
             cinemaId: cinemas[1].id,
-            name: '6 号激光厅',
-            seats: createSeatPlan(),
+            name: '6 号激光大厅',
+            seats: createSeatPlan(30),
             accessibilityFeatures: [
                 'wheelchair-spaces',
                 'step-free-access',

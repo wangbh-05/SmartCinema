@@ -129,6 +129,7 @@ export default class TestCommercialComposition {
             const deps = this._deps();
             this.assertTrue(deps.app.initialize().ok);
             this.assertTrue(deps.app.preferences.update({ accessibilityMode: true }).ok);
+            this.assertTrue(deps.app.preferences.update({ highContrastMode: true }).ok);
             this.assertTrue(deps.app.account.register({
                 username: 'preferences-viewer',
                 password: 'secret1',
@@ -136,8 +137,10 @@ export default class TestCommercialComposition {
                 email: ''
             }).ok);
             this.assertTrue(deps.app.preferences.get().value.accessibilityMode);
+            this.assertTrue(deps.app.preferences.get().value.highContrastMode);
             this.assertTrue(deps.app.preferences.update({
                 accessibilityMode: false,
+                highContrastMode: false,
                 reducedMotion: 'reduce'
             }).ok);
             this.assertTrue(deps.app.account.logout().ok);

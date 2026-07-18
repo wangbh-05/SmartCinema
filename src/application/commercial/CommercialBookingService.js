@@ -1,4 +1,9 @@
-import { createBookingDraft, replaceDraftSeats } from '../../domain/booking/BookingDraft.js';
+import {
+    createBookingDraft,
+    getPartyTypeOptions,
+    MAX_TICKETS_PER_ORDER,
+    replaceDraftSeats
+} from '../../domain/booking/BookingDraft.js';
 import { quoteBooking } from '../../domain/booking/PricingQuote.js';
 import { recommendSeatBlock } from './RecommendSeatBlock.js';
 import {
@@ -9,6 +14,10 @@ import {
 } from '../../domain/booking/HoldBooking.js';
 import { isSeatHoldActive } from '../../domain/booking/SeatHold.js';
 import { createShowtimeInventory } from '../../domain/booking/ShowtimeInventory.js';
+import {
+    createSeatPopularityMap,
+    evaluateSeatDecision
+} from '../../domain/booking/SeatDecisionGuide.js';
 import { createCommercialOrder } from '../../domain/order/CommercialOrder.js';
 import { getCommercialCancellationEligibility } from '../../domain/order/CommercialOrder.js';
 import { cancelCommercialBooking } from '../../domain/order/CancelCommercialBooking.js';
@@ -30,6 +39,10 @@ export class CommercialBookingService {
         }));
     }
 
+    getTicketLimit() {
+        return MAX_TICKETS_PER_ORDER;
+    }
+
     listShowtimes(filters = {}) {
         const showtimes = this.catalogRepository.listShowtimes(filters);
         return ok(showtimes.map(showtime => this._contextForShowtime(showtime)));
@@ -48,6 +61,7 @@ export class CommercialBookingService {
         showtimeId,
         ticketItems,
         preferences = [],
+        partyType = null,
         accessibilityAcknowledged = false
     }) {
         const availability = this._validateShowtimeForSale(showtimeId, this.clock.now());
@@ -58,9 +72,18 @@ export class CommercialBookingService {
                 ticketItems,
                 selectedSeatIds: [],
                 preferences,
+                partyType,
                 accessibilityAcknowledged,
                 updatedAt: this.clock.now()
             }));
+        } catch (error) {
+            return err('VALIDATION_ERROR', error.message, error.details || {});
+        }
+    }
+
+    getPartyTypeOptions(ticketItems) {
+        try {
+            return ok(getPartyTypeOptions(ticketItems));
         } catch (error) {
             return err('VALIDATION_ERROR', error.message, error.details || {});
         }
@@ -82,6 +105,34 @@ export class CommercialBookingService {
             updatedAt: this.clock.now(),
             policy: selectionPolicy
         });
+    }
+
+    getSeatDecisionGuide(draft) {
+        const context = this.getBookingContext(draft.showtimeId);
+        if (!context.ok) return context;
+        const inventory = this.getInventory(draft.showtimeId);
+        if (!inventory.ok) return inventory;
+        try {
+            return ok(evaluateSeatDecision({
+                auditorium: context.value.auditorium,
+                seatIds: draft.selectedSeatIds,
+                inventory: inventory.value,
+                pricingPolicy: context.value.pricingPolicy
+            }));
+        } catch (error) {
+            return err('VALIDATION_ERROR', error.message, error.details || {});
+        }
+    }
+
+    getSeatPopularity(showtimeId) {
+        const context = this.getBookingContext(showtimeId);
+        if (!context.ok) return context;
+        const inventory = this.getInventory(showtimeId);
+        if (!inventory.ok) return inventory;
+        return ok(createSeatPopularityMap({
+            auditorium: context.value.auditorium,
+            inventory: inventory.value
+        }));
     }
 
     quoteDraft(draft) {

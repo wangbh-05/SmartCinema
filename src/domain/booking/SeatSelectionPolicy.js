@@ -1,9 +1,10 @@
 import { findAuditoriumSeat } from '../catalog/Auditorium.js';
+import { MAX_TICKETS_PER_ORDER } from './BookingDraft.js';
 import { getUnavailableSeatIds } from './ShowtimeInventory.js';
 import { err, ok } from '../../shared/Result.js';
 
 export const DEFAULT_SEAT_SELECTION_POLICY = Object.freeze({
-    maxTicketsPerOrder: 8,
+    maxTicketsPerOrder: MAX_TICKETS_PER_ORDER,
     requireSameSection: true,
     preventOrphanSeat: true,
     companionRequiresWheelchairSpace: true

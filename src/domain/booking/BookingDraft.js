@@ -1,13 +1,20 @@
 import { err, ok } from '../../shared/Result.js';
 import { ValidationError } from '../../shared/ValidationError.js';
 
-export const MAX_TICKETS_PER_ORDER = 8;
+export const MAX_TICKETS_PER_ORDER = 20;
 export const RECOMMENDATION_PREFERENCES = Object.freeze([
     'center',
     'back',
     'aisle',
     'step-free'
 ]);
+export const PARTY_TYPES = Object.freeze(['solo', 'couple', 'family', 'group']);
+export const PARTY_TYPE_LABELS = Object.freeze({
+    solo: '单人观影',
+    couple: '双人观影',
+    family: '家庭观影',
+    group: '多人同行'
+});
 
 function requireText(value, fieldName) {
     if (typeof value !== 'string' || value.trim().length === 0) {
@@ -76,11 +83,53 @@ function normalizePreferences(preferences) {
     return Object.freeze([...new Set(normalized)]);
 }
 
+function inferPartyType(ticketItems, ticketCount) {
+    const ticketTypeIds = new Set(ticketItems.map(item => item.ticketTypeId));
+    if (ticketCount === 1) return 'solo';
+    if (ticketCount >= 5) return 'group';
+    if (ticketTypeIds.has('child') || ticketTypeIds.has('senior')) return 'family';
+    return ticketCount === 2 ? 'couple' : 'family';
+}
+
+function isPartyTypeAllowed(partyType, ticketCount) {
+    if (partyType === 'solo') return ticketCount === 1;
+    if (partyType === 'couple') return ticketCount === 2;
+    if (partyType === 'family') return ticketCount >= 2 && ticketCount <= 8;
+    if (partyType === 'group') return ticketCount >= 5;
+    return false;
+}
+
+export function getPartyTypeOptions(ticketItems) {
+    const normalized = normalizeTicketItems(ticketItems);
+    const recommended = inferPartyType(normalized.ticketItems, normalized.ticketCount);
+    return Object.freeze(PARTY_TYPES.map(id => Object.freeze({
+        id,
+        label: PARTY_TYPE_LABELS[id],
+        allowed: isPartyTypeAllowed(id, normalized.ticketCount),
+        recommended: id === recommended
+    })));
+}
+
+function normalizePartyType(partyType, ticketItems, ticketCount) {
+    const normalized = partyType ?? inferPartyType(ticketItems, ticketCount);
+    if (!PARTY_TYPES.includes(normalized)) {
+        throw new ValidationError('未知的同行方式', { partyType: normalized });
+    }
+    if (!isPartyTypeAllowed(normalized, ticketCount)) {
+        throw new ValidationError(`${PARTY_TYPE_LABELS[normalized]}与当前票数不匹配`, {
+            partyType: normalized,
+            ticketCount
+        });
+    }
+    return normalized;
+}
+
 export function createBookingDraft({
     showtimeId,
     ticketItems,
     selectedSeatIds = [],
     preferences = [],
+    partyType = null,
     accessibilityAcknowledged = false,
     updatedAt
 }) {
@@ -94,6 +143,11 @@ export function createBookingDraft({
         ticketCount: normalizedTickets.ticketCount,
         selectedSeatIds: normalizeSeatIds(selectedSeatIds, normalizedTickets.ticketCount),
         preferences: normalizePreferences(preferences),
+        partyType: normalizePartyType(
+            partyType,
+            normalizedTickets.ticketItems,
+            normalizedTickets.ticketCount
+        ),
         accessibilityAcknowledged,
         updatedAt: requireIsoDate(updatedAt, 'BookingDraft.updatedAt')
     });

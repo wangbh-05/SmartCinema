@@ -3,6 +3,7 @@ import { AuthViewAdapter } from './ui/adapters/AuthViewAdapter.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
 import { CommercialCheckoutController } from './ui/controllers/CommercialCheckoutController.js';
 import { CommercialCatalogController } from './ui/controllers/CommercialCatalogController.js';
+import { CommercialDecisionSupportController } from './ui/controllers/CommercialDecisionSupportController.js';
 import { CommercialOrdersController } from './ui/controllers/CommercialOrdersController.js';
 import { CommercialPreferencesController } from './ui/controllers/CommercialPreferencesController.js';
 import { CommercialSeatMapController } from './ui/controllers/CommercialSeatMapController.js';
@@ -22,6 +23,7 @@ class CommercialBookingPage {
     constructor(app) {
         this.app = app;
         this.booking = app.booking;
+        this.ticketLimit = this.booking.getTicketLimit();
         this.context = null;
         this.allShowtimes = [];
         this.showtimes = [];
@@ -29,7 +31,10 @@ class CommercialBookingPage {
         this.draft = null;
         this.quote = null;
         this.ticketQuantities = new Map([['adult', 2]]);
+        this.partyType = 'couple';
         this.preferences = new Set(['center']);
+        this.showPopularity = false;
+        this.popularityBySeat = {};
         this.toastTimer = null;
         this.pendingOrdersOpen = false;
     }
@@ -42,6 +47,7 @@ class CommercialBookingPage {
         }
         this.setupDialogs();
         this.setupSeatMap();
+        this.setupDecisionSupport();
         this.bindStaticEvents();
         this.updateAccountHeader();
 
@@ -116,9 +122,19 @@ class CommercialBookingPage {
             getState: () => ({
                 context: this.context,
                 draft: this.draft,
-                inventory: this.inventory
+                inventory: this.inventory,
+                popularityBySeat: this.popularityBySeat,
+                showPopularity: this.showPopularity
             }),
             onToggleSeat: seatId => this.toggleSeat(seatId)
+        });
+    }
+
+    setupDecisionSupport() {
+        this.decisionSupport = new CommercialDecisionSupportController({
+            booking: this.booking,
+            onPartyTypeChange: partyType => this.changePartyType(partyType),
+            onPopularityToggle: () => this.togglePopularity()
         });
     }
 
@@ -201,7 +217,7 @@ class CommercialBookingPage {
             const hold = active.value;
             const matchingDraft = savedDraft.ok && savedDraft.value?.showtimeId === hold.showtimeId ?
                 savedDraft.value : null;
-            this.setTicketItems(hold.ticketItems);
+            this.setTicketItems(hold.ticketItems, matchingDraft?.partyType);
             this.preferences = new Set(matchingDraft?.preferences || ['center']);
             const context = this.booking.getBookingContext(hold.showtimeId);
             const hasAccessibleSeat = context.ok && context.value.auditorium.seats.some(seat =>
@@ -212,6 +228,7 @@ class CommercialBookingPage {
                 ticketItems: hold.ticketItems,
                 selectedSeatIds: hold.seatIds,
                 preferences: [...this.preferences],
+                partyType: this.partyType,
                 accessibilityAcknowledged: hasAccessibleSeat || Boolean(matchingDraft?.accessibilityAcknowledged)
             };
             const restored = this.selectShowtime(hold.showtimeId, {
@@ -239,7 +256,7 @@ class CommercialBookingPage {
             item.availability.bookable
         ) ? draft.showtimeId : fallbackShowtimeId;
         if (draft && draftShowtime === draft.showtimeId) {
-            this.setTicketItems(draft.ticketItems);
+            this.setTicketItems(draft.ticketItems, draft.partyType);
             this.preferences = new Set(draft.preferences);
         }
         this.selectShowtime(draftShowtime, {
@@ -248,10 +265,11 @@ class CommercialBookingPage {
         });
     }
 
-    setTicketItems(ticketItems) {
+    setTicketItems(ticketItems, preferredPartyType = null) {
         this.ticketQuantities = new Map(
             ticketItems.map(item => [item.ticketTypeId, item.quantity])
         );
+        this.syncPartyType(preferredPartyType);
     }
 
     selectShowtime(showtimeId, {
@@ -275,6 +293,7 @@ class CommercialBookingPage {
             showtimeId,
             ticketItems: this.ticketItems(),
             preferences: [...this.preferences],
+            partyType: this.partyType,
             accessibilityAcknowledged: Boolean(restoredDraft?.accessibilityAcknowledged)
         });
         if (!draft.ok) {
@@ -284,6 +303,7 @@ class CommercialBookingPage {
         this.context = context.value;
         this.showtimes = this.catalogController.list(this.catalogSelection());
         this.inventory = inventory.value;
+        this.refreshSeatGuidance();
         const knownSeatIds = new Set(this.context.auditorium.seats.map(seat => seat.id));
         const restoredSeatIds = (restoredDraft?.selectedSeatIds || []).filter(seatId =>
             knownSeatIds.has(seatId) &&
@@ -325,12 +345,28 @@ class CommercialBookingPage {
         const current = this.ticketQuantities.get(ticketTypeId) || 0;
         const next = action === 'increase' ? current + 1 : current - 1;
         const nextTotal = this.ticketCount - current + next;
-        if (next < 0 || nextTotal < 1 || nextTotal > 8) return;
+        if (next < 0 || nextTotal < 1 || nextTotal > this.ticketLimit) return;
         const hadSeats = this.draft.selectedSeatIds.length > 0;
         this.ticketQuantities.set(ticketTypeId, next);
+        this.syncPartyType(this.partyType);
         this.hideSeatConflict();
         this.rebuildDraft({ preserveSeats: false });
         if (hadSeats) this.notify('票数已变化，请重新选择对应数量的座位');
+    }
+
+    syncPartyType(preferredPartyType = this.partyType) {
+        const result = this.booking.getPartyTypeOptions(this.ticketItems());
+        if (!result.ok) return;
+        const preferred = result.value.find(option => option.id === preferredPartyType && option.allowed);
+        this.partyType = preferred?.id || result.value.find(option => option.recommended)?.id || 'family';
+    }
+
+    changePartyType(partyType) {
+        if (partyType === this.partyType) return;
+        this.partyType = partyType;
+        const hadSeats = this.draft.selectedSeatIds.length > 0;
+        this.rebuildDraft({ preserveSeats: true });
+        if (hadSeats) this.notify('同行方式已更新；现有座位保留，可重新请求更合适的连座');
     }
 
     togglePreference(preference, button) {
@@ -338,6 +374,18 @@ class CommercialBookingPage {
         else this.preferences.add(preference);
         button.setAttribute('aria-pressed', String(this.preferences.has(preference)));
         this.rebuildDraft({ preserveSeats: true });
+    }
+
+    togglePopularity() {
+        this.showPopularity = !this.showPopularity;
+        this.decisionSupport.renderPopularity(this.showPopularity);
+        this.renderSeatMap();
+        this.announce(`座位热度参考已${this.showPopularity ? '显示' : '隐藏'}`);
+    }
+
+    refreshSeatGuidance() {
+        const result = this.booking.getSeatPopularity(this.context.showtime.id);
+        this.popularityBySeat = result.ok ? result.value : {};
     }
 
     rebuildDraft({
@@ -350,6 +398,7 @@ class CommercialBookingPage {
             showtimeId: this.context.showtime.id,
             ticketItems: this.ticketItems(),
             preferences: [...this.preferences],
+            partyType: this.partyType,
             accessibilityAcknowledged
         });
         if (!next.ok) return this.notify(next.error.message);
@@ -361,6 +410,7 @@ class CommercialBookingPage {
         this.draft = draft;
         this.updateQuote();
         this.renderTickets();
+        this.renderDecisionSupport();
         this.renderSeatMap();
         this.renderSummary();
         if (persist) this.persistDraft();
@@ -449,6 +499,7 @@ class CommercialBookingPage {
         this.renderContext();
         this.renderShowtimes();
         this.renderTickets();
+        this.renderDecisionSupport();
         this.renderSeatMap();
         this.renderSummary();
     }
@@ -470,12 +521,12 @@ class CommercialBookingPage {
         element('cinema-name').textContent = cinema.name;
         element('cinema-address').textContent = cinema.address;
         element('showtime-date').textContent = formatDate(showtime.startsAt);
-        element('auditorium-name').textContent = auditorium.name;
+        element('auditorium-name').textContent = `${auditorium.name} · ${auditorium.seats.length} 座`;
         element('showtime-format').textContent = `${showtime.format} · ${showtime.language}`;
         element('refund-note').textContent = refundPolicy.summary;
         element('summary-time').textContent = formatTime(showtime.startsAt);
         element('summary-date').textContent = formatDate(showtime.startsAt);
-        element('summary-auditorium').textContent = `${auditorium.name} · ${showtime.format}`;
+        element('summary-auditorium').textContent = `${auditorium.name} · ${auditorium.seats.length} 座 · ${showtime.format}`;
     }
 
     renderShowtimes() {
@@ -536,12 +587,21 @@ class CommercialBookingPage {
             increase.textContent = '+';
             increase.dataset.ticketAction = 'increase';
             increase.dataset.ticketTypeId = ticketType.id;
-            increase.disabled = this.ticketCount >= 8;
+            increase.disabled = this.ticketCount >= this.ticketLimit;
             increase.setAttribute('aria-label', `增加${ticketType.label}`);
             stepper.append(decrease, output, increase);
             item.append(copy, stepper);
             list.append(item);
         });
+    }
+
+    renderDecisionSupport() {
+        this.decisionSupport.renderPartyTypes({
+            ticketItems: this.ticketItems(),
+            ticketQuantities: this.ticketQuantities,
+            partyType: this.partyType
+        });
+        this.decisionSupport.renderPopularity(this.showPopularity);
     }
 
     renderSeatMap({ focusSeat = false } = {}) {
@@ -604,6 +664,7 @@ class CommercialBookingPage {
         mobileButton.disabled = !ready;
         mobileButton.textContent = ready ? '锁定座位' :
             (requiresAccessibilityAcknowledgement ? '请确认席位' : '请先选座');
+        this.decisionSupport.renderGuide(this.draft);
     }
 
     placeHold(trigger) {
@@ -638,6 +699,7 @@ class CommercialBookingPage {
         const inventory = this.booking.getInventory(this.context.showtime.id);
         if (!inventory.ok) return this.notify(inventory.error.message);
         this.inventory = inventory.value;
+        this.refreshSeatGuidance();
         const unavailable = new Set([
             ...this.inventory.soldSeatIds,
             ...Object.keys(this.inventory.holdIdsBySeatId)

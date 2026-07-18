@@ -3,6 +3,7 @@ import { ValidationError } from '../../shared/ValidationError.js';
 export const DEFAULT_SETTINGS = Object.freeze({
     theme: 'dark',
     accessibilityMode: false,
+    highContrastMode: false,
     colorblindMode: false,
     voiceEnabled: false,
     realtimeEnabled: false,
@@ -24,7 +25,7 @@ export function createSettings(input = {}) {
     if (!THEMES.includes(settings.theme)) {
         throw new ValidationError('theme 无效', { theme: settings.theme });
     }
-    ['accessibilityMode', 'colorblindMode', 'voiceEnabled', 'realtimeEnabled'].forEach(key => {
+    ['accessibilityMode', 'highContrastMode', 'colorblindMode', 'voiceEnabled', 'realtimeEnabled'].forEach(key => {
         if (typeof settings[key] !== 'boolean') {
             throw new ValidationError(`${key} 必须是 boolean`, { [key]: settings[key] });
         }
@@ -42,6 +43,7 @@ export function createSettings(input = {}) {
     return Object.freeze({
         theme: settings.theme,
         accessibilityMode: settings.accessibilityMode,
+        highContrastMode: settings.highContrastMode,
         colorblindMode: settings.colorblindMode,
         voiceEnabled: settings.voiceEnabled,
         realtimeEnabled: settings.realtimeEnabled,

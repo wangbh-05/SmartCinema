@@ -26,7 +26,10 @@ export class CommercialPreferencesController {
         if (this.bound) return;
         this.bound = true;
         element('preference-readable').addEventListener('change', event => {
-            this._update({ accessibilityMode: event.currentTarget.checked }, '增强可读性');
+            this._update({ accessibilityMode: event.currentTarget.checked }, '大字体与宽松间距');
+        });
+        element('preference-contrast').addEventListener('change', event => {
+            this._update({ highContrastMode: event.currentTarget.checked }, '高对比度');
         });
         element('preference-colorblind').addEventListener('change', event => {
             this._update({ colorblindMode: event.currentTarget.checked }, '色觉友好座位状态');
@@ -49,6 +52,7 @@ export class CommercialPreferencesController {
         }
         const settings = result.value;
         element('preference-readable').checked = settings.accessibilityMode;
+        element('preference-contrast').checked = settings.highContrastMode;
         element('preference-colorblind').checked = settings.colorblindMode;
         element('preference-motion').checked = settings.reducedMotion === 'reduce';
         const user = this.account.getCurrentUser();
@@ -73,6 +77,7 @@ export class CommercialPreferencesController {
 
     _apply(settings) {
         document.body.classList.toggle('commerce-readable', settings.accessibilityMode);
+        document.body.classList.toggle('commerce-high-contrast', settings.highContrastMode);
         document.body.classList.toggle('commerce-colorblind', settings.colorblindMode);
         document.documentElement.dataset.commerceMotion = settings.reducedMotion;
     }

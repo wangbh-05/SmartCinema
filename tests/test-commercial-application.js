@@ -109,6 +109,67 @@ class TestCommercialApplication {
             this.assertEqual(filtered.value[0].cinema.name, 'SmartCinema 滨江里');
         });
 
+        this.test('同行方式与票种应共同约束可解释的连座推荐', () => {
+            const deps = this._deps();
+            const options = deps.service.getPartyTypeOptions([
+                { ticketTypeId: 'adult', quantity: 5 }
+            ]);
+            this.assertTrue(options.ok);
+            this.assertTrue(options.value.find(option => option.id === 'group').allowed);
+            this.assertFalse(options.value.find(option => option.id === 'couple').allowed);
+
+            const protectedAudience = deps.service.createDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [
+                    { ticketTypeId: 'child', quantity: 1 },
+                    { ticketTypeId: 'senior', quantity: 1 }
+                ],
+                partyType: 'family',
+                preferences: ['center']
+            });
+            this.assertTrue(protectedAudience.ok);
+            const recommended = deps.service.recommendSeats(protectedAudience.value);
+            this.assertTrue(recommended.ok, recommended.error?.message);
+            this.assertTrue(recommended.value.seats.every(seat => seat.rowIndex >= 3 && seat.rowIndex <= 6));
+            this.assertTrue(recommended.value.reason.includes('儿童票已避开前三排'));
+            this.assertTrue(recommended.value.reason.includes('长者票已避开后三排'));
+            const guide = deps.service.getSeatDecisionGuide(recommended.value.draft);
+            this.assertTrue(guide.ok);
+            this.assertEqual(guide.value.dimensions.length, 4);
+            const popularity = deps.service.getSeatPopularity(deps.showtimeId);
+            this.assertTrue(popularity.ok);
+            this.assertEqual(
+                Object.keys(popularity.value).length,
+                deps.catalogRepository.getAuditorium(
+                    deps.catalogRepository.getShowtime(deps.showtimeId).auditoriumId
+                ).seats.length
+            );
+
+            const group = deps.service.createDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 5 }],
+                partyType: 'group',
+                preferences: ['center']
+            });
+            const grouped = deps.service.recommendSeats(group.value);
+            this.assertTrue(grouped.ok, grouped.error?.message);
+            this.assertTrue(grouped.value.seats.every(seat => seat.rowIndex === grouped.value.seats[0].rowIndex));
+
+            const largeHallGroup = deps.service.createDraft({
+                showtimeId: 'showtime:echo-riverside:2026-07-18',
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 20 }],
+                partyType: 'group',
+                preferences: ['center']
+            });
+            this.assertTrue(largeHallGroup.ok, largeHallGroup.error?.message);
+            const largeHallRecommended = deps.service.recommendSeats(largeHallGroup.value);
+            this.assertTrue(largeHallRecommended.ok, largeHallRecommended.error?.message);
+            this.assertEqual(largeHallRecommended.value.seats.length, 20);
+            this.assertTrue(largeHallRecommended.value.seats.every(seat =>
+                seat.rowIndex === largeHallRecommended.value.seats[0].rowIndex
+            ));
+        });
+
         this.test('应用层应创建票种草稿并原子持久化 hold 与库存', () => {
             const deps = this._deps();
             const draft = this._completeDraft(deps);
