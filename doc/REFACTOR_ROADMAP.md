@@ -38,7 +38,7 @@
 | 0. 基线冻结 | **已完成** | 固化当前行为、测试、问题与布局证据 | 基线文档、测试输出、浏览器验证 |
 | 1. 回归保护 | **已完成** | 为已知问题建立自动化或稳定的集成复现 | 新测试、测试矩阵 |
 | 2. 架构设计 | **已完成** | 明确领域模型、依赖方向和存储 v2 | 架构 RFC、数据契约 |
-| 3. 结构重构 | **进行中** | 按分层目标迁移代码且保持行为可验证 | 模块边界、测试结果 |
+| 3. 结构重构 | **已完成** | 按分层目标迁移代码且保持行为可验证 | 模块边界、测试结果、退出审计 |
 | 4. 永久修复 | **进行中（12/13）** | 在新架构内关闭状态、订单与安全渲染类 Bug | 回归测试全绿 |
 | 5. 交互基础重构 | **部分完成** | 统一 Modal、Toast、表单、Canvas 和焦点行为 | 键盘/指针测试 |
 | 6. 视觉与动效重构 | 待开始 | 建立设计系统、响应式布局和克制动效 | Before/After 审查、视觉验收 |
@@ -448,3 +448,13 @@ src/
 - 推荐/评分测试改为直接覆盖 RecommendSeats、ScoreSelection 与 SeatDataLayoutAdapter，随后删除迁移期 RecommendEngine/ScoreEngine 兼容壳；测试摘要使用真实边界命名；
 - Node 有效测试为 103/103；浏览器矩阵保持 PASS 10、XFAIL 1、XPASS 0、ERROR 0；真实页面实测 Ctrl+K 帮助具备语义关闭键且 Escape 可关闭；
 - 下一切片提取 AppState→SeatData/Canvas 的视图投影和页面场次协调，进一步把 `src/app.js` 收敛为组合根与薄事件编排，再执行阶段 3 退出审计。
+
+### 2026-07-18 · 阶段 3 · 切片 15 / 退出审计
+
+- 新增 SeatDataProjection，统一把 canonical AppState 的 inventory、selection 与 remote holds 投影到 Canvas 使用的 SeatData 视图模型，并集中处理 UI 选择回写和 realtime 可用座位快照；
+- 投影顺序固定为“清除旧 remote hold → 应用已售库存 → 恢复本地选择 → 应用当前 remote hold”，避免已释放的旧 hold 阻止 canonical selection 恢复；新增专项测试覆盖此状态转换；
+- LegacyAuthFacade/LegacyOrderFacade 完成迁移后更名并移动为 AuthViewAdapter/OrderViewAdapter；删除 `src/app.js` 中 24 个没有调用方的迁移期包装方法；
+- `src/app.js` 从阶段 3 开始时的 1204 行收敛到 546 行，只保留组合、页面事件编排、场次切换与少量视图刷新；业务、存储、认证、备份、Dialog、设置、订单、推荐、评分、聊天、无障碍和 Canvas 各有明确边界；
+- 分层扫描确认 domain/application/shared 不访问 DOM、Canvas 或浏览器存储，生产 app/ui 不使用 `innerHTML` 或直接读写 LocalStorage/SessionStorage，旧 manager/engine/legacy UI 引用已清零；
+- Node 全局实测 104/104 通过；浏览器退出矩阵 PASS 10、XFAIL 1、XPASS 0、ERROR 0；唯一 XFAIL 是已知 BUG-006 响应式横向溢出，不属于结构回退；
+- 阶段 3 退出门槛满足。下一阶段先在新布局系统中关闭 BUG-006，再按 Emil 指导开展视觉、响应式和动效重构。

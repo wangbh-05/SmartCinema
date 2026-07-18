@@ -6,7 +6,7 @@ const HALL_NAMES = Object.freeze({
     large: '大厅'
 });
 
-function toLegacyOrder(order) {
+function toOrderView(order) {
     const showtime = parseShowtimeId(order.showtimeId);
     return {
         id: order.id,
@@ -32,11 +32,9 @@ function toLegacyOrder(order) {
 }
 
 /**
- * 迁移期订单 facade。
- *
- * 负责把 v2 订单投影成旧视图需要的字段，但不创建第二份订单状态。
+ * Projects canonical v2 orders into fields needed by the order UI.
  */
-export class LegacyOrderFacade {
+export class OrderViewAdapter {
     constructor(controller) {
         this.controller = controller;
     }
@@ -45,7 +43,7 @@ export class LegacyOrderFacade {
         const scope = this.controller.isAdmin() ? 'all' : 'mine';
         const result = this.controller.listOrders({ scope });
         if (!result.ok) return [];
-        let orders = result.value.map(toLegacyOrder);
+        let orders = result.value.map(toOrderView);
         if (filter.status) orders = orders.filter(order => order.status === filter.status);
         if (filter.startDate) {
             const start = Date.parse(filter.startDate);
@@ -79,7 +77,7 @@ export class LegacyOrderFacade {
         return {
             success: true,
             message: '订单已取消',
-            order: toLegacyOrder(result.value.order)
+            order: toOrderView(result.value.order)
         };
     }
 
@@ -123,4 +121,4 @@ export class LegacyOrderFacade {
     }
 }
 
-export default LegacyOrderFacade;
+export default OrderViewAdapter;

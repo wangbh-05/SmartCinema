@@ -1,4 +1,4 @@
-function toLegacyResult(result, successMessage) {
+function toViewResult(result, successMessage) {
     if (!result.ok) {
         return {
             success: false,
@@ -14,25 +14,23 @@ function toLegacyResult(result, successMessage) {
 }
 
 /**
- * 迁移期认证 facade。
- *
- * 只保留旧页面正在使用的方法形状；事实源始终是 AppController/Storage v2。
+ * Adapts AppController authentication results to the stable UI result shape.
  */
-export class LegacyAuthFacade {
+export class AuthViewAdapter {
     constructor(controller) {
         this.controller = controller;
     }
 
     register(input) {
-        return toLegacyResult(this.controller.register(input), '注册成功！您已获得会员资格');
+        return toViewResult(this.controller.register(input), '注册成功！您已获得会员资格');
     }
 
     login(username, password) {
-        return toLegacyResult(this.controller.login(username, password), '登录成功');
+        return toViewResult(this.controller.login(username, password), '登录成功');
     }
 
     logout() {
-        return toLegacyResult(this.controller.logout(), '已退出登录');
+        return toViewResult(this.controller.logout(), '已退出登录');
     }
 
     isLoggedIn() {
@@ -53,4 +51,4 @@ export class LegacyAuthFacade {
     }
 }
 
-export default LegacyAuthFacade;
+export default AuthViewAdapter;

@@ -5,15 +5,15 @@
  * 加载顺序: Auth → SeatData → Cinema → Modules → UI Bindings
  */
 
-import { SeatData, HALL_CONFIG, SEAT_STATUS } from './core/SeatData.js';
+import { SeatData, HALL_CONFIG } from './core/SeatData.js';
 import { Cinema } from './core/Cinema.js';
 import { HeatmapEngine } from './modules/HeatmapEngine.js';
 
 import { AIChatbot } from './modules/AIChatbot.js';
 import { BrowserSpeechService } from './infrastructure/browser/BrowserSpeechService.js';
 import { createBrowserAppController, createBrowserRealtimeSimulator } from './bootstrap.js';
-import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
-import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
+import { AuthViewAdapter } from './ui/adapters/AuthViewAdapter.js';
+import { OrderViewAdapter } from './ui/adapters/OrderViewAdapter.js';
 import { AccountController } from './ui/controllers/AccountController.js';
 import { AccessibilityController } from './ui/controllers/AccessibilityController.js';
 import { AdminPanelController } from './ui/controllers/AdminPanelController.js';
@@ -26,6 +26,7 @@ import { ScoringController } from './ui/controllers/ScoringController.js';
 import { SettingsController } from './ui/controllers/SettingsController.js';
 import { ToastController } from './ui/components/ToastController.js';
 import { snapshotSeatData } from './ui/adapters/SeatDataLayoutAdapter.js';
+import { SeatDataProjection } from './ui/adapters/SeatDataProjection.js';
 
 class SmartCinema {
     constructor() {
@@ -38,8 +39,13 @@ class SmartCinema {
         if (!initialized.ok) {
             throw new Error(`SmartCinema 初始化失败：${initialized.error.message}`);
         }
-        this.auth = new LegacyAuthFacade(this.controller);
-        this.orderManager = new LegacyOrderFacade(this.controller);
+        this.auth = new AuthViewAdapter(this.controller);
+        this.orderManager = new OrderViewAdapter(this.controller);
+        this.seatProjection = new SeatDataProjection({
+            seatData: this.seatData,
+            getState: () => this.controller.getState(),
+            replaceSelection: seatKeys => this.controller.replaceSelection(seatKeys)
+        });
 
         this.a11yManager = new AccessibilityController({
             document,
@@ -145,7 +151,6 @@ class SmartCinema {
 
         // 状态
         this.applyPersistedSoldSeats();
-        this.restoreSeatSelection();
         this.cinema.redraw();
         this.updateHeatmap();
 
@@ -302,28 +307,6 @@ class SmartCinema {
         this.updateHeatmap();
     }
 
-    /* ================================================================
-     * 级联推荐表单
-     * ================================================================ */
-
-    /** 根据人数动态更新年龄段选择方式和观影类型选项 */
-    updateRecommendForm() {
-        return this.recommendationController.updateForm();
-    }
-
-    /** 获取当前选择的年龄段（支持多选） */
-    _getSelectedAges() {
-        return this.recommendationController.getSelectedAges();
-    }
-
-    handleRecommend() {
-        return this.recommendationController.submit();
-    }
-
-    applyRecommendation() {
-        return this.recommendationController.apply();
-    }
-
     _previewRecommendation(seats) {
         this.seatData.clearRecommended();
         this.seatData.setRecommended(seats);
@@ -360,20 +343,6 @@ class SmartCinema {
 
     updateScore() {
         return this.scoringController.update();
-    }
-
-    _animateScoreNum(target) {
-        const score = this.controller.getState()?.systemScore;
-        if (score && score.totalScore === target) this.scoringController.renderSystemScore(score);
-    }
-
-    _bindManualScore() {
-        return this.scoringController.bind();
-    }
-
-    /** 提交手动评分并显示综合结果 */
-    _submitManualScore() {
-        return this.scoringController.submitManualScore();
     }
 
     /* ================================================================
@@ -416,19 +385,6 @@ class SmartCinema {
         window.location.href = 'order.html';
     }
 
-    /** 迷你订单历史（侧边栏） */
-    toggleOrdersMini() {
-        return this.ordersPanel.toggle();
-    }
-
-    _renderOrdersMini() {
-        return this.ordersPanel.render();
-    }
-
-    handleCancelOrder(orderId) {
-        return this.ordersPanel.cancel(orderId);
-    }
-
     _refreshAfterOrderCancellation(order) {
         const hallType = order.hallType || this.seatData.hallType;
         if (hallType === this.seatData.hallType && order.dayIndex === this._getDayIndex()) {
@@ -444,10 +400,6 @@ class SmartCinema {
         }
     }
 
-    showOrderReceipt(orderId) {
-        return this.ordersPanel.showReceipt(orderId);
-    }
-
     /* ================================================================
      * 认证
      * ================================================================ */
@@ -461,30 +413,9 @@ class SmartCinema {
         this.authDialog.open(mode, trigger);
     }
 
-    hideAuthModal() {
-        this.authDialog.close();
-    }
-
-    handleAuthSubmit() {
-        return this.authDialog.submit();
-    }
-
-    showAuthError(msg) {
-        this.authDialog.showError(msg);
-    }
-
-    handleLogout() {
-        return this.accountController.logout();
-    }
-
     updateAuthUI() {
         this.accountController.render();
         this.updateSubmitButton();
-    }
-
-    /** 管理员后台面板 */
-    showAdminPanel(trigger = null) {
-        return this.adminPanel.open(trigger);
     }
 
     /* ================================================================
@@ -516,34 +447,6 @@ class SmartCinema {
     }
 
     /* ================================================================
-     * AI 观影顾问
-     * ================================================================ */
-
-    toggleChatbot(show) {
-        return this.chatbotController.toggle(show);
-    }
-
-    sendChatMessage() {
-        return this.chatbotController.send();
-    }
-
-    toggleDarkMode(enabled, persist = true) {
-        return this.settingsController.setTheme(enabled ? 'dark' : 'light', persist);
-    }
-
-    toggleAccessibilityMode(enabled, persist = true) {
-        return this.settingsController.setAccessibilityMode(enabled, persist);
-    }
-
-    toggleVoice(enabled, persist = true) {
-        return this.settingsController.setVoiceEnabled(enabled, persist);
-    }
-
-    toggleColorblindMode(enabled, persist = true) {
-        return this.settingsController.setColorblindMode(enabled, persist);
-    }
-
-    /* ================================================================
      * 实时模拟（模拟WebSocket）
      * ================================================================ */
     _onRealtimeEvent(evt) {
@@ -553,30 +456,17 @@ class SmartCinema {
             if (evt.showtimeId === this.controller.getState().showtimeId) {
                 this.applyPersistedSoldSeats();
             }
-            this._showToast(`🔔 ${evt.ownerLabel} 刚刚购买了 ${this._seatLabel(evt.seatKey)}`);
+            this.toast.show(`🔔 ${evt.ownerLabel} 刚刚购买了 ${this._seatLabel(evt.seatKey)}`);
         } else {
             const held = this.controller.applyRemoteHold(evt);
             if (!held.ok || evt.showtimeId !== this.controller.getState().showtimeId) return;
             this._projectRemoteHolds();
             if (evt.type === 'hold') {
-                this._showToast(`👆 ${evt.ownerLabel} 正在查看 ${this._seatLabel(evt.seatKey)}`);
+                this.toast.show(`👆 ${evt.ownerLabel} 正在查看 ${this._seatLabel(evt.seatKey)}`);
             }
         }
         this.cinema.redraw();
         this.updateUI();
-    }
-
-    _showToast(msg) {
-        return this.toast.show(msg);
-    }
-
-    toggleRealtime(enabled, persist = true) {
-        return this.settingsController.setRealtimeEnabled(enabled, persist);
-    }
-
-    /** 设置主题强调色 */
-    setAccentColor(color, persist = true) {
-        return this.settingsController.setAccentColor(color, persist);
     }
 
     loadSettings() {
@@ -584,52 +474,19 @@ class SmartCinema {
     }
 
     applyPersistedSoldSeats() {
-        const soldKeys = this.controller.getState().inventory.soldSeatKeys;
-        soldKeys.forEach(key => {
-            const [row, col] = key.split('-').map(Number);
-            const seat = this.seatData.getSeat(row, col);
-            if (seat) {
-                seat.status = SEAT_STATUS.OCCUPIED;
-                seat.isSelected = false;
-                this.seatData.selectedSeats.delete(key);
-            }
-        });
-        this._restoreSelectionFromController();
-        this._projectRemoteHolds();
+        this.seatProjection.projectPersistedState();
     }
 
     _projectRemoteHolds() {
-        for (let row = 0; row < this.seatData.rows; row++) {
-            for (let col = 0; col < this.seatData.cols; col++) {
-                this.seatData.getSeat(row, col).isRemoteHeld = false;
-            }
-        }
-        this.controller.getState().remoteHoldsBySeatKey.forEach((hold, seatKey) => {
-            const [row, col] = seatKey.split('-').map(Number);
-            const seat = this.seatData.getSeat(row, col);
-            if (seat && seat.status === SEAT_STATUS.AVAILABLE && !seat.isSelected) {
-                seat.isRemoteHeld = true;
-            }
-        });
-    }
-
-    restoreSeatSelection() {
-        this._restoreSelectionFromController();
+        this.seatProjection.projectRemoteHolds();
     }
 
     _restoreSelectionFromController() {
-        this.seatData.clearSelection();
-        this.controller.getState().selection.seatKeys.forEach(key => {
-            const [row, col] = key.split('-').map(Number);
-            if (this.seatData.isSeatAvailable(row, col)) {
-                this.seatData.selectSeat(row, col);
-            }
-        });
+        this.seatProjection.restoreSelection();
     }
 
     saveToStorage() {
-        const seatKeys = this.seatData.getSelectedSeats().map(seat => `${seat.row}-${seat.col}`);
-        return this.controller.replaceSelection(seatKeys);
+        return this.seatProjection.syncSelection();
     }
 
     handleExport() {
@@ -659,15 +516,9 @@ class SmartCinema {
     }
 
     _getRealtimeContext() {
-        const availableSeatKeys = [];
-        for (let row = 0; row < this.seatData.rows; row++) {
-            for (let col = 0; col < this.seatData.cols; col++) {
-                if (this.seatData.isSeatAvailable(row, col)) availableSeatKeys.push(`${row}-${col}`);
-            }
-        }
         return {
             showtimeId: this._getShowtimeId(),
-            availableSeatKeys
+            availableSeatKeys: this.seatProjection.availableSeatKeys()
         };
     }
 
@@ -687,7 +538,7 @@ let app;
 
 document.addEventListener('DOMContentLoaded', () => {
     app = new SmartCinema();
-    // 暴露到全局以便 HTML onclick 调用
+    // 暴露只读入口，供浏览器回归与本地诊断使用。
     window.app = app;
     console.log('🎬 SmartCinema ready');
 });

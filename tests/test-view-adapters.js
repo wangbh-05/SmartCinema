@@ -1,6 +1,6 @@
 import { createBrowserAppController } from '../src/bootstrap.js';
-import { LegacyAuthFacade } from '../src/ui/legacy/LegacyAuthFacade.js';
-import { LegacyOrderFacade } from '../src/ui/legacy/LegacyOrderFacade.js';
+import { AuthViewAdapter } from '../src/ui/adapters/AuthViewAdapter.js';
+import { OrderViewAdapter } from '../src/ui/adapters/OrderViewAdapter.js';
 
 const NOW = '2026-07-18T00:00:00.000Z';
 
@@ -22,7 +22,7 @@ class MemoryWebStorage {
     }
 }
 
-class TestLegacyFacades {
+class TestViewAdapters {
     constructor() {
         this.passed = 0;
         this.failed = 0;
@@ -48,11 +48,11 @@ class TestLegacyFacades {
     }
 
     runAll() {
-        console.log('\n========== Legacy UI Facade 测试 ==========\n');
+        console.log('\n========== UI View Adapter 测试 ==========\n');
 
-        this.test('认证 facade 应保留旧结果形状且使用 v2 session', () => {
+        this.test('认证适配器应返回稳定 UI 结果并使用 v2 session', () => {
             const { controller } = this._context();
-            const auth = new LegacyAuthFacade(controller);
+            const auth = new AuthViewAdapter(controller);
             const registered = auth.register({
                 username: 'alice',
                 password: 'secret1',
@@ -64,10 +64,10 @@ class TestLegacyFacades {
             this.assertEqual(auth.getCurrentUser(), null);
         });
 
-        this.test('普通用户不得经 facade 看到其他用户订单', () => {
+        this.test('普通用户不得经视图适配器看到其他用户订单', () => {
             const { controller } = this._context();
-            const auth = new LegacyAuthFacade(controller);
-            const orders = new LegacyOrderFacade(controller);
+            const auth = new AuthViewAdapter(controller);
+            const orders = new OrderViewAdapter(controller);
             auth.register({ username: 'alice', password: 'secret1', name: 'Alice' });
             controller.startCheckout({
                 showtimeId: 'medium:day:3',
@@ -79,10 +79,10 @@ class TestLegacyFacades {
             this.assertEqual(orders.getOrders().length, 0);
         });
 
-        this.test('订单 facade 应投影视图字段并通过 v2 原子退票', () => {
+        this.test('订单适配器应投影视图字段并通过 v2 原子退票', () => {
             const { controller } = this._context();
-            const auth = new LegacyAuthFacade(controller);
-            const orders = new LegacyOrderFacade(controller);
+            const auth = new AuthViewAdapter(controller);
+            const orders = new OrderViewAdapter(controller);
             auth.register({ username: 'alice', password: 'secret1', name: 'Alice' });
             controller.startCheckout({
                 showtimeId: 'medium:day:3',
@@ -96,9 +96,9 @@ class TestLegacyFacades {
             this.assertEqual(controller.getState().inventory.soldSeatKeys.length, 0);
         });
 
-        this.test('只有管理员可经认证 facade 获取用户列表', () => {
+        this.test('只有管理员可经认证适配器获取用户列表', () => {
             const { controller } = this._context();
-            const auth = new LegacyAuthFacade(controller);
+            const auth = new AuthViewAdapter(controller);
             auth.register({ username: 'alice', password: 'secret1', name: 'Alice' });
             this.assertEqual(auth.getAllUsers().length, 0);
             auth.logout();
@@ -130,4 +130,4 @@ class TestLegacyFacades {
     }
 }
 
-export default TestLegacyFacades;
+export default TestViewAdapters;

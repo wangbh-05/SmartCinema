@@ -15,7 +15,7 @@ import TestDerivedState from './test-derived-state.js';
 import TestAppController from './test-app-controller.js';
 import TestUiControllers from './test-ui-controllers.js';
 import TestCanvasInteraction from './test-canvas-interaction.js';
-import TestLegacyFacades from './test-legacy-facades.js';
+import TestViewAdapters from './test-view-adapters.js';
 import TestRealtimeV2 from './test-realtime-v2.js';
 import TestRegressionContracts from './test-regressions.js';
 
@@ -92,10 +92,10 @@ class TestRunner {
         const canvasInteractionResult = canvasInteractionTest.runAll();
         this.results.push({ name: 'CanvasInteraction', ...canvasInteractionResult });
 
-        // 生产页面迁移期间的 facade，不得回退到旧 Storage 事实源
-        const legacyFacadesTest = new TestLegacyFacades();
-        const legacyFacadesResult = legacyFacadesTest.runAll();
-        this.results.push({ name: 'LegacyFacades', ...legacyFacadesResult });
+        // 认证与订单视图适配器，不得创建第二份业务状态
+        const viewAdaptersTest = new TestViewAdapters();
+        const viewAdaptersResult = viewAdaptersTest.runAll();
+        this.results.push({ name: 'ViewAdapters', ...viewAdaptersResult });
 
         // 无 SeatData/Canvas 副作用的 realtime event adapter
         const realtimeV2Test = new TestRealtimeV2();

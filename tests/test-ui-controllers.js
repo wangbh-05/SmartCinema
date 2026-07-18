@@ -4,6 +4,8 @@
 
 import { ToastController } from '../src/ui/components/ToastController.js';
 import { BrowserSpeechService } from '../src/infrastructure/browser/BrowserSpeechService.js';
+import { SeatData, SEAT_STATUS } from '../src/core/SeatData.js';
+import { SeatDataProjection } from '../src/ui/adapters/SeatDataProjection.js';
 import { AccountController } from '../src/ui/controllers/AccountController.js';
 import { AccessibilityController } from '../src/ui/controllers/AccessibilityController.js';
 import { AdminPanelController } from '../src/ui/controllers/AdminPanelController.js';
@@ -354,6 +356,42 @@ class TestUiControllers {
             this.assertEqual(messages.children[0].textContent, '<用户输入>');
             this.assertEqual(messages.children[1].textContent, '<img src=x onerror=alert(1)>');
             this.assertEqual(messages.children[1].children.length, 0);
+        });
+
+        this.test('SeatDataProjection 应按顺序投影库存、选择与远端占座', () => {
+            const seatData = new SeatData('small');
+            const available = [];
+            for (let row = 0; row < seatData.rows && available.length < 3; row++) {
+                for (let col = 0; col < seatData.cols && available.length < 3; col++) {
+                    if (seatData.isSeatAvailable(row, col)) available.push(`${row}-${col}`);
+                }
+            }
+            const [soldKey, selectedKey, heldKey] = available;
+            const [selectedRow, selectedCol] = selectedKey.split('-').map(Number);
+            seatData.getSeat(selectedRow, selectedCol).isRemoteHeld = true;
+            const selectionCalls = [];
+            const state = {
+                inventory: { soldSeatKeys: [soldKey] },
+                selection: { seatKeys: [selectedKey] },
+                remoteHoldsBySeatKey: new Map([[heldKey, { ownerLabel: '观众 A' }]])
+            };
+            const projection = new SeatDataProjection({
+                seatData,
+                getState: () => state,
+                replaceSelection: keys => {
+                    selectionCalls.push(keys);
+                    return { ok: true };
+                }
+            });
+            projection.projectPersistedState();
+            const [soldRow, soldCol] = soldKey.split('-').map(Number);
+            const [heldRow, heldCol] = heldKey.split('-').map(Number);
+            this.assertEqual(seatData.getSeat(soldRow, soldCol).status, SEAT_STATUS.OCCUPIED);
+            this.assertTrue(seatData.getSeat(selectedRow, selectedCol).isSelected);
+            this.assertFalse(seatData.getSeat(selectedRow, selectedCol).isRemoteHeld);
+            this.assertTrue(seatData.getSeat(heldRow, heldCol).isRemoteHeld);
+            this.assertTrue(projection.syncSelection().ok);
+            this.assertEqual(selectionCalls[0][0], selectedKey);
         });
 
         this.test('OrdersPanelController 应从座位快照更新结算摘要', () => {
