@@ -38,7 +38,7 @@
 | 0. 基线冻结 | **已完成** | 固化当前行为、测试、问题与布局证据 | 基线文档、测试输出、浏览器验证 |
 | 1. 回归保护 | **已完成** | 为已知问题建立自动化或稳定的集成复现 | 新测试、测试矩阵 |
 | 2. 架构设计 | **已完成** | 明确领域模型、依赖方向和存储 v2 | 架构 RFC、数据契约 |
-| 3. 结构重构 | **下一阶段** | 按分层目标迁移代码且保持行为可验证 | 模块边界、测试结果 |
+| 3. 结构重构 | **进行中** | 按分层目标迁移代码且保持行为可验证 | 模块边界、测试结果 |
 | 4. 永久修复 | 待开始 | 在新架构内关闭状态与订单类 Bug | 回归测试全绿 |
 | 5. 交互基础重构 | 待开始 | 统一 Modal、Toast、表单、Canvas 和焦点行为 | 键盘/指针测试 |
 | 6. 视觉与动效重构 | 待开始 | 建立设计系统、响应式布局和克制动效 | Before/After 审查、视觉验收 |
@@ -308,3 +308,12 @@ src/
 - 明确订单与库存由 ConfirmCheckout/CancelOrder 在同一 repository update 中提交；
 - 明确 v1 无法确定日期或用户的数据不做隐式猜测；
 - 阶段 2 退出门槛已满足；下一阶段为阶段 3“结构重构”，开始落实代码边界。
+
+### 2026-07-18 · 阶段 3 · 切片 1
+
+- 新增 `src/shared/Result.js` 与 `ValidationError.js`；
+- 新增纯领域 Hall、ShowtimeId、SeatKey、SeatInventory、LocalSelection、RemoteHold；
+- 新增纯领域 Order、OrderStatus、BookingPolicy、User、UserRole；
+- 新增 `tests/test-domain-contracts.js`，14/14 通过；全局普通测试从 25 增至 39，XFAIL 仍为 2；
+- 边界扫描确认 `src/domain`、`src/shared` 不访问 DOM、Storage、当前时间或随机数；
+- 该切片尚未接管旧 UI；下一切片实现 v2 validator、StateRepository 与 v1 migration。

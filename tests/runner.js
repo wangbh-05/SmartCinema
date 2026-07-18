@@ -7,6 +7,7 @@ import TestSeatData from './test-seatdata.js';
 import TestRecommendEngine from './test-recommend.js';
 import TestScoreEngine from './test-score.js';
 import TestOrderManager from './test-order.js';
+import TestDomainContracts from './test-domain-contracts.js';
 import TestRegressionContracts from './test-regressions.js';
 
 class TestRunner {
@@ -41,6 +42,11 @@ class TestRunner {
         const orderTest = new TestOrderManager();
         const orderResult = orderTest.runAll();
         this.results.push({ name: 'OrderManager', ...orderResult });
+
+        // v2 纯领域模型与状态转换
+        const domainTest = new TestDomainContracts();
+        const domainResult = domainTest.runAll();
+        this.results.push({ name: 'DomainContracts', ...domainResult });
 
         // 已知缺陷契约：修复前稳定 XFAIL，异常或意外通过会计为失败
         const regressionTest = new TestRegressionContracts();
