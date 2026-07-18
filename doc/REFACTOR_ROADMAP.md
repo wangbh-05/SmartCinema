@@ -422,3 +422,11 @@ src/
 - 新增 5 项 CanvasInteraction 测试；Node 全局实测 103/103 通过；浏览器矩阵保持 PASS 9、XFAIL 1、XPASS 0、ERROR 0；
 - BUG-006 在 768/800/900px 的溢出宽度有所下降但尚未关闭，仍等待完整响应式网格修复；
 - 下一切片把颜色、热度、动画和所有 draw 方法迁入独立 CinemaRenderer，让 Cinema 只保留组合与兼容接口。
+
+### 2026-07-18 · 阶段 3 · 切片 12
+
+- 新增 CinemaRenderer，集中持有 Canvas 调色板、色盲配色、热度派生、座位弹性动画和全部绘制方法；渲染器只通过注入的 SeatData、layout 与 interaction state 读取当前视图；
+- Cinema 从 375 行收敛为 84 行，只负责组装 layout/input/renderer、设置高 DPI 画布、派发 `selectionChange` 以及保留 `redraw/resize/colorblind` 页面接口；
+- 热度计算在迁移中补齐单行或单列影厅的零距离保护；旧实现中重复的色盲热度赋值随职责迁移消失；
+- Node 全局实测保持 103/103 通过；真实浏览器矩阵保持 PASS 9、XFAIL 1、XPASS 0、ERROR 0；Canvas 键盘实测通过 ArrowRight + Space 将已选数量从 0 更新为 1；
+- Canvas 布局、输入与绘制职责完成分离，且页面调用方不依赖其内部字段；下一切片审计 `src/app.js` 的剩余职责、旧兼容模块和无引用代码，按阶段 3 退出门槛决定最后的结构收尾范围。
