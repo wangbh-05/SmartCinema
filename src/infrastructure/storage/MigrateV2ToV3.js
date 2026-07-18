@@ -132,7 +132,11 @@ function mapOrder(order) {
         cancelledAt: order.cancelledAt,
         refund: order.status === 'cancelled' ? {
             amount: createMoney(order.refund.amount * 100, order.refund.currency),
-            status: order.refund.status
+            fee: createMoney(order.totalPrice * 100 - order.refund.amount * 100, order.refund.currency),
+            status: order.refund.status,
+            requestedAt: order.cancelledAt,
+            processedAt: null,
+            reason: order.cancelReason || 'legacy-cancellation'
         } : null
     };
     return rehydrateCommercialOrder(migrated);

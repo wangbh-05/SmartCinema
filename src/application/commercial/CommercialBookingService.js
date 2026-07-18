@@ -10,6 +10,8 @@ import {
 import { isSeatHoldActive } from '../../domain/booking/SeatHold.js';
 import { createShowtimeInventory } from '../../domain/booking/ShowtimeInventory.js';
 import { createCommercialOrder } from '../../domain/order/CommercialOrder.js';
+import { getCommercialCancellationEligibility } from '../../domain/order/CommercialOrder.js';
+import { cancelCommercialBooking } from '../../domain/order/CancelCommercialBooking.js';
 import { err, ok } from '../../shared/Result.js';
 
 export class CommercialBookingService {
@@ -97,6 +99,42 @@ export class CommercialBookingService {
             .filter(order => order.userId === userId)
             .sort((left, right) => Date.parse(right.confirmedAt) - Date.parse(left.confirmedAt));
         return ok(Object.freeze(orders));
+    }
+
+    getOrderCancellationEligibility({ orderId, actorUserId }) {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const order = current.value.ordersById[orderId];
+        if (!order) return err('ORDER_NOT_FOUND', '订单不存在', { orderId });
+        if (order.userId !== actorUserId) return err('FORBIDDEN', '不能查看其他用户的退票资格');
+        return ok(getCommercialCancellationEligibility(order, this.clock.now()));
+    }
+
+    cancelOrder({ orderId, actorUserId, reason = 'customer-requested' }) {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const order = current.value.ordersById[orderId];
+        if (!order) return err('ORDER_NOT_FOUND', '订单不存在', { orderId });
+        if (order.userId !== actorUserId) return err('FORBIDDEN', '不能取消其他用户的订单');
+        if (order.status === 'cancelled') {
+            return ok({ order, state: current.value, idempotent: true });
+        }
+        const inventory = current.value.inventoriesByShowtime[order.showtimeSnapshot.id];
+        const cancelled = cancelCommercialBooking({ order, inventory }, {
+            cancelledAt: this.clock.now(),
+            reason
+        });
+        if (!cancelled.ok) return cancelled;
+        const persisted = this.stateRepository.update(current.value.revision, state => {
+            state.ordersById[order.id] = cancelled.value.order;
+            state.inventoriesByShowtime[order.showtimeSnapshot.id] = cancelled.value.inventory;
+        });
+        if (!persisted.ok) return persisted;
+        return ok({
+            order: persisted.value.ordersById[order.id],
+            state: persisted.value,
+            idempotent: false
+        });
     }
 
     getInventory(showtimeId) {

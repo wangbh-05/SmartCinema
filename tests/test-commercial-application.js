@@ -246,6 +246,65 @@ class TestCommercialApplication {
             this.assertEqual(Object.keys(deps.repository.read().value.ordersById).length, 1);
         });
 
+        this.test('取消自己的订单应原子更新退款终态与场次库存', () => {
+            const deps = this._deps();
+            const confirmed = this._confirmOrder(deps);
+            const eligibility = deps.service.getOrderCancellationEligibility({
+                orderId: confirmed.id,
+                actorUserId: 'user-1'
+            });
+            this.assertTrue(eligibility.ok && eligibility.value.eligible);
+            const cancelled = deps.service.cancelOrder({
+                orderId: confirmed.id,
+                actorUserId: 'user-1'
+            });
+            this.assertTrue(cancelled.ok, cancelled.error?.message);
+            this.assertEqual(cancelled.value.order.status, 'cancelled');
+            this.assertEqual(cancelled.value.order.refund.status, 'pending');
+            this.assertEqual(
+                cancelled.value.state.inventoriesByShowtime[deps.showtimeId].soldSeatIds.length,
+                0
+            );
+        });
+
+        this.test('退票必须校验订单所有者且重复取消保持幂等', () => {
+            const deps = this._deps();
+            const confirmed = this._confirmOrder(deps);
+            const forbidden = deps.service.cancelOrder({
+                orderId: confirmed.id,
+                actorUserId: 'admin-1'
+            });
+            this.assertEqual(forbidden.error.code, 'FORBIDDEN');
+            const first = deps.service.cancelOrder({ orderId: confirmed.id, actorUserId: 'user-1' });
+            const second = deps.service.cancelOrder({ orderId: confirmed.id, actorUserId: 'user-1' });
+            this.assertTrue(first.ok && second.ok);
+            this.assertTrue(second.value.idempotent);
+            this.assertEqual(second.value.order.refund.amount.amount, first.value.order.refund.amount.amount);
+        });
+
+        this.test('超过政策截止时间应拒绝退款且库存继续保持已售', () => {
+            const deps = this._deps();
+            const confirmed = this._confirmOrder(deps);
+            deps.clock.value = '2026-07-18T03:41:00.000Z';
+            const eligibility = deps.service.getOrderCancellationEligibility({
+                orderId: confirmed.id,
+                actorUserId: 'user-1'
+            });
+            this.assertFalse(eligibility.value.eligible);
+            this.assertEqual(eligibility.value.code, 'CUTOFF_PASSED');
+            const cancelled = deps.service.cancelOrder({
+                orderId: confirmed.id,
+                actorUserId: 'user-1'
+            });
+            this.assertFalse(cancelled.ok);
+            this.assertEqual(cancelled.error.code, 'REFUND_NOT_ELIGIBLE');
+            this.assertEqual(deps.repository.read().value.ordersById[confirmed.id].status, 'confirmed');
+            this.assertEqual(
+                deps.repository.read().value.inventoriesByShowtime[deps.showtimeId].soldSeatIds.length,
+                2
+            );
+        });
+
         return this.printSummary();
     }
 
@@ -259,6 +318,21 @@ class TestCommercialApplication {
         const selected = deps.service.replaceSeats(draft.value, ['A-01', 'A-02']);
         this.assertTrue(selected.ok);
         return selected.value;
+    }
+
+    _confirmOrder(deps) {
+        const placed = deps.service.placeHold({
+            draft: this._completeDraft(deps),
+            ownerId: 'user-1',
+            idempotencyKey: 'request-cancel'
+        }).value;
+        const confirmed = deps.service.confirmHold({
+            holdId: placed.hold.id,
+            actorOwnerId: 'user-1',
+            userId: 'user-1'
+        });
+        this.assertTrue(confirmed.ok, confirmed.error?.message);
+        return confirmed.value.order;
     }
 
     _deps() {

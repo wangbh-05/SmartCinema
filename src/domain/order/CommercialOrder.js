@@ -3,6 +3,7 @@ import { cloneJson, deepFreeze } from '../../shared/objects.js';
 import { ValidationError } from '../../shared/ValidationError.js';
 import { createMoney } from '../Money.js';
 import { rehydratePricingQuote } from '../booking/PricingQuote.js';
+import { err, ok } from '../../shared/Result.js';
 
 function requireText(value, fieldName) {
     if (typeof value !== 'string' || value.trim().length === 0) {
@@ -114,6 +115,108 @@ export function createCommercialOrder({
     return deepFreeze(order);
 }
 
+export function getCommercialCancellationEligibility(order, now) {
+    requireIsoDate(now, 'cancellation.now');
+    if (order.status === 'cancelled') {
+        return Object.freeze({
+            eligible: false,
+            code: 'ALREADY_CANCELLED',
+            reason: '订单已取消',
+            cutoffAt: null,
+            refundAmount: order.refund?.amount || null,
+            fee: order.refund?.fee || null
+        });
+    }
+    const policy = order.refundPolicySnapshot;
+    if (!policy || policy.refundable === null || !order.showtimeSnapshot.startsAt) {
+        return Object.freeze({
+            eligible: false,
+            code: 'POLICY_UNKNOWN',
+            reason: '该历史订单的退票规则无法确认，请联系影院处理',
+            cutoffAt: null,
+            refundAmount: null,
+            fee: null
+        });
+    }
+    if (!policy.refundable) {
+        return Object.freeze({
+            eligible: false,
+            code: 'NON_REFUNDABLE',
+            reason: '该场次不支持退票',
+            cutoffAt: null,
+            refundAmount: null,
+            fee: null
+        });
+    }
+    if (policy.currency !== order.pricingQuote.total.currency ||
+        policy.feeAmount > order.pricingQuote.total.amount) {
+        return Object.freeze({
+            eligible: false,
+            code: 'POLICY_INVALID',
+            reason: '退票政策与订单金额不一致，请联系影院处理',
+            cutoffAt: null,
+            refundAmount: null,
+            fee: null
+        });
+    }
+    const cutoffAt = new Date(
+        Date.parse(order.showtimeSnapshot.startsAt) - policy.cutoffMinutesBeforeShowtime * 60 * 1000
+    ).toISOString();
+    const fee = createMoney(policy.feeAmount, policy.currency);
+    const refundAmount = createMoney(
+        order.pricingQuote.total.amount - policy.feeAmount,
+        policy.currency
+    );
+    if (Date.parse(now) > Date.parse(cutoffAt)) {
+        return Object.freeze({
+            eligible: false,
+            code: 'CUTOFF_PASSED',
+            reason: `已超过开场前 ${policy.cutoffMinutesBeforeShowtime} 分钟的退票截止时间`,
+            cutoffAt,
+            refundAmount,
+            fee
+        });
+    }
+    return Object.freeze({
+        eligible: true,
+        code: 'ELIGIBLE',
+        reason: `可在截止时间前整单退票，手续费 ${policy.feeAmount / 100} 元`,
+        cutoffAt,
+        refundAmount,
+        fee
+    });
+}
+
+export function cancelCommercialOrder(order, {
+    cancelledAt,
+    reason = 'customer-requested'
+}) {
+    const eligibility = getCommercialCancellationEligibility(order, cancelledAt);
+    if (!eligibility.eligible) {
+        return err('REFUND_NOT_ELIGIBLE', eligibility.reason, {
+            reasonCode: eligibility.code,
+            cutoffAt: eligibility.cutoffAt
+        });
+    }
+    try {
+        return ok(deepFreeze({
+            ...order,
+            status: 'cancelled',
+            cancelledAt: requireIsoDate(cancelledAt, 'cancelledAt'),
+            refund: {
+                status: 'pending',
+                amount: eligibility.refundAmount,
+                fee: eligibility.fee,
+                requestedAt: cancelledAt,
+                processedAt: null,
+                reason: requireText(reason, 'refund.reason')
+            }
+        }));
+    } catch (error) {
+        return err('VALIDATION_ERROR', error.message, error.details || {});
+    }
+}
+
 function requireObject(value, fieldName) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         throw new ValidationError(`${fieldName} 必须是对象`);
@@ -180,12 +283,27 @@ export function rehydrateCommercialOrder(data) {
     if (data.status === 'cancelled') {
         cancelledAt = requireIsoDate(data.cancelledAt, 'CommercialOrder.cancelledAt');
         requireObject(data.refund, 'CommercialOrder.refund');
-        refund = {
-            ...cloneJson(data.refund),
-            amount: createMoney(data.refund.amount.amount, data.refund.amount.currency)
-        };
-        if (refund.amount.currency !== pricingQuote.currency || refund.amount.amount > pricingQuote.total.amount) {
+        if (!['pending', 'refunded'].includes(data.refund.status)) {
+            throw new ValidationError('CommercialOrder.refund.status 无效');
+        }
+        const amount = createMoney(data.refund.amount.amount, data.refund.amount.currency);
+        const fee = createMoney(data.refund.fee.amount, data.refund.fee.currency);
+        if (amount.currency !== pricingQuote.currency || fee.currency !== pricingQuote.currency ||
+            amount.amount + fee.amount !== pricingQuote.total.amount) {
             throw new ValidationError('CommercialOrder.refund 金额无效');
+        }
+        refund = {
+            status: data.refund.status,
+            amount,
+            fee,
+            requestedAt: requireIsoDate(data.refund.requestedAt, 'refund.requestedAt'),
+            processedAt: data.refund.processedAt === null ? null :
+                requireIsoDate(data.refund.processedAt, 'refund.processedAt'),
+            reason: requireText(data.refund.reason, 'refund.reason')
+        };
+        if ((refund.status === 'pending' && refund.processedAt !== null) ||
+            (refund.status === 'refunded' && refund.processedAt === null)) {
+            throw new ValidationError('CommercialOrder.refund 处理状态与时间不一致');
         }
     } else if (data.cancelledAt !== null || data.refund !== null) {
         throw new ValidationError('confirmed 订单不得包含取消或退款信息');

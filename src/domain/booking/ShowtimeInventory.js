@@ -139,3 +139,24 @@ export function consumeHeldSeats(inventory, { holdId, seatIds, updatedAt }) {
         return err('VALIDATION_ERROR', error.message, error.details || {});
     }
 }
+
+export function releaseSoldSeats(inventory, { seatIds, updatedAt }) {
+    try {
+        const requested = normalizeSeatIds(seatIds, 'seatIds');
+        if (requested.length === 0) return err('VALIDATION_ERROR', '退票至少需要一个座位');
+        const sold = new Set(inventory.soldSeatIds);
+        const missing = requested.filter(seatId => !sold.has(seatId));
+        if (missing.length > 0) {
+            return err('SOLD_INVENTORY_MISMATCH', '订单座位与已售库存不一致', { seatIds: missing });
+        }
+        requested.forEach(seatId => sold.delete(seatId));
+        return ok(createShowtimeInventory({
+            ...inventory,
+            revision: inventory.revision + 1,
+            soldSeatIds: [...sold],
+            updatedAt
+        }));
+    } catch (error) {
+        return err('VALIDATION_ERROR', error.message, error.details || {});
+    }
+}

@@ -275,6 +275,57 @@ async function run() {
         }
     });
 
+    await regression('UX-007', '订单取消应确认金额、提交退款并原子释放已售座位', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            const win = frame.contentWindow;
+            openHold(doc);
+            doc.getElementById('confirm-order').click();
+            doc.getElementById('auth-switch').click();
+            doc.getElementById('auth-username').value = 'refund-contract';
+            doc.getElementById('auth-password').value = 'browser123';
+            doc.getElementById('auth-name').value = '退票契约用户';
+            doc.getElementById('auth-email').value = 'refund@example.test';
+            doc.getElementById('auth-form').dispatchEvent(new win.Event('submit', {
+                bubbles: true,
+                cancelable: true
+            }));
+            await delay();
+            doc.getElementById('confirm-order').click();
+            await waitFor(() => doc.querySelector('#checkout-content .success-ticket'), '订单成功凭证');
+            doc.querySelector('.success-ticket .primary-action').click();
+            doc.getElementById('btn-orders').click();
+            const action = await waitFor(() => doc.querySelector('.order-refund-action'), '订单退票入口');
+            assertContract(
+                doc.querySelector('.order-ticket-code strong')?.textContent.startsWith('SC-'),
+                '我的订单没有提供可再次查看的电子取票码'
+            );
+            action.click();
+            assertContract(
+                doc.getElementById('refund-dialog').classList.contains('active'),
+                '未展示退票金额确认对话框'
+            );
+            doc.getElementById('refund-confirm').click();
+            await delay();
+            const stateV3 = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const cancelled = Object.values(stateV3.ordersById)[0];
+            const inventory = stateV3.inventoriesByShowtime[cancelled.showtimeSnapshot.id];
+            assertContract(cancelled.status === 'cancelled', `取消后订单状态为 ${cancelled.status}`);
+            assertContract(cancelled.refund.status === 'pending', '退款申请未进入 pending');
+            assertContract(
+                cancelled.seatSnapshots.every(seat => !inventory.soldSeatIds.includes(seat.id)),
+                '退票后座位仍保留在已售库存'
+            );
+            assertContract(
+                doc.querySelector('.order-refund-state')?.textContent.includes('退款处理中'),
+                '订单卡片未反馈退款处理状态'
+            );
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
     await regression('BUG-007', '登录与注册表单必须支持 Enter 提交', async () => {
         const frame = await createAppFrame();
         try {
@@ -410,8 +461,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 12 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：11 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 13 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：12 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);

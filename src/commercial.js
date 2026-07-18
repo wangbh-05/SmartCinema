@@ -2,54 +2,17 @@ import { createBrowserCommercialApplication } from './bootstrapCommercial.js';
 import { AuthViewAdapter } from './ui/adapters/AuthViewAdapter.js';
 import { DialogController } from './ui/components/DialogController.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
-
-const TIME_ZONE = 'Asia/Shanghai';
+import { CommercialOrdersController } from './ui/controllers/CommercialOrdersController.js';
+import {
+    appendText,
+    formatAmount,
+    formatDate,
+    formatMoney,
+    formatTime
+} from './ui/commercial/CommerceView.js';
 
 function element(id) {
     return document.getElementById(id);
-}
-
-function formatMoney(money) {
-    if (!money) return '—';
-    return new Intl.NumberFormat('zh-CN', {
-        style: 'currency',
-        currency: money.currency,
-        minimumFractionDigits: money.amount % 100 === 0 ? 0 : 2,
-        maximumFractionDigits: 2
-    }).format(money.amount / 100);
-}
-
-function formatAmount(amount, currency = 'CNY') {
-    return formatMoney({ amount, currency });
-}
-
-function formatTime(isoString) {
-    if (!isoString) return '时间待确认';
-    return new Intl.DateTimeFormat('zh-CN', {
-        timeZone: TIME_ZONE,
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-    }).format(new Date(isoString));
-}
-
-function formatDate(isoString, includeYear = false) {
-    if (!isoString) return '日期待确认';
-    return new Intl.DateTimeFormat('zh-CN', {
-        timeZone: TIME_ZONE,
-        year: includeYear ? 'numeric' : undefined,
-        month: 'long',
-        day: 'numeric',
-        weekday: 'short'
-    }).format(new Date(isoString));
-}
-
-function appendText(parent, tagName, text, className = '') {
-    const child = document.createElement(tagName);
-    child.textContent = text;
-    if (className) child.className = className;
-    parent.append(child);
-    return child;
 }
 
 function seatStatusLabel(seat, selected, sold, held) {
@@ -125,12 +88,14 @@ class CommercialBookingPage {
             onClose: () => this.handleCheckoutClosed()
         });
 
-        const ordersOverlay = element('orders-dialog');
-        this.ordersDialog = new DialogController({
-            overlay: ordersOverlay,
-            dialog: ordersOverlay.querySelector('.orders-dialog'),
-            closeButton: element('orders-close'),
-            canCloseFromBackdrop: () => false
+        this.ordersController = new CommercialOrdersController({
+            booking: this.booking,
+            account: this.app.account,
+            onNotify: message => this.notify(message),
+            onAnnounce: message => this.announce(message),
+            onInventoryChanged: showtimeId => {
+                if (showtimeId === this.context?.showtime.id) this.refreshInventory();
+            }
         });
     }
 
@@ -927,36 +892,7 @@ class CommercialBookingPage {
             this.authDialog.open('login', trigger);
             return;
         }
-        const result = this.booking.listOrders(user.id);
-        if (!result.ok) return this.notify(result.error.message);
-        const list = element('orders-list');
-        list.replaceChildren();
-        if (result.value.length === 0) {
-            appendText(list, 'p', '还没有订单，完成一次选座后会显示在这里。', 'empty-state');
-        } else {
-            result.value.forEach(order => list.append(this.createOrderCard(order)));
-        }
-        this.ordersDialog.open({ trigger });
-    }
-
-    createOrderCard(order) {
-        const card = document.createElement('article');
-        card.className = 'order-card';
-        const header = document.createElement('div');
-        header.className = 'order-card-header';
-        appendText(header, 'strong', order.movieSnapshot.title);
-        appendText(header, 'span', order.status === 'confirmed' ? '已确认' : '已取消');
-        card.append(header);
-        const showtime = order.showtimeSnapshot.startsAt ?
-            `${formatDate(order.showtimeSnapshot.startsAt, true)} ${formatTime(order.showtimeSnapshot.startsAt)}` :
-            '历史场次时间未记录';
-        appendText(card, 'p', `${showtime} · ${order.auditoriumSnapshot.name}`);
-        const footer = document.createElement('div');
-        footer.className = 'order-card-footer';
-        appendText(footer, 'span', order.seatSnapshots.map(seat => seat.label).join('、'));
-        appendText(footer, 'strong', formatMoney(order.pricingQuote.total));
-        card.append(footer);
-        return card;
+        this.ordersController.open(user, trigger);
     }
 
     notify(message) {

@@ -23,7 +23,11 @@ import {
     createShowtimeInventory,
     reserveSeats
 } from '../src/domain/booking/ShowtimeInventory.js';
-import { createCommercialOrder } from '../src/domain/order/CommercialOrder.js';
+import {
+    createCommercialOrder,
+    getCommercialCancellationEligibility
+} from '../src/domain/order/CommercialOrder.js';
+import { cancelCommercialBooking } from '../src/domain/order/CancelCommercialBooking.js';
 import {
     createDemoCatalog,
     DemoCatalogRepository
@@ -300,6 +304,49 @@ class TestCommercialDomain {
             this.assertEqual(order.pricingQuote.total.amount, 12100);
         });
 
+        this.test('退票资格应使用订单政策快照计算截止时间、手续费与退款额', () => {
+            const booking = this._confirmedBooking();
+            const eligible = getCommercialCancellationEligibility(booking.order, NOW);
+            this.assertTrue(eligible.eligible);
+            this.assertEqual(eligible.cutoffAt, '2026-07-18T10:30:00.000Z');
+            this.assertEqual(eligible.fee.amount, 500);
+            this.assertEqual(eligible.refundAmount.amount, 11600);
+
+            const late = getCommercialCancellationEligibility(
+                booking.order,
+                '2026-07-18T10:31:00.000Z'
+            );
+            this.assertFalse(late.eligible);
+            this.assertEqual(late.code, 'CUTOFF_PASSED');
+        });
+
+        this.test('取消商业订单应同时发起退款并释放整组已售座位', () => {
+            const booking = this._confirmedBooking();
+            const cancelled = cancelCommercialBooking(booking, {
+                cancelledAt: NOW,
+                reason: 'customer-requested'
+            });
+            this.assertTrue(cancelled.ok, cancelled.error?.message);
+            this.assertEqual(cancelled.value.order.status, 'cancelled');
+            this.assertEqual(cancelled.value.order.refund.status, 'pending');
+            this.assertEqual(cancelled.value.order.refund.amount.amount, 11600);
+            this.assertEqual(cancelled.value.inventory.soldSeatIds.length, 0);
+            this.assertEqual(booking.order.status, 'confirmed');
+            this.assertEqual(booking.inventory.soldSeatIds.length, 2);
+        });
+
+        this.test('超过退票截止时间不得改变订单或已售库存', () => {
+            const booking = this._confirmedBooking();
+            const cancelled = cancelCommercialBooking(booking, {
+                cancelledAt: '2026-07-18T10:31:00.000Z',
+                reason: 'customer-requested'
+            });
+            this.assertFalse(cancelled.ok);
+            this.assertEqual(cancelled.error.code, 'REFUND_NOT_ELIGIBLE');
+            this.assertEqual(booking.order.status, 'confirmed');
+            this.assertEqual(booking.inventory.soldSeatIds.length, 2);
+        });
+
         this.test('DemoCatalog 应提供完整场次引用、价格区和无障碍席位', () => {
             const catalog = createDemoCatalog('2026-07-18');
             const repository = new DemoCatalogRepository(catalog);
@@ -359,6 +406,29 @@ class TestCommercialDomain {
             ticketTypesById: fixture.ticketTypesById,
             pricingPolicy: fixture.pricingPolicy
         });
+    }
+
+    _confirmedBooking() {
+        const fixture = this._fixture();
+        const consumed = consumeBookingHold(this._placeHold(fixture).value, {
+            orderId: 'order-cancel-1',
+            consumedAt: '2026-07-18T10:04:00.000Z'
+        }).value;
+        const order = createCommercialOrder({
+            id: 'order-cancel-1',
+            idempotencyKey: consumed.hold.idempotencyKey,
+            userId: 'user-1',
+            hold: consumed.hold,
+            movie: fixture.movie,
+            cinema: fixture.cinema,
+            auditorium: fixture.auditorium,
+            showtime: fixture.showtime,
+            refundPolicy: fixture.refundPolicy,
+            ticketCode: 'SC202607180002',
+            qrPayload: 'smartcinema:ticket:order-cancel-1',
+            confirmedAt: '2026-07-18T10:04:00.000Z'
+        });
+        return { order, inventory: consumed.inventory };
     }
 
     _fixture() {
