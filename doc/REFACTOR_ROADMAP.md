@@ -7,6 +7,8 @@
 > 技术约束：原生 JavaScript、ES Modules、无运行时依赖
 > 事实基线：见 `doc/REFACTOR_BASELINE.md`
 
+> 后续阶段：本文件记录的技术与缺陷重构已经完成。面向真实商业购票漏斗的第二阶段产品重构，见 `doc/COMMERCIAL_UX_ROADMAP.md`。
+
 ## 1. 长期目标
 
 将 SmartCinema 分阶段升级为高质量、可维护的原生 JavaScript 应用：
