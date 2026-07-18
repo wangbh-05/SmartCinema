@@ -96,6 +96,39 @@ class TestAppController {
             this.assertTrue(controller.getState().inventory.soldSeatKeys.includes('5-8'));
         });
 
+        this.test('导入备份应清除登录、结算和全部 UI 暂态', () => {
+            const controller = this._controller();
+            controller.initialize();
+            controller.register({
+                username: 'alice',
+                password: 'secret1',
+                name: 'Alice'
+            });
+            const exported = controller.exportBackup({ includeCredentials: true });
+            this.assertTrue(exported.ok);
+
+            controller.toggleSeat('5-8');
+            controller.applyRemoteHold({
+                type: 'hold',
+                id: 'hold-1',
+                showtimeId: 'medium:day:3',
+                seatKey: '5-9',
+                ownerLabel: '远端用户',
+                expiresAt: '2026-07-18T00:05:00.000Z'
+            });
+            controller.startCheckout({
+                showtimeId: 'medium:day:3',
+                seats: [{ seatKey: '5-8', row: 5, col: 8, unitPrice: 120 }]
+            });
+
+            const imported = controller.importBackup(exported.value.json);
+            this.assertTrue(imported.ok);
+            this.assertEqual(controller.getState().session, null);
+            this.assertEqual(controller.getState().selection.seatKeys.length, 0);
+            this.assertEqual(controller.getState().remoteHoldsBySeatKey.size, 0);
+            this.assertEqual(controller.getCheckoutIntent().error.code, 'CHECKOUT_NOT_FOUND');
+        });
+
         return this.printSummary();
     }
 

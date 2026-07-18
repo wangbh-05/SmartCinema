@@ -4,6 +4,7 @@ import { BrowserIdGenerator } from './infrastructure/browser/BrowserIdGenerator.
 import { LocalStateRepository } from './infrastructure/storage/LocalStateRepository.js';
 import { V1ToV2Migration } from './infrastructure/storage/MigrateV1ToV2.js';
 import { SessionCheckoutIntentRepository } from './infrastructure/storage/SessionCheckoutIntentRepository.js';
+import { StateBackupService } from './infrastructure/storage/StateBackupService.js';
 import { RealtimeEventSimulator } from './infrastructure/realtime/RealtimeEventSimulator.js';
 
 export function createBrowserAppController({
@@ -20,10 +21,16 @@ export function createBrowserAppController({
         clock,
         idGenerator
     });
+    const backupService = new StateBackupService({
+        stateRepository,
+        storage: localStorage,
+        clock
+    });
     return new AppController({
         stateRepository,
         checkoutIntentRepository,
         migration,
+        backupService,
         clock,
         idGenerator
     });

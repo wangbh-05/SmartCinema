@@ -12,7 +12,6 @@ import { ScoreEngine } from './modules/ScoreEngine.js';
 import { HeatmapEngine } from './modules/HeatmapEngine.js';
 
 import { AIChatbot } from './modules/AIChatbot.js';
-import { Storage } from './utils/storage.js';
 import { AccessibilityManager } from './utils/accessibility.js';
 import { createBrowserAppController, createBrowserRealtimeSimulator } from './bootstrap.js';
 import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
@@ -21,9 +20,6 @@ import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
 
 class SmartCinema {
     constructor() {
-        // 旧版导入/导出仍由 Storage 暂时承接；业务事实源统一为 Storage v2。
-        this.storage = new Storage();
-
         // 座位数据（默认中厅）
         this.seatData = new SeatData('medium');
 
@@ -1095,32 +1091,55 @@ class SmartCinema {
     }
 
     handleExport() {
-        const data = this.storage.exportData();
-        const blob = new Blob([data], { type: 'application/json' });
+        const includeCredentials = window.confirm(
+            '是否导出可移植的完整备份？\n\n' +
+            '“确定”会包含本地演示账号的明文密码，请妥善保管。\n' +
+            '“取消”仍会导出不含密码的安全备份；该备份只能恢复到保留同一账号的安装。'
+        );
+        const exported = this.controller.exportBackup({ includeCredentials });
+        if (!exported.ok) {
+            window.alert(`✗ 导出失败：${exported.error.message}`);
+            return;
+        }
+
+        const blob = new Blob([exported.value.json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `smartcinema_${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `smartcinema_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.hidden = true;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
     }
 
     handleImport() {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.json';
+        input.accept = 'application/json,.json';
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (ev) => {
-                if (this.storage.importData(ev.target.result)) {
-                    alert('✓ 数据已导入，即将刷新');
-                    location.reload();
-                } else {
-                    alert('✗ 导入失败');
+                const confirmed = window.confirm(
+                    '导入会用所选备份替换当前用户、订单、库存和设置。\n' +
+                    '系统会先保存一份当前 v2 状态用于恢复。是否继续？'
+                );
+                if (!confirmed) return;
+
+                const imported = this.controller.importBackup(ev.target.result);
+                if (!imported.ok) {
+                    window.alert(`✗ 导入失败：${imported.error.message}`);
+                    return;
                 }
+                const cleanupNote = imported.value.cleanupWarning ?
+                    `\n注意：${imported.value.cleanupWarning}` : '';
+                window.alert(`✓ 数据已安全导入，当前登录状态已清除，即将刷新${cleanupNote}`);
+                window.location.reload();
             };
+            reader.onerror = () => window.alert('✗ 无法读取所选文件');
             reader.readAsText(file);
         };
         input.click();

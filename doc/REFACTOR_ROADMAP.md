@@ -244,7 +244,7 @@ src/
 - [ ] 删除死代码、重复样式和过时文档；
 - [ ] 更新 README 的真实架构、命令、功能与限制；
 - [ ] 更新 TESTING 的自动化和浏览器验证方式；
-- [ ] 补充 LocalStorage schema 与迁移说明；
+- [x] 补充 LocalStorage schema、迁移和 v2 导入/导出恢复说明；
 - [ ] 补充无障碍、触控和 reduced-motion 说明；
 - [ ] 完成目标逐条证据审计；
 - [ ] 仅在全部目标被当前证据证明后标记长期 Goal 完成。
@@ -378,3 +378,15 @@ src/
 - 任一座位变化都会立即隐藏并清空旧综合评分，内存 AppState 与 DOM 派生结果同步失效；
 - 浏览器回归矩阵实测 PASS 9、XFAIL 1、XPASS 0、ERROR 0；当前只剩 BUG-006 响应式横向溢出；
 - 下一切片继续拆分设置、订单视图和推荐/评分协调，并把旧数据导入/导出迁移到 v2。
+
+### 2026-07-18 · 阶段 3 · 切片 8
+
+- 新增 StateBackupService，将导入/导出从旧 `Storage` 迁移到唯一 v2 StateRepository；生产 UI 不再直接访问 LocalStorage/SessionStorage；
+- 默认安全备份剔除所有 credential，并只能从相同 userId + username 的当前安装恢复；显式完整备份可迁移 demo 明文凭据，UI 会先明确风险；两种模式均清除 session；
+- v2 导入先解析顶层版本并完整校验 candidate，再写 `smartcinema_import_backup_v2` 回滚快照，最后以当前 revision + 1 的替换语义提交；任一前置失败都不覆盖现状；
+- 导入成功后 AppController 重建内存 AppState，清除登录、CheckoutIntent、本地选座、远端 hold、推荐和评分等暂态；
+- LocalStateRepository 新增受 revision 保护的 replace 操作；Storage v2 文档补齐 credentialPolicy、回滚 key 和恢复限制；
+- 新增 7 项 StateBackup 测试和 1 项 AppController 暂态清理测试；Node 全局实测 83/83 通过；
+- 边界扫描确认 `src/app.js`、`order.html`、`src/ui` 与 `src/application` 不再引用旧 Storage 或直接访问浏览器存储；
+- 浏览器回归矩阵再次实测 PASS 9、XFAIL 1、XPASS 0、ERROR 0；唯一剩余已知缺陷仍是 BUG-006；
+- 下一切片提取设置、订单与通知页面控制器，再迁移推荐/评分协调，之后拆分 Canvas 输入、布局和绘制职责。

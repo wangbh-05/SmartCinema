@@ -9,6 +9,7 @@ import TestScoreEngine from './test-score.js';
 import TestOrderManager from './test-order.js';
 import TestDomainContracts from './test-domain-contracts.js';
 import TestStorageV2 from './test-storage-v2.js';
+import TestStateBackup from './test-state-backup.js';
 import TestMigrationV2 from './test-migration-v2.js';
 import TestApplicationV2 from './test-application-v2.js';
 import TestAppController from './test-app-controller.js';
@@ -58,6 +59,11 @@ class TestRunner {
         const storageV2Test = new TestStorageV2();
         const storageV2Result = storageV2Test.runAll();
         this.results.push({ name: 'StorageV2', ...storageV2Result });
+
+        // Storage v2 安全导入/导出与回滚协议
+        const stateBackupTest = new TestStateBackup();
+        const stateBackupResult = stateBackupTest.runAll();
+        this.results.push({ name: 'StateBackup', ...stateBackupResult });
 
         // v1 备份、校验、quarantine 与 v2 提交
         const migrationV2Test = new TestMigrationV2();

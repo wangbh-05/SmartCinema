@@ -21,6 +21,7 @@
 | LocalStorage | `smartcinema_state_v2` | 当前唯一可写持久状态 envelope |
 | LocalStorage | `smartcinema_migration_backup_v1` | 首次迁移前的 v1 原始字符串备份 |
 | LocalStorage | `smartcinema_migration_report_v2` | 迁移时间、警告、quarantine 摘要 |
+| LocalStorage | `smartcinema_import_backup_v2` | 每次 v2 导入前的完整回滚快照 |
 | SessionStorage | `smartcinema_checkout_v2` | 当前标签页 CheckoutIntent |
 
 临时写入可使用 `smartcinema_state_v2_candidate`；验证并写入正式 key 后立即删除。应用启动永远不把 candidate 当正式状态。
@@ -264,15 +265,19 @@ v1 订单缺少可靠 userId 或 dayIndex 时不得进入 `ordersById`：
     exportFormat: 'smartcinema-backup',
     exportVersion: 2,
     exportedAt: '...',
-    state: { /* validated state envelope */ },
+    credentialPolicy: 'redacted',
+    state: { /* v2 state；redacted 时省略 user.credential */ },
     migrationReport: { /* optional */ }
 }
 ```
 
 - 默认不导出当前 session 和 CheckoutIntent；
-- credential 默认剔除；如要完整 demo 备份必须二次确认并明确风险；
+- `credentialPolicy: 'redacted'` 为默认安全模式，剔除所有 credential；导入时只能从当前安装中按相同 userId + username 恢复凭据，不能迁移新增账号；
+- `credentialPolicy: 'included-demo-plaintext'` 为可移植完整备份；必须二次确认并明确其中包含演示明文密码；
 - 导入先校验到 candidate，不直接覆盖当前 state；
-- 覆盖前自动创建当前 v2 backup；
+- 导入永远清除 session，并忽略备份内的 revision/updatedAt：使用当前 revision + 1 和导入时刻提交；
+- 覆盖前自动把完整当前 v2 state 写入 `smartcinema_import_backup_v2`；该写入失败则停止导入；
+- 成功导入后清除当前标签页 CheckoutIntent 和所有 UI 暂态；
 - 禁止合并两个可写事实源，v2 导入采用明确“替换”语义。
 
 ## 11. 必需测试 fixture

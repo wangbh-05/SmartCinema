@@ -22,12 +22,14 @@ export class AppController {
         stateRepository,
         checkoutIntentRepository,
         migration,
+        backupService,
         clock,
         idGenerator
     }) {
         this.stateRepository = stateRepository;
         this.checkoutIntentRepository = checkoutIntentRepository;
         this.migration = migration;
+        this.backupService = backupService;
         this.clock = clock;
         this.idGenerator = idGenerator;
         this.appState = null;
@@ -89,6 +91,28 @@ export class AppController {
 
     clearCheckoutIntent() {
         return this.checkoutIntentRepository.clear();
+    }
+
+    exportBackup(options) {
+        if (!this.backupService) return err('VALIDATION_ERROR', '备份服务未配置');
+        return this.backupService.export(options);
+    }
+
+    importBackup(jsonString) {
+        if (!this.appState) return err('VALIDATION_ERROR', 'AppController 尚未初始化');
+        if (!this.backupService) return err('VALIDATION_ERROR', '备份服务未配置');
+        const imported = this.backupService.import(jsonString);
+        if (!imported.ok) return imported;
+
+        const checkoutCleanup = this.checkoutIntentRepository.clear();
+        const showtimeId = this.appState.showtimeId;
+        this.appState = createAppState(imported.value.state, showtimeId, this.clock.now());
+        return ok({
+            ...imported.value,
+            state: this.appState,
+            checkoutCleared: checkoutCleanup.ok,
+            cleanupWarning: checkoutCleanup.ok ? null : checkoutCleanup.error.message
+        });
     }
 
     confirmCheckout() {
