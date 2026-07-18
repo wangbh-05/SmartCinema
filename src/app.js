@@ -207,6 +207,13 @@ class SmartCinema {
             this.handleClear();
         });
 
+        document.getElementById('zoom-in')?.addEventListener('click', () => {
+            this._setCanvasZoom(this.cinema.zoom + 0.5);
+        });
+        document.getElementById('zoom-out')?.addEventListener('click', () => {
+            this._setCanvasZoom(this.cinema.zoom - 0.5);
+        });
+
         // 智能推荐按钮
         document.getElementById('smart-recommend')?.addEventListener('click', () => {
             this._scrollIntoView(document.getElementById('recommend-panel'));
@@ -538,6 +545,15 @@ class SmartCinema {
         if (!element) return;
         const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
         element.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+
+    _setCanvasZoom(zoom) {
+        const applied = this.cinema.setZoom(zoom);
+        this._setText('zoom-level', `${Math.round(applied * 100)}%`);
+        const zoomOut = document.getElementById('zoom-out');
+        const zoomIn = document.getElementById('zoom-in');
+        if (zoomOut) zoomOut.disabled = applied <= 1;
+        if (zoomIn) zoomIn.disabled = applied >= 4;
     }
 
     _isEditableTarget(target) {

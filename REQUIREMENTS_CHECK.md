@@ -1,5 +1,7 @@
 # SmartCinema 需求功能检查清单
 
+> **历史归档（2026-07-18）：** 本文仍引用已删除的 v1 managers/engines 和旧测试数量。当前实现与验收事实请以 `README.md`、`TESTING.md` 和 `doc/REFACTOR_ROADMAP.md` 为准。
+
 > 对照《大作业选题一：SmartCinema智能影院选座系统（作业说明）》逐项检查。
 > 最后更新: 2026-07-17
 

@@ -1,5 +1,7 @@
 # SmartCinema 用户操作流程图
 
+> **历史归档（2026-07-18）：** 本文仍描述 v1 OrderManager 与旧存储键。当前订单、库存和结算流程以 `DOMAIN_CONTRACTS.md`、`STORAGE_SCHEMA_V2.md` 与 `REFACTOR_ARCHITECTURE.md` 为准。
+
 > 版本：v3 | 日期：2026-07-11
 
 ---

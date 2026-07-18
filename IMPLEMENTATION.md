@@ -1,5 +1,7 @@
 # SmartCinema - 项目实现说明书
 
+> **历史归档（2026-07-18）：** 本文描述重构前的 v1 模块与样式，不再代表当前代码。当前结构、功能和验证入口请以 `README.md`、`TESTING.md` 与 `doc/REFACTOR_ARCHITECTURE.md` 为准。
+
 ## 📋 实现概览
 
 SmartCinema 已按照大作业要求实现了完整的智能影院选座系统，包括 Canvas 绘制、智能推荐、体验评分、热度地图等核心功能。
@@ -429,4 +431,3 @@ storage.importData(json);
 **项目完成日期**: 2024 年 6 月 29 日  
 **开发工具**: VS Code + GitHub Copilot  
 **测试覆盖**: 核心模块单元测试 + 集成测试  
-

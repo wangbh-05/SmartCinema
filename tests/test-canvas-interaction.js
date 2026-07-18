@@ -120,6 +120,8 @@ class TestCanvasInteraction {
             this.assertTrue(
                 Math.max(...seats.map(position => position.x + layout.seatSize)) <= layout.displayWidth
             );
+            const zoomedLayout = this._layout(10, 20, 720);
+            this.assertTrue(zoomedLayout.seatSize > layout.seatSize);
             const target = layout.positions[4][8];
             const hit = hitTestCinemaSeat(layout, { x: target.cx, y: target.cy });
             this.assertEqual(hit.row, 4);

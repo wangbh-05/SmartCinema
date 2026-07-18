@@ -9,6 +9,7 @@ import { SeatDataProjection } from '../src/ui/adapters/SeatDataProjection.js';
 import { AccountController } from '../src/ui/controllers/AccountController.js';
 import { AccessibilityController } from '../src/ui/controllers/AccessibilityController.js';
 import { AdminPanelController } from '../src/ui/controllers/AdminPanelController.js';
+import { BackupController } from '../src/ui/controllers/BackupController.js';
 import { ChatbotController } from '../src/ui/controllers/ChatbotController.js';
 import { OrdersPanelController } from '../src/ui/controllers/OrdersPanelController.js';
 import { RecommendationController } from '../src/ui/controllers/RecommendationController.js';
@@ -234,6 +235,35 @@ class TestUiControllers {
             this.assertEqual(toast.element.dataset.visible, 'true');
             scheduler.run(toast.timer);
             this.assertEqual(toast.element.dataset.visible, 'false');
+        });
+
+        this.test('BackupController 安全导出不询问凭据且完整导出可真正取消', () => {
+            const exportCalls = [];
+            const confirmations = [];
+            const notifications = [];
+            const backup = new BackupController({
+                controller: {
+                    exportBackup: options => {
+                        exportCalls.push(options);
+                        return { ok: false, error: { message: '测试停止写文件' } };
+                    }
+                },
+                document: new FakeDocument(),
+                browserWindow: {
+                    confirm: message => {
+                        confirmations.push(message);
+                        return false;
+                    }
+                },
+                notify: message => notifications.push(message)
+            });
+            this.assertFalse(backup.export());
+            this.assertEqual(confirmations.length, 0);
+            this.assertFalse(exportCalls[0].includeCredentials);
+            this.assertTrue(notifications[0].includes('导出失败'));
+            this.assertFalse(backup.export({ includeCredentials: true }));
+            this.assertEqual(confirmations.length, 1);
+            this.assertEqual(exportCalls.length, 1);
         });
 
         this.test('AccessibilityController 应使用统一 Dialog 且语音服务可关闭', () => {

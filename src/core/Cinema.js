@@ -10,6 +10,7 @@ export class Cinema {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.sd = seatData;
+        this.zoom = 1;
         this.renderer = new CinemaRenderer({
             canvas,
             getSeatData: () => this.sd,
@@ -34,7 +35,8 @@ export class Cinema {
 
     relayout() {
         const parentWidth = this.canvas.parentElement?.clientWidth || window.innerWidth - 32;
-        const availableWidth = Math.min(parentWidth, window.innerWidth - 32);
+        const viewportWidth = Math.min(parentWidth, window.innerWidth - 32);
+        const availableWidth = viewportWidth * this.zoom;
         this.layout = calculateCinemaLayout({
             rows: this.sd.rows,
             cols: this.sd.cols,
@@ -70,6 +72,15 @@ export class Cinema {
 
     setColorblindMode(enabled) {
         this.renderer.setColorblindMode(enabled);
+    }
+
+    setZoom(zoom) {
+        const nextZoom = Math.min(4, Math.max(1, Number(zoom) || 1));
+        if (nextZoom === this.zoom) return this.zoom;
+        this.zoom = nextZoom;
+        this.relayout();
+        this.redraw();
+        return this.zoom;
     }
 
     reload() {

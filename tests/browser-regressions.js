@@ -24,6 +24,7 @@ const state = {
 const fixture = document.getElementById('fixture');
 const results = document.getElementById('results');
 const status = document.getElementById('run-status');
+const runtimeErrors = [];
 
 function assertContract(condition, message) {
     if (!condition) {
@@ -75,6 +76,14 @@ async function createFrame(path = '/', width = 1200) {
             window.clearTimeout(timer);
             resolve();
         }, { once: true });
+    });
+
+    frame.contentWindow.addEventListener('error', event => {
+        runtimeErrors.push(`${path}: ${event.message || '未知运行时错误'}`);
+    });
+    frame.contentWindow.addEventListener('unhandledrejection', event => {
+        const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+        runtimeErrors.push(`${path}: 未处理 Promise 拒绝：${reason}`);
     });
 
     return frame;
@@ -308,6 +317,34 @@ async function run() {
                 }
             }
 
+            frame.style.width = '320px';
+            frame.contentWindow.dispatchEvent(new Event('resize'));
+            await delay(40);
+            const hallSelector = frame.contentDocument.getElementById('hall-selector');
+            hallSelector.value = 'large';
+            hallSelector.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+            await delay(40);
+            const fitSeatSize = frame.contentWindow.app.cinema.layout.seatSize;
+            if (frame.contentWindow.app.cinema.layout.positions[0].length !== 30) {
+                failures.push('320px: 大厅没有渲染完整 30 列座位');
+            }
+            const zoomIn = frame.contentDocument.getElementById('zoom-in');
+            for (let step = 0; step < 6; step++) zoomIn.click();
+            await delay(40);
+            const zoomedSeatSize = frame.contentWindow.app.cinema.layout.seatSize;
+            const canvasContainer = frame.contentDocument.querySelector('#seat-selection .canvas-container');
+            const root = frame.contentDocument.documentElement;
+            if (zoomedSeatSize <= fitSeatSize) failures.push('320px 大厅: 放大后座位尺寸没有增加');
+            if (canvasContainer.scrollWidth <= canvasContainer.clientWidth) {
+                failures.push('320px: 放大后座位图没有形成容器内横向浏览区域');
+            }
+            if (root.scrollWidth > root.clientWidth + 1) {
+                failures.push(`320px 放大后页面溢出: ${root.scrollWidth} > ${root.clientWidth}`);
+            }
+            if (!zoomIn.disabled || frame.contentDocument.getElementById('zoom-level').textContent !== '400%') {
+                failures.push('座位图缩放上限或状态反馈不正确');
+            }
+
             assertContract(failures.length === 0, `响应式布局失败：${failures.join('；')}`);
         } finally {
             disposeFrame(frame);
@@ -519,9 +556,13 @@ async function run() {
         }
     });
 
+    await regression('QA-001', '核心交互过程中不得出现未处理浏览器错误', async () => {
+        assertContract(runtimeErrors.length === 0, runtimeErrors.join('；'));
+    });
+
     clearTestStorage();
-    const expected = state.pass === 11 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：11 个缺陷回归全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 12 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：11 个缺陷回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     document.documentElement.dataset.pass = String(state.pass);
     document.documentElement.dataset.xfail = String(state.xfail);

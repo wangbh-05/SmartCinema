@@ -58,10 +58,16 @@
                 <button class="btn btn-primary btn-sm" id="smart-recommend">使用智能推荐</button>
                 <button class="btn btn-sm" id="manual-select">定位到座位图</button>
                 <button class="btn btn-sm" id="clear-selection">清空选择</button>
+                <div class="canvas-zoom-controls" role="group" aria-label="座位图缩放">
+                    <button class="btn btn-sm" id="zoom-out" type="button" aria-label="缩小座位图" disabled>−</button>
+                    <output id="zoom-level" for="zoom-out zoom-in" aria-live="polite">100%</output>
+                    <button class="btn btn-sm" id="zoom-in" type="button" aria-label="放大座位图">+</button>
+                </div>
             </div>
             <div class="canvas-container">
-                <canvas id="cinema-canvas" role="img" aria-label="影院座位布局图" tabindex="0"></canvas>
+                <canvas id="cinema-canvas" role="img" aria-label="影院座位布局图，可使用缩放按钮放大后选择" tabindex="0"></canvas>
             </div>
+            <p class="canvas-mobile-hint">手动选座时，可先放大座位图，再横向滑动查看。</p>
             <div class="stats-row">
                 <div class="stat-item">
                     <div class="stat-value green" id="available-count">0</div>
