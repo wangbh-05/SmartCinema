@@ -1,0 +1,267 @@
+import { createBookingDraft, replaceDraftSeats } from '../../domain/booking/BookingDraft.js';
+import {
+    consumeBookingHold,
+    expireBookingHold,
+    placeBookingHold,
+    releaseBookingHold
+} from '../../domain/booking/HoldBooking.js';
+import { isSeatHoldActive } from '../../domain/booking/SeatHold.js';
+import { createShowtimeInventory } from '../../domain/booking/ShowtimeInventory.js';
+import { createCommercialOrder } from '../../domain/order/CommercialOrder.js';
+import { err, ok } from '../../shared/Result.js';
+
+export class CommercialBookingService {
+    constructor({ catalogRepository, stateRepository, clock, idGenerator }) {
+        this.catalogRepository = catalogRepository;
+        this.stateRepository = stateRepository;
+        this.clock = clock;
+        this.idGenerator = idGenerator;
+    }
+
+    listShowtimes(filters = {}) {
+        const showtimes = this.catalogRepository.listShowtimes(filters);
+        return ok(showtimes.map(showtime => this._contextForShowtime(showtime)));
+    }
+
+    getBookingContext(showtimeId) {
+        const showtime = this.catalogRepository.getShowtime(showtimeId);
+        if (!showtime) return err('SHOWTIME_NOT_FOUND', '场次不存在或已下架', { showtimeId });
+        return ok({
+            ...this._contextForShowtime(showtime),
+            ticketTypes: this.catalogRepository.listTicketTypes()
+        });
+    }
+
+    createDraft({
+        showtimeId,
+        ticketItems,
+        preferences = [],
+        accessibilityAcknowledged = false
+    }) {
+        const availability = this._validateShowtimeForSale(showtimeId, this.clock.now());
+        if (!availability.ok) return availability;
+        try {
+            return ok(createBookingDraft({
+                showtimeId,
+                ticketItems,
+                selectedSeatIds: [],
+                preferences,
+                accessibilityAcknowledged,
+                updatedAt: this.clock.now()
+            }));
+        } catch (error) {
+            return err('VALIDATION_ERROR', error.message, error.details || {});
+        }
+    }
+
+    replaceSeats(draft, seatIds) {
+        return replaceDraftSeats(draft, seatIds, this.clock.now());
+    }
+
+    getInventory(showtimeId) {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        return ok(current.value.inventoriesByShowtime[showtimeId] || createShowtimeInventory({
+            showtimeId,
+            revision: 0,
+            soldSeatIds: [],
+            holdIdsBySeatId: {},
+            updatedAt: current.value.updatedAt
+        }));
+    }
+
+    placeHold({
+        draft,
+        ownerId,
+        idempotencyKey,
+        holdDurationSeconds = 600,
+        selectionPolicy = {}
+    }) {
+        const now = this.clock.now();
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        if (!current.value.usersById[ownerId] && !ownerId.startsWith('guest:')) {
+            return err('AUTH_REQUIRED', '需要有效用户或访客会话才能锁座');
+        }
+
+        const existing = Object.values(current.value.holdsById)
+            .find(hold => hold.idempotencyKey === idempotencyKey);
+        if (existing) {
+            if (existing.ownerId !== ownerId) {
+                return err('FORBIDDEN', '锁座请求不属于当前用户');
+            }
+            if (existing.status === 'held' && isSeatHoldActive(existing, now)) {
+                return ok({ hold: existing, state: current.value, idempotent: true });
+            }
+            return err('HOLD_STATE_INVALID', '该锁座请求已结束', { status: existing.status });
+        }
+
+        const availability = this._validateShowtimeForSale(draft.showtimeId, now);
+        if (!availability.ok) return availability;
+
+        const showtime = availability.value;
+        const auditorium = this.catalogRepository.getAuditorium(showtime.auditoriumId);
+        const pricingPolicy = this.catalogRepository.getPricingPolicy(showtime.pricingPolicyId);
+        if (!auditorium || !pricingPolicy) {
+            return err('CATALOG_INCOMPLETE', '场次的影厅或价格政策不可用');
+        }
+        const inventory = current.value.inventoriesByShowtime[showtime.id] || createShowtimeInventory({
+            showtimeId: showtime.id,
+            revision: 0,
+            soldSeatIds: [],
+            holdIdsBySeatId: {},
+            updatedAt: current.value.updatedAt
+        });
+        const placed = placeBookingHold({
+            draft,
+            ownerId,
+            holdId: this.idGenerator.next('hold'),
+            idempotencyKey,
+            now,
+            holdDurationSeconds,
+            auditorium,
+            inventory,
+            ticketTypesById: this.catalogRepository.getTicketTypesById(),
+            pricingPolicy,
+            selectionPolicy
+        });
+        if (!placed.ok) return placed;
+
+        const persisted = this.stateRepository.update(current.value.revision, state => {
+            state.inventoriesByShowtime[showtime.id] = placed.value.inventory;
+            state.holdsById[placed.value.hold.id] = placed.value.hold;
+        });
+        if (!persisted.ok) return persisted;
+        return ok({ hold: persisted.value.holdsById[placed.value.hold.id], state: persisted.value, idempotent: false });
+    }
+
+    releaseHold({ holdId, actorOwnerId, reason = 'user-cancelled' }) {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const hold = current.value.holdsById[holdId];
+        if (!hold) return err('HOLD_NOT_FOUND', '锁座记录不存在', { holdId });
+        if (hold.ownerId !== actorOwnerId) return err('FORBIDDEN', '锁座记录不属于当前用户');
+        const inventory = current.value.inventoriesByShowtime[hold.showtimeId];
+        const released = releaseBookingHold({ hold, inventory }, {
+            releasedAt: this.clock.now(),
+            reason
+        });
+        if (!released.ok) return released;
+        return this._persistHoldAndInventory(current.value, released.value);
+    }
+
+    expireHold(holdId) {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const hold = current.value.holdsById[holdId];
+        if (!hold) return err('HOLD_NOT_FOUND', '锁座记录不存在', { holdId });
+        const inventory = current.value.inventoriesByShowtime[hold.showtimeId];
+        const expired = expireBookingHold({ hold, inventory }, this.clock.now());
+        if (!expired.ok) return expired;
+        return this._persistHoldAndInventory(current.value, expired.value);
+    }
+
+    confirmHold({ holdId, actorOwnerId, userId }) {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const hold = current.value.holdsById[holdId];
+        if (!hold) return err('HOLD_NOT_FOUND', '锁座记录不存在', { holdId });
+        if (hold.ownerId !== actorOwnerId) return err('FORBIDDEN', '锁座记录不属于当前会话');
+        if (!current.value.usersById[userId]) return err('AUTH_REQUIRED', '确认订单前需要登录');
+        if (hold.status === 'consumed') {
+            const order = current.value.ordersById[hold.consumedOrderId];
+            return order ? ok({ order, state: current.value, idempotent: true }) :
+                err('STORAGE_CORRUPTED', '已消费 hold 缺少订单');
+        }
+
+        const showtime = this.catalogRepository.getShowtime(hold.showtimeId);
+        if (!showtime) return err('SHOWTIME_NOT_FOUND', '场次不存在或已下架');
+        const movie = this.catalogRepository.getMovie(showtime.movieId);
+        const cinema = this.catalogRepository.getCinema(showtime.cinemaId);
+        const auditorium = this.catalogRepository.getAuditorium(showtime.auditoriumId);
+        const refundPolicy = this.catalogRepository.getRefundPolicy(showtime.refundPolicyId);
+        if (!movie || !cinema || !auditorium || !refundPolicy) {
+            return err('CATALOG_INCOMPLETE', '订单快照所需目录数据不可用');
+        }
+
+        const orderId = this.idGenerator.next('order');
+        const consumed = consumeBookingHold({
+            hold,
+            inventory: current.value.inventoriesByShowtime[hold.showtimeId]
+        }, {
+            orderId,
+            consumedAt: this.clock.now()
+        });
+        if (!consumed.ok) return consumed;
+        let order;
+        try {
+            order = createCommercialOrder({
+                id: orderId,
+                idempotencyKey: hold.idempotencyKey,
+                userId,
+                hold: consumed.value.hold,
+                movie,
+                cinema,
+                auditorium,
+                showtime,
+                refundPolicy,
+                ticketCode: this.idGenerator.next('ticket').toUpperCase(),
+                qrPayload: `smartcinema:ticket:${orderId}`,
+                confirmedAt: this.clock.now()
+            });
+        } catch (error) {
+            return err('VALIDATION_ERROR', error.message, error.details || {});
+        }
+
+        const persisted = this.stateRepository.update(current.value.revision, state => {
+            state.holdsById[hold.id] = consumed.value.hold;
+            state.inventoriesByShowtime[hold.showtimeId] = consumed.value.inventory;
+            state.ordersById[order.id] = order;
+        });
+        if (!persisted.ok) return persisted;
+        return ok({ order: persisted.value.ordersById[order.id], state: persisted.value, idempotent: false });
+    }
+
+    _contextForShowtime(showtime) {
+        const pricingPolicy = this.catalogRepository.getPricingPolicy(showtime.pricingPolicyId);
+        return Object.freeze({
+            showtime,
+            movie: this.catalogRepository.getMovie(showtime.movieId),
+            cinema: this.catalogRepository.getCinema(showtime.cinemaId),
+            auditorium: this.catalogRepository.getAuditorium(showtime.auditoriumId),
+            pricingPolicy,
+            refundPolicy: this.catalogRepository.getRefundPolicy(showtime.refundPolicyId),
+            priceFrom: pricingPolicy?.baseTicketPrice ?? null
+        });
+    }
+
+    _validateShowtimeForSale(showtimeId, now) {
+        const showtime = this.catalogRepository.getShowtime(showtimeId);
+        if (!showtime) return err('SHOWTIME_NOT_FOUND', '场次不存在或已下架', { showtimeId });
+        if (!['on-sale', 'few-seats'].includes(showtime.salesState)) {
+            return err('SHOWTIME_NOT_ON_SALE', '当前场次不可购票', { salesState: showtime.salesState });
+        }
+        const timestamp = Date.parse(now);
+        if (showtime.bookingOpensAt && timestamp < Date.parse(showtime.bookingOpensAt)) {
+            return err('BOOKING_NOT_OPEN', '当前场次尚未开售');
+        }
+        if (timestamp >= Date.parse(showtime.bookingClosesAt)) {
+            return err('BOOKING_CLOSED', '当前场次已停止售票');
+        }
+        return ok(showtime);
+    }
+
+    _persistHoldAndInventory(currentState, result) {
+        const persisted = this.stateRepository.update(currentState.revision, state => {
+            state.holdsById[result.hold.id] = result.hold;
+            state.inventoriesByShowtime[result.inventory.showtimeId] = result.inventory;
+        });
+        if (!persisted.ok) return persisted;
+        return ok({
+            hold: persisted.value.holdsById[result.hold.id],
+            state: persisted.value
+        });
+    }
+}
+
+export default CommercialBookingService;

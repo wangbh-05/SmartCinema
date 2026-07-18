@@ -24,6 +24,10 @@ import {
     reserveSeats
 } from '../src/domain/booking/ShowtimeInventory.js';
 import { createCommercialOrder } from '../src/domain/order/CommercialOrder.js';
+import {
+    createDemoCatalog,
+    DemoCatalogRepository
+} from '../src/infrastructure/catalog/DemoCatalogRepository.js';
 
 const NOW = '2026-07-18T10:00:00.000Z';
 const LATER = '2026-07-18T10:10:00.000Z';
@@ -279,6 +283,24 @@ class TestCommercialDomain {
             this.assertEqual(order.showtimeSnapshot.startsAt, fixture.showtime.startsAt);
             this.assertEqual(order.seatSnapshots[0].label, 'A排2座');
             this.assertEqual(order.pricingQuote.total.amount, 12100);
+        });
+
+        this.test('DemoCatalog 应提供完整场次引用、价格区和无障碍席位', () => {
+            const catalog = createDemoCatalog('2026-07-18');
+            const repository = new DemoCatalogRepository(catalog);
+            const showtimes = repository.listShowtimes({ businessDate: '2026-07-18' });
+            this.assertEqual(showtimes.length, 4);
+            const auditorium = repository.getAuditorium(showtimes[0].auditoriumId);
+            this.assertEqual(auditorium.seats.length, 180);
+            this.assertEqual(auditorium.seats.filter(seat => seat.kind === 'wheelchair').length, 2);
+            this.assertEqual(repository.listTicketTypes().length, 4);
+            showtimes.forEach(showtime => {
+                this.assertTrue(Boolean(repository.getMovie(showtime.movieId)));
+                this.assertTrue(Boolean(repository.getCinema(showtime.cinemaId)));
+                this.assertTrue(Boolean(repository.getAuditorium(showtime.auditoriumId)));
+                this.assertTrue(Boolean(repository.getPricingPolicy(showtime.pricingPolicyId)));
+                this.assertTrue(Boolean(repository.getRefundPolicy(showtime.refundPolicyId)));
+            });
         });
 
         return this.printSummary();

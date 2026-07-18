@@ -19,6 +19,8 @@ import TestViewAdapters from './test-view-adapters.js';
 import TestRealtimeV2 from './test-realtime-v2.js';
 import TestRegressionContracts from './test-regressions.js';
 import TestCommercialDomain from './test-commercial-domain.js';
+import TestStorageV3 from './test-storage-v3.js';
+import TestCommercialApplication from './test-commercial-application.js';
 
 class TestRunner {
     constructor() {
@@ -112,6 +114,16 @@ class TestRunner {
         const commercialDomainTest = new TestCommercialDomain();
         const commercialDomainResult = commercialDomainTest.runAll();
         this.results.push({ name: 'CommercialDomain', ...commercialDomainResult });
+
+        // Storage v3 校验、revision 与冻结 v2 fixture 迁移
+        const storageV3Test = new TestStorageV3();
+        const storageV3Result = storageV3Test.runAll();
+        this.results.push({ name: 'StorageV3', ...storageV3Result });
+
+        // v3 应用用例：场次上下文、草稿、原子锁座、释放、过期与确认
+        const commercialApplicationTest = new TestCommercialApplication();
+        const commercialApplicationResult = commercialApplicationTest.runAll();
+        this.results.push({ name: 'CommercialApp', ...commercialApplicationResult });
 
         // 打印总摘要
         this.printGlobalSummary();

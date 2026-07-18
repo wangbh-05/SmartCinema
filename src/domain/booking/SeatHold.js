@@ -1,5 +1,6 @@
 import { err, ok } from '../../shared/Result.js';
 import { ValidationError } from '../../shared/ValidationError.js';
+import { rehydratePricingQuote } from './PricingQuote.js';
 
 export const SEAT_HOLD_STATUS = Object.freeze({
     PENDING: 'pending',
@@ -27,10 +28,15 @@ function normalizeTicketItems(ticketItems) {
     if (!Array.isArray(ticketItems) || ticketItems.length === 0) {
         throw new ValidationError('SeatHold.ticketItems 必须是非空数组');
     }
-    return Object.freeze(ticketItems.map(item => Object.freeze({
-        ticketTypeId: requireText(item.ticketTypeId, 'ticketTypeId'),
-        quantity: item.quantity
-    })));
+    return Object.freeze(ticketItems.map(item => {
+        if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+            throw new ValidationError('SeatHold ticket quantity 必须是正整数');
+        }
+        return Object.freeze({
+            ticketTypeId: requireText(item.ticketTypeId, 'ticketTypeId'),
+            quantity: item.quantity
+        });
+    }));
 }
 
 function normalizeSeatIds(seatIds) {
@@ -171,4 +177,61 @@ export function isSeatHoldActive(hold, now) {
     if (hold.status !== SEAT_HOLD_STATUS.HELD) return false;
     requireIsoDate(now, 'now');
     return Date.parse(now) < Date.parse(hold.expiresAt);
+}
+
+export function rehydrateSeatHold(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new ValidationError('SeatHold 必须是对象');
+    }
+    const pending = createPendingSeatHold({
+        id: data.id,
+        idempotencyKey: data.idempotencyKey,
+        ownerId: data.ownerId,
+        showtimeId: data.showtimeId,
+        ticketItems: data.ticketItems,
+        seatIds: data.seatIds,
+        requestedAt: data.requestedAt,
+        expectedInventoryRevision: data.expectedInventoryRevision
+    });
+    if (data.status === SEAT_HOLD_STATUS.PENDING) return pending;
+
+    let held = null;
+    if (data.heldAt !== null && data.heldAt !== undefined) {
+        const heldResult = markSeatHoldHeld(pending, {
+            heldAt: data.heldAt,
+            expiresAt: data.expiresAt,
+            inventoryRevision: data.inventoryRevision,
+            pricingQuote: rehydratePricingQuote(data.pricingQuote)
+        });
+        if (!heldResult.ok) throw new ValidationError(heldResult.error.message, heldResult.error.details);
+        held = heldResult.value;
+    }
+    if (data.status === SEAT_HOLD_STATUS.HELD) {
+        if (!held) throw new ValidationError('held SeatHold 缺少 held 状态字段');
+        return held;
+    }
+    if (data.status === SEAT_HOLD_STATUS.EXPIRED) {
+        if (!held) throw new ValidationError('expired SeatHold 缺少 held 状态字段');
+        const expired = expireSeatHoldState(held, data.terminalAt);
+        if (!expired.ok) throw new ValidationError(expired.error.message, expired.error.details);
+        return expired.value;
+    }
+    if (data.status === SEAT_HOLD_STATUS.CONSUMED) {
+        if (!held) throw new ValidationError('consumed SeatHold 缺少 held 状态字段');
+        const consumed = consumeSeatHoldState(held, {
+            orderId: data.consumedOrderId,
+            consumedAt: data.terminalAt
+        });
+        if (!consumed.ok) throw new ValidationError(consumed.error.message, consumed.error.details);
+        return consumed.value;
+    }
+    if (data.status === SEAT_HOLD_STATUS.RELEASED) {
+        const released = releaseSeatHold(held || pending, {
+            releasedAt: data.terminalAt,
+            reason: data.releaseReason
+        });
+        if (!released.ok) throw new ValidationError(released.error.message, released.error.details);
+        return released.value;
+    }
+    throw new ValidationError('SeatHold.status 无效', { status: data.status });
 }

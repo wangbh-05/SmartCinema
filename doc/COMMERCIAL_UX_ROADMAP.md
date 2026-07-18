@@ -254,14 +254,14 @@ Order
 
 退出门槛：后续工作无需聊天上下文即可说明“为什么改、改什么、如何验收”。
 
-### Phase 1：契约优先的产品核心
+### Phase 1：契约优先的产品核心（已完成）
 
-- [ ] 建立 Movie、Cinema、Auditorium、Showtime、TicketType、PricingPolicy；
-- [ ] 建立 BookingDraft、SeatHold 与订单快照；
-- [ ] 实现票数、连座/孤座、价格区、无障碍与最大购票约束；
-- [ ] 实现 hold 状态机、过期释放、幂等与库存 revision 冲突；
-- [ ] 设计 Storage v3 和 v2→v3 迁移；
-- [ ] 为所有不变量先写确定性领域测试。
+- [x] 建立 Movie、Cinema、Auditorium、Showtime、TicketType、PricingPolicy；
+- [x] 建立 BookingDraft、SeatHold 与订单快照；
+- [x] 实现票数、连座/孤座、价格区、无障碍与最大购票约束；
+- [x] 实现 hold 状态机、过期释放、幂等与库存 revision 冲突；
+- [x] 设计 Storage v3 和 v2→v3 迁移；
+- [x] 为所有不变量先写确定性领域测试。
 
 退出门槛：不依赖 DOM 即可完整演练“选场次→选票→选座→锁座→确认/过期”。
 
@@ -372,7 +372,16 @@ Order
 
 ## 13. 当前下一步
 
-1. 完成 Phase 0 产品基线报告与 v2 fixture；
-2. 起草 Storage v3 / Product Domain RFC；
-3. 先为票种、价格、孤座、无障碍和 SeatHold 状态机建立失败测试；
-4. 测试定义完成后再开始生产 UI 重写。
+1. 进入 Phase 2，建立新的商业购票页面外壳和场次目录入口；
+2. 将电影、影院、日期、具体时间、制式和起价放到座位图之前；
+3. 建立票种 stepper、BookingDraft 与页面草稿恢复；
+4. 用一条可运行的 vertical slice 接入现有认证，再开始 DOM 座位图替换。
+
+### Phase 1 当前证据
+
+- `doc/RFC_COMMERCIAL_DOMAIN_V3.md` 已接受并实现；
+- 新增纯领域 Catalog、Money、BookingDraft、PricingQuote、SeatSelectionPolicy、ShowtimeInventory、SeatHold、CommercialOrder；
+- 新增 DemoCatalogRepository 和 CommercialBookingService；
+- v2→v3 迁移保留 v2 原 key 与迁移前备份，legacy 缺失字段不伪造；
+- 应用层支持访客 hold、登录后确认、原子库存写入和幂等重试；
+- Node 全量测试：134/134 PASS（原 105 项全部保留，新增 29 项商业领域/存储/应用契约）。
