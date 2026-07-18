@@ -11,17 +11,6 @@ import {
     releaseSeats,
     sellSeats
 } from '../src/domain/cinema/SeatInventory.js';
-import {
-    createLocalSelection,
-    replaceSelection,
-    toggleSelectedSeat
-} from '../src/domain/cinema/LocalSelection.js';
-import {
-    addRemoteHold,
-    createRemoteHold,
-    removeExpiredRemoteHolds
-} from '../src/domain/cinema/RemoteHold.js';
-import { cancelBooking, confirmBooking } from '../src/domain/order/BookingPolicy.js';
 import { cancelOrder, createConfirmedOrder } from '../src/domain/order/Order.js';
 import { createUser, sanitizeUser } from '../src/domain/user/User.js';
 
@@ -120,74 +109,11 @@ class TestDomainContracts {
             this.assertTrue(released.value.soldSeatKeys.includes('5-9'));
         });
 
-        this.test('LocalSelection 不得选择已售座位', () => {
-            const inventory = createSeatInventory({
-                showtimeId: 'medium:day:3',
-                revision: 1,
-                soldSeatKeys: ['5-8'],
-                updatedAt: NOW
-            });
-            const selection = this._selection();
-            const result = toggleSelectedSeat(selection, '5-8', inventory, new Map(), LATER);
-            this.assertFalse(result.ok);
-            this.assertEqual(selection.seatKeys.length, 0);
-        });
-
-        this.test('RemoteHold 应阻止选择但不写入 LocalSelection', () => {
-            const inventory = this._inventory();
-            const selection = this._selection();
-            const hold = createRemoteHold({
-                id: 'hold-1',
-                showtimeId: inventory.showtimeId,
-                seatKey: '5-8',
-                ownerLabel: '观众 A',
-                expiresAt: '2026-07-18T00:05:00.000Z'
-            });
-            const holds = addRemoteHold(new Map(), hold, NOW);
-            const result = replaceSelection(selection, ['5-8'], inventory, holds, LATER);
-            this.assertFalse(result.ok);
-            this.assertEqual(selection.seatKeys.length, 0);
-            this.assertEqual(holds.get('5-8').id, 'hold-1');
-        });
-
-        this.test('RemoteHold 过期清理应返回新 Map', () => {
-            const hold = createRemoteHold({
-                id: 'hold-1',
-                showtimeId: 'medium:day:3',
-                seatKey: '5-8',
-                ownerLabel: '观众 A',
-                expiresAt: '2026-07-18T00:00:30.000Z'
-            });
-            const original = new Map([['5-8', hold]]);
-            const cleaned = removeExpiredRemoteHolds(original, LATER);
-            this.assertEqual(original.size, 1);
-            this.assertEqual(cleaned.size, 0);
-        });
-
         this.test('订单应从座位单价重新计算总价', () => {
             const order = this._order();
             this.assertEqual(order.totalPrice, 220);
             this.assertEqual(order.showtimeId, 'medium:day:3');
             this.assertEqual(order.status, 'confirmed');
-        });
-
-        this.test('确认订单应在同一领域结果中售出库存', () => {
-            const result = confirmBooking(this._inventory(), this._order());
-            this.assertTrue(result.ok);
-            this.assertTrue(result.value.inventory.soldSeatKeys.includes('5-8'));
-            this.assertEqual(result.value.order.id, 'ord-1');
-        });
-
-        this.test('取消订单应同时释放库存并记录退款', () => {
-            const confirmed = confirmBooking(this._inventory(), this._order()).value;
-            const result = cancelBooking(confirmed.inventory, confirmed.order, {
-                cancelledAt: '2026-07-18T00:03:00.000Z',
-                reason: '用户退票'
-            });
-            this.assertTrue(result.ok);
-            this.assertEqual(result.value.order.status, 'cancelled');
-            this.assertEqual(result.value.order.refund.amount, 220);
-            this.assertEqual(result.value.inventory.soldSeatKeys.length, 0);
         });
 
         this.test('已经取消的订单不得重复取消', () => {
@@ -226,14 +152,6 @@ class TestDomainContracts {
             showtimeId: createShowtime('medium', 3).id,
             revision: 0,
             soldSeatKeys: [],
-            updatedAt: NOW
-        });
-    }
-
-    _selection() {
-        return createLocalSelection({
-            showtimeId: 'medium:day:3',
-            seatKeys: [],
             updatedAt: NOW
         });
     }

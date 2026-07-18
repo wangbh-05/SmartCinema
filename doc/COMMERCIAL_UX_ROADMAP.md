@@ -386,11 +386,10 @@ Order
 
 ## 13. 当前下一步
 
-1. 删除已由独立 v3 运维页等价覆盖的 `legacy.html`、旧 Canvas/评分/热图 controller 和旧浏览器资产；
-2. 扩展多营业日、多电影和多影院目录导航，验证当前领域模型的可扩展性；
-3. 完成电子票二维码与真实支付/退款渠道适配，不在 UI 层伪造支付终态；
-4. 补全账户资料与只对已结束已确认订单开放的观影后评分；
-5. 完成高对比、色盲、真实读屏、reduced-motion、损坏 v3 和性能验收。
+1. 扩展多营业日、多电影和多影院目录导航，验证当前领域模型的可扩展性；
+2. 完成电子票二维码与真实支付/退款渠道适配，不在 UI 层伪造支付终态；
+3. 补全账户资料与只对已结束已确认订单开放的观影后评分；
+4. 完成高对比、色盲、真实读屏、reduced-motion、损坏 v3 和性能验收。
 
 ### Phase 1 当前证据
 
@@ -403,7 +402,7 @@ Order
 
 ### Phase 2–4 可运行切片证据
 
-- `index.html` 已切换到商业购票漏斗；`legacy.html` 已收口为可见标记且 noindex 的迁移期内部操作台；
+- `index.html` 已切换到商业购票漏斗；旧 `legacy.html`、跨页 `order.html` 与 Canvas/评分/热图/模拟器链已删除；
 - `src/bootstrapCommercial.js` 是 v3 生产组合根，连续执行 v1→v2→v3 迁移并初始化确定性场次库存；
 - `src/commercial.js` 只通过应用服务访问目录、库存、认证、锁座和订单，不直接访问 Web Storage；座位 DOM/键盘/焦点下沉至 `CommercialSeatMapController`，锁座确认/倒计时/认证叠层/释放/成单下沉至 `CommercialCheckoutController`；
 - 生产入口已具备场次上下文、四票种 stepper、180 个 DOM 座位、连座推荐、逐项价格、sticky 摘要和移动底栏；
@@ -411,5 +410,7 @@ Order
 - 登录 Dialog 有显式关闭键，输入框拖到遮罩释放和背景点击均不会关闭；叠层 Dialog 只允许最上层响应 Escape；
 - 390px 实测页面级横向溢出为 0，座位图在 360px 容器内浏览 650px 内容；
 - `internal.html` 已通过管理员权限门提供 v3 库存、锁座、订单、脱敏用户和备份恢复；危险操作均二次确认；
+- 生产两个入口的 69 个 JavaScript 文件全部可达；Node 架构契约阻止旧 UI 链与跨层浏览器依赖回流；
+- Node 精简为 82/82 产品与迁移契约，删除的 76 项只覆盖已退役实现，不再以测试数量掩盖死代码；
 - 浏览器商业、架构与运维契约：18/18 PASS、0 XFAIL、0 XPASS、0 ERROR；
 - 详细证据与延期项见 `doc/COMMERCIAL_UX_PHASE_2_QA.md`。

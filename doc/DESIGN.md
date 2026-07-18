@@ -1,5 +1,7 @@
 # SmartCinema 视觉设计文档
 
+> **历史归档（2026-07-18）：** 本文描述已删除的 Canvas/v3 旧视觉系统。当前商业交易与运维视觉基线以 `doc/COMMERCIAL_UX_ROADMAP.md`、`README.md` 和实际 `commercial.css` / `operations.css` 为准。
+
 > 版本：v3 | 日期：2026-07-11
 
 ---

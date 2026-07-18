@@ -2,7 +2,7 @@
 
 SmartCinema 是一个无运行时依赖的原生 JavaScript 商业影院购票演示。生产入口遵循“场次 → 票种/票数 → 座位 → 锁座 → 身份 → 订单”的交易漏斗，使用 Storage v3 保存场次库存、有效锁座和不可变订单快照。
 
-当前重构在 `zcjx/smart_cinema` 分支进行。`internal.html` 是受管理员权限保护的 v3 放映运维入口；`legacy.html` 只作为待删除的迁移对照存在。唯一消费者入口是 `index.html`，且消费者导航不暴露任何内部工具。
+当前重构在 `zcjx/smart_cinema` 分支进行。`internal.html` 是受管理员权限保护的 v3 放映运维入口；唯一消费者入口是 `index.html`，且消费者导航不暴露任何内部工具。旧 Canvas、热图、购前评分、模拟与跨页结算链已经退出仓库。
 
 ## 快速开始
 
@@ -43,16 +43,11 @@ npm test
 SmartCinema/
 ├── index.html                         # 商业购票生产入口
 ├── internal.html                      # noindex v3 放映运维入口
-├── legacy.html                        # 待删除的 v2 迁移对照
-├── order.html                         # v2 旧结算入口
 ├── public/styles/
 │   ├── commercial.css                 # 新交易外壳、DOM 座位和响应式
 │   ├── operations.css                 # 内部运维、表格和危险操作
-│   ├── internal-tools.css             # 迁移期内部工具边界
 │   ├── variables.css                  # 共享 tokens
-│   ├── accessibility.css              # 焦点、高对比与 reduced-motion
-│   ├── app.css                        # legacy 功能台
-│   └── order.css                      # legacy 结算页
+│   └── accessibility.css              # 焦点、高对比与 reduced-motion
 ├── src/
 │   ├── domain/
 │   │   ├── catalog/                   # Movie/Cinema/Auditorium/Showtime/票价政策
@@ -65,13 +60,11 @@ SmartCinema/
 │   │   ├── catalog/                   # 演示目录与确定性库存
 │   │   ├── storage/                   # Storage v2/v3、迁移和 session owner
 │   │   └── browser/                   # Clock、IdGenerator、营业日
-│   ├── ui/                            # Dialog、商业座位/结算/订单/偏好 controller 与 legacy 适配器
+│   ├── ui/                            # Dialog、商业座位/结算/订单/偏好/运维 controller
 │   ├── commercial.js                  # 新生产页面交易编排
 │   ├── internal.js                    # v3 运维页面启动
 │   ├── bootstrapCommercial.js         # v3 生产组合根
-│   ├── bootstrapInternal.js           # v3 运维组合根
-│   ├── app.js                         # legacy 首页
-│   └── bootstrap.js                   # v2 legacy 组合根
+│   └── bootstrapInternal.js           # v3 运维组合根
 ├── tests/                             # Node 契约与真实浏览器流程
 └── doc/                               # RFC、路线图、迁移与 QA
 ```
@@ -116,7 +109,7 @@ Node 全量：
 
 ```bash
 npm test
-# 158/158 PASS
+# 82/82 PASS
 ```
 
 启动服务后，以独立 origin 打开浏览器契约：
@@ -130,11 +123,12 @@ http://127.0.0.1:8080/tests/browser-regressions.html
 
 ## 当前边界
 
-仍在后续阶段中的能力：删除已被 v3 运维台替代的 legacy UI 链、多日/多影院目录、真实支付与支付渠道退款回调、二维码、完整账户资料、真实读屏和完整辅助模式人工验收。不要把 `legacy.html` 中仍存在的热图、评分或模拟视为新消费者产品的一部分。
+仍在后续阶段中的能力：多日/多电影/多影院目录、真实支付与支付渠道退款回调、二维码、完整账户资料、真实读屏和完整辅助模式人工验收。v2 validator、迁移 fixture 与旧订单模型只承担历史数据兼容，不构成第二套产品 UI。
 
 ## 主要文档
 
 - [商业产品与体验路线图](doc/COMMERCIAL_UX_ROADMAP.md)
+- [v3 运维与旧链退出 QA](doc/COMMERCIAL_UX_PHASE_5_QA.md)
 - [商业纵向切片 QA](doc/COMMERCIAL_UX_PHASE_2_QA.md)
 - [商业领域 v3 RFC](doc/RFC_COMMERCIAL_DOMAIN_V3.md)
 - [商业基线](doc/COMMERCIAL_UX_BASELINE.md)

@@ -1,6 +1,6 @@
 # SmartCinema 测试指南
 
-> 当前事实日期：2026-07-18。生产入口与独立运维入口均使用商业领域 v3；`legacy.html` 的 v2/Canvas 套件只在删除前保留为迁移回归。
+> 当前事实日期：2026-07-18。生产入口与独立运维入口均使用商业领域 v3；v2 只保留数据迁移兼容契约，不再保留第二套 UI。
 
 ## 1. 测试入口
 
@@ -18,18 +18,17 @@ http://127.0.0.1:8080/tests/browser-regressions.html
 
 测试必须使用 `127.0.0.1`，不能改成日常使用的 `localhost`。浏览器入口会清除当前 origin 下以 `smartcinema_` 开头的数据；独立 hostname 可避免影响个人演示数据。
 
-旧视觉对照仍可打开：
+窄屏视觉矩阵可打开：
 
 ```text
 http://127.0.0.1:8080/tests/visual-review.html
-http://127.0.0.1:8080/legacy.html
 ```
 
 ## 2. 当前证据
 
 | 层级 | 结果 | 主要覆盖 |
 | --- | ---: | --- |
-| Node | 158/158 | v2 既有契约 + 商业目录、Money、票种/草稿、座位规则、报价、hold、订单/退款快照、辅助偏好、Storage v3、迁移、恢复、应用、运维权限与组合根 |
+| Node | 82/82 | v1/v2 迁移兼容 + 商业目录、Money、票种/草稿、座位规则、报价、hold、订单/退款快照、辅助偏好、Storage v3、恢复、应用、运维权限、组合根与架构边界 |
 | 浏览器 | 18/18 | 新生产入口、票座一致、无障碍门控、锁座跨刷新恢复/冲突/释放、访客确认、幂等退票、辅助偏好、响应式、Dialog、键盘、运维隔离/权限/人工释放、DOM 安全、运行时健康 |
 | 视口 | 320/390/768/1024/1440 | 页面无横向溢出；手机座位图只在内部容器滚动 |
 | 手工浏览器 | 1440×1000、390×844 | 完整“推荐 → 锁座 → 注册 → 确认 → 取票码 → 我的订单”闭环 |
@@ -44,17 +43,12 @@ PASS 18 · XFAIL 0 · XPASS 0 · ERROR 0
 
 `tests/runner.js` 显式登记所有套件，不自动发现文件。
 
-### v2/legacy 回归
+### v1/v2 迁移兼容
 
-- `test-seatdata.js`：三种旧影厅与选择；
-- `test-recommend.js` / `test-score.js`：旧推荐和评分；
-- `test-domain-contracts.js`：v2 标识、库存、选择、用户和订单；
-- `test-storage-v2.js` / `test-state-backup.js` / `test-migration-v2.js`；
-- `test-application-v2.js` / `test-derived-state.js` / `test-app-controller.js`；
-- `test-ui-controllers.js` / `test-canvas-interaction.js` / `test-view-adapters.js`；
-- `test-realtime-v2.js` / `test-regressions.js`。
-
-这些测试在 `legacy.html` 最终退出前保持，用于证明 v3 迁移没有破坏既有正确行为。
+- `test-domain-contracts.js`：迁移所依赖的 v2 场次标识、库存、订单和用户安全投影；
+- `test-storage-v2.js`：v2 envelope、revision 与遗留 checkout 清理；
+- `test-migration-v2.js`：v1 备份、quarantine、可恢复迁移与失败不覆盖；
+- `tests/fixtures/state-v2-commercial-migration.json`：冻结的 v2→v3 迁移样本。
 
 ### 商业 v3
 
@@ -63,6 +57,7 @@ PASS 18 · XFAIL 0 · XPASS 0 · ERROR 0
 - `test-commercial-application.js`：场次上下文、草稿、原子锁座、幂等、冲突、释放、过期和访客确认；
 - `test-commercial-composition.js`：空白安装的 v1→v2→v3、营业日、演示库存、v3 账户、推荐和报价。
 - `test-commercial-operations.js`：管理员权限、运维视图模型、锁座清理/释放、脱敏导出和带回滚恢复。
+- `test-architecture-boundaries.js`：入口隔离、退役文件、无浏览器全局领域/应用层和旧 UI 链防回归。
 
 新增测试文件必须在 `tests/runner.js` 中导入并运行，否则 `npm test` 不会覆盖。
 
@@ -142,7 +137,7 @@ PASS 18 · XFAIL 0 · XPASS 0 · ERROR 0
 
 ## 7. 已知未覆盖
 
-二维码、真实支付与支付渠道退款回调、多日目录、独立 v3 运维工具与 legacy 删除、真实读屏和完整辅助模式人工验收仍在商业路线图后续阶段。
+二维码、真实支付与支付渠道退款回调、多日/多电影/多影院目录、真实读屏和完整辅助模式人工验收仍在商业路线图后续阶段。
 
 ## 8. 相关文档
 
