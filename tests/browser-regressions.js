@@ -467,9 +467,36 @@ async function run() {
         }
     });
 
+    await regression('BUG-013', '用户可控账户字段必须作为纯文本渲染', async () => {
+        const frame = await createAppFrame();
+        try {
+            const app = frame.contentWindow.app;
+            const doc = frame.contentDocument;
+            const payload = '<img src=x onerror=alert(1)>';
+            app.showAuthModal('register');
+            doc.getElementById('auth-username').value = 'safe-render-user';
+            doc.getElementById('auth-password').value = 'browser123';
+            doc.getElementById('auth-name').value = payload;
+            doc.getElementById('auth-email').value = 'safe@example.test';
+            doc.getElementById('auth-form').dispatchEvent(new Event('submit', {
+                bubbles: true,
+                cancelable: true
+            }));
+            await delay();
+
+            const userInfo = doc.getElementById('user-info');
+            assertContract(
+                userInfo.textContent.includes(payload) && !userInfo.querySelector('img'),
+                '注册姓名被解释为 HTML，存在 DOM 注入风险'
+            );
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
     clearTestStorage();
-    const expected = state.pass === 9 && state.xfail === 1 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：9 个修复通过，1 个响应式问题稳定复现' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 10 && state.xfail === 1 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：10 个修复通过，1 个响应式问题稳定复现' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     document.documentElement.dataset.pass = String(state.pass);
     document.documentElement.dataset.xfail = String(state.xfail);

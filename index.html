@@ -580,23 +580,23 @@
 
     <!-- ==================== AI 观影顾问 ==================== -->
     <div id="ai-chatbot">
-        <button id="ai-chat-toggle" title="AI 观影顾问">💬</button>
-        <div id="ai-chat-panel" style="display:none;">
+        <button id="ai-chat-toggle" type="button" title="AI 观影顾问" aria-label="打开 AI 观影顾问" aria-controls="ai-chat-panel" aria-expanded="false">💬</button>
+        <div id="ai-chat-panel" role="region" aria-label="AI 观影顾问" style="display:none;">
             <div class="ai-chat-header">
                 <span>🤖 AI 观影顾问</span>
-                <button id="ai-chat-close">✕</button>
+                <button id="ai-chat-close" type="button" aria-label="关闭 AI 观影顾问">✕</button>
             </div>
             <div id="ai-chat-messages"></div>
             <div id="ai-chat-suggestions"></div>
             <div class="ai-chat-input-row">
                 <input type="text" id="ai-chat-input" placeholder="输入问题，如「推荐座位」..." maxlength="200">
-                <button id="ai-chat-send">发送</button>
+                <button id="ai-chat-send" type="button">发送</button>
             </div>
         </div>
     </div>
 
     <!-- ==================== 通用模态容器 ==================== -->
-    <div id="modal-container" class="modal-container" role="dialog" aria-hidden="true"></div>
+    <div id="modal-container" class="modal-container" aria-hidden="true"></div>
 
     <!-- ==================== 主应用脚本 ==================== -->
     <script type="module" src="src/app.js"></script>

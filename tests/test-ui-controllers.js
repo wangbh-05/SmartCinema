@@ -3,6 +3,9 @@
  */
 
 import { ToastController } from '../src/ui/components/ToastController.js';
+import { AccountController } from '../src/ui/controllers/AccountController.js';
+import { AdminPanelController } from '../src/ui/controllers/AdminPanelController.js';
+import { ChatbotController } from '../src/ui/controllers/ChatbotController.js';
 import { OrdersPanelController } from '../src/ui/controllers/OrdersPanelController.js';
 import { RecommendationController } from '../src/ui/controllers/RecommendationController.js';
 import { ScoringController } from '../src/ui/controllers/ScoringController.js';
@@ -53,6 +56,7 @@ class FakeElement {
         this.hidden = false;
         this.value = '';
         this.type = '';
+        this.focused = false;
     }
 
     addEventListener(type, listener) {
@@ -76,6 +80,10 @@ class FakeElement {
 
     setAttribute(name, value) {
         this.attributes.set(name, String(value));
+    }
+
+    focus() {
+        this.focused = true;
     }
 }
 
@@ -209,6 +217,90 @@ class TestUiControllers {
             this.assertEqual(toast.element.dataset.visible, 'true');
             scheduler.run(toast.timer);
             this.assertEqual(toast.element.dataset.visible, 'false');
+        });
+
+        this.test('AccountController 应将用户字段作为纯文本安全渲染', () => {
+            const document = new FakeDocument();
+            document.add('btn-login', 'button');
+            document.add('btn-register', 'button');
+            document.add('btn-logout', 'button');
+            document.add('btn-admin', 'button');
+            const userInfo = document.add('user-info');
+            const auth = {
+                isLoggedIn: () => true,
+                isAdmin: () => false,
+                getCurrentUser: () => ({ name: '<img src=x onerror=alert(1)>' })
+            };
+            const account = new AccountController({ auth, document });
+            account.render();
+            this.assertEqual(userInfo.children[0].textContent, '👤 <img src=x onerror=alert(1)>');
+            this.assertEqual(userInfo.children[0].children.length, 0);
+            this.assertEqual(userInfo.children[1].textContent, '会员');
+            this.assertEqual(userInfo.style.display, 'flex');
+        });
+
+        this.test('AdminPanelController 应复用统一 Dialog 并安全渲染用户表格', () => {
+            const document = new FakeDocument();
+            const overlay = document.add('modal-container');
+            const dialogCalls = [];
+            const user = {
+                username: '<svg onload=alert(1)>',
+                name: '<Admin>',
+                role: 'admin',
+                email: 'admin@example.test',
+                createdAt: '2026-07-18T00:00:00.000Z'
+            };
+            const panel = new AdminPanelController({
+                auth: {
+                    isAdmin: () => true,
+                    getAllUsers: () => [user]
+                },
+                orderManager: {
+                    getStatistics: () => ({ totalOrders: 1, confirmedOrders: 1, totalRevenue: 120 })
+                },
+                document,
+                formatDate: () => '2026/7/18',
+                dialogFactory: () => ({
+                    open: options => dialogCalls.push(options),
+                    close: () => {}
+                })
+            });
+            this.assertTrue(panel.open(new FakeElement('button')));
+            const dialog = overlay.children[0];
+            const body = dialog.children[1];
+            const userSection = body.children[0].children[2];
+            const tableBody = userSection.children[1].children[1];
+            const usernameCell = tableBody.children[0].children[0];
+            this.assertEqual(usernameCell.textContent, user.username);
+            this.assertEqual(usernameCell.children.length, 0);
+            this.assertEqual(dialogCalls.length, 1);
+        });
+
+        this.test('ChatbotController 应使用按钮建议并安全追加对话文本', () => {
+            const document = new FakeDocument();
+            document.add('ai-chat-toggle', 'button');
+            document.add('ai-chat-panel');
+            document.add('ai-chat-close', 'button');
+            document.add('ai-chat-send', 'button');
+            const input = document.add('ai-chat-input', 'input');
+            const messages = document.add('ai-chat-messages');
+            const suggestions = document.add('ai-chat-suggestions');
+            const scheduler = new FakeScheduler();
+            const controller = new ChatbotController({
+                chatbot: { chat: () => '<img src=x onerror=alert(1)>' },
+                document,
+                getSeatData: () => ({}),
+                scheduler,
+                random: () => 0
+            });
+            controller.bind();
+            this.assertEqual(suggestions.children[0].tagName, 'BUTTON');
+            input.value = '<用户输入>';
+            this.assertTrue(controller.send());
+            scheduler.run([...scheduler.tasks.keys()][0]);
+            this.assertEqual(messages.children[0].textContent, '<用户输入>');
+            this.assertEqual(messages.children[1].textContent, '<img src=x onerror=alert(1)>');
+            this.assertEqual(messages.children[1].children.length, 0);
         });
 
         this.test('OrdersPanelController 应从座位快照更新结算摘要', () => {

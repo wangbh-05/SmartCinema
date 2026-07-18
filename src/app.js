@@ -14,7 +14,11 @@ import { AccessibilityManager } from './utils/accessibility.js';
 import { createBrowserAppController, createBrowserRealtimeSimulator } from './bootstrap.js';
 import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
 import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
+import { AccountController } from './ui/controllers/AccountController.js';
+import { AdminPanelController } from './ui/controllers/AdminPanelController.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
+import { BackupController } from './ui/controllers/BackupController.js';
+import { ChatbotController } from './ui/controllers/ChatbotController.js';
 import { OrdersPanelController } from './ui/controllers/OrdersPanelController.js';
 import { RecommendationController } from './ui/controllers/RecommendationController.js';
 import { ScoringController } from './ui/controllers/ScoringController.js';
@@ -45,10 +49,6 @@ class SmartCinema {
         // DOM 引用
         this.cinemaCanvas = document.getElementById('cinema-canvas');
         this.hallSelector = document.getElementById('hall-selector');
-        this.loginBtn = document.getElementById('btn-login');
-        this.registerBtn = document.getElementById('btn-register');
-        this.logoutBtn = document.getElementById('btn-logout');
-        this.adminBtn = document.getElementById('btn-admin');
         this.heatmapCanvas = document.getElementById('heatmap-canvas');
         this.toast = new ToastController({ document, scheduler: window });
         this.authDialog = new AuthDialogController({
@@ -59,6 +59,36 @@ class SmartCinema {
             },
             onAnnounce: message => this.a11yManager.announce(message),
             onNotify: message => this.toast.show(message)
+        });
+        this.adminPanel = new AdminPanelController({
+            auth: this.auth,
+            orderManager: this.orderManager,
+            document,
+            notify: message => window.alert(message)
+        });
+        this.accountController = new AccountController({
+            auth: this.auth,
+            document,
+            confirmAction: message => window.confirm(message),
+            notify: message => window.alert(message),
+            onOpenAuth: (mode, trigger) => this.showAuthModal(mode, trigger),
+            onOpenAdmin: trigger => this.adminPanel.open(trigger),
+            onAuthChanged: () => {
+                this.loadSettings();
+                this.updateSubmitButton();
+            },
+            onAnnounce: message => this.a11yManager.announce(message)
+        });
+        this.chatbotController = new ChatbotController({
+            chatbot: this.chatbot,
+            document,
+            getSeatData: () => this.seatData,
+            scheduler: window
+        });
+        this.backupController = new BackupController({
+            controller: this.controller,
+            document,
+            browserWindow: window
         });
 
         // 渲染引擎
@@ -132,6 +162,8 @@ class SmartCinema {
         this.ordersPanel.bind();
         this.recommendationController.bind();
         this.scoringController.bind();
+        this.accountController.bind();
+        this.chatbotController.bind();
 
         // Canvas 座位选择变更
         this.cinemaCanvas.addEventListener('selectionChange', (e) => {
@@ -170,24 +202,10 @@ class SmartCinema {
             this.cinemaCanvas.scrollIntoView({ behavior: 'smooth' });
         });
 
-        // 认证事件
-        this.loginBtn?.addEventListener('click', () => this.showAuthModal('login', this.loginBtn));
-        this.registerBtn?.addEventListener('click', () => this.showAuthModal('register', this.registerBtn));
-        this.logoutBtn?.addEventListener('click', () => this.handleLogout());
-        this.adminBtn?.addEventListener('click', () => this.showAdminPanel());
-
         // 窗口缩放
         window.addEventListener('resize', () => {
             this.cinema.resize();
             this.updateHeatmap();
-        });
-
-        // ★ AI 观影顾问
-        document.getElementById('ai-chat-toggle')?.addEventListener('click', () => this.toggleChatbot());
-        document.getElementById('ai-chat-close')?.addEventListener('click', () => this.toggleChatbot(false));
-        document.getElementById('ai-chat-send')?.addEventListener('click', () => this.sendChatMessage());
-        document.getElementById('ai-chat-input')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') this.sendChatMessage();
         });
 
         // 键盘快捷键
@@ -427,12 +445,7 @@ class SmartCinema {
 
     /** 需要登录才能继续的操作 */
     requireAuth() {
-        if (!this.auth.isLoggedIn()) {
-            alert('请先登录后再操作');
-            this.showAuthModal('login');
-            return false;
-        }
-        return true;
+        return this.accountController.requireAuth();
     }
 
     showAuthModal(mode, trigger = null) {
@@ -452,101 +465,17 @@ class SmartCinema {
     }
 
     handleLogout() {
-        if (confirm('确定要退出登录吗？')) {
-            this.auth.logout();
-            this.updateAuthUI();
-            this.loadSettings();
-            this.a11yManager.announce('已退出登录');
-        }
+        return this.accountController.logout();
     }
 
     updateAuthUI() {
-        const loggedIn = this.auth.isLoggedIn();
-        const isAdmin = this.auth.isAdmin();
-        const user = this.auth.getCurrentUser();
-
-        // 按钮显示/隐藏
-        this._toggleEl(this.loginBtn, !loggedIn);
-        this._toggleEl(this.registerBtn, !loggedIn);
-        this._toggleEl(this.logoutBtn, loggedIn);
-        this._toggleEl(this.adminBtn, isAdmin);
-
-        // 用户信息显示
-        const userInfo = document.getElementById('user-info');
-        if (userInfo) {
-            if (loggedIn && user) {
-                userInfo.innerHTML = `<span>👤 ${user.name}</span>
-                    <span class="badge badge-${isAdmin ? 'primary' : 'success'}">${isAdmin ? '管理员' : '会员'}</span>`;
-                userInfo.style.display = 'flex';
-            } else {
-                userInfo.style.display = 'none';
-            }
-        }
-
-        // 更新提交订单按钮
+        this.accountController.render();
         this.updateSubmitButton();
     }
 
     /** 管理员后台面板 */
-    showAdminPanel() {
-        if (!this.auth.isAdmin()) {
-            alert('无管理员权限');
-            return;
-        }
-
-        const users = this.auth.getAllUsers();
-        const orderStats = this.orderManager.getStatistics();
-
-        let userListHTML = users.map(u =>
-            `<tr>
-                <td>${u.username}</td>
-                <td>${u.name}</td>
-                <td>${u.role}</td>
-                <td>${u.email || '-'}</td>
-                <td>${new Date(u.createdAt).toLocaleDateString('zh-CN')}</td>
-            </tr>`
-        ).join('');
-
-        const panelHTML = `
-            <div class="admin-panel">
-                <h2>🔧 管理员后台</h2>
-                <div class="admin-section">
-                    <h3>订单统计</h3>
-                    <p>总订单: ${orderStats.totalOrders} | 已确认: ${orderStats.confirmedOrders}
-                       | 总收入: ¥${orderStats.totalRevenue}</p>
-                </div>
-                <div class="admin-section">
-                    <h3>用户管理 (${users.length}人)</h3>
-                    <table class="admin-table">
-                        <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>邮箱</th><th>注册时间</th></tr></thead>
-                        <tbody>${userListHTML}</tbody>
-                    </table>
-                </div>
-            </div>`;
-
-        const modal = document.getElementById('modal-container');
-        if (modal) {
-            modal.innerHTML = `
-                <div class="modal-content admin-modal">
-                    <div class="modal-header">
-                        <h2>🔧 管理员后台</h2>
-                        <button class="modal-close" id="admin-modal-close">✕</button>
-                    </div>
-                    <div class="modal-body">${panelHTML}</div>
-                </div>`;
-            modal.classList.add('active');
-            modal.setAttribute('aria-hidden', 'false');
-            document.getElementById('admin-modal-close')?.addEventListener('click', () => {
-                modal.classList.remove('active');
-                modal.setAttribute('aria-hidden', 'true');
-            });
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    modal.classList.remove('active');
-                    modal.setAttribute('aria-hidden', 'true');
-                }
-            });
-        }
+    showAdminPanel(trigger = null) {
+        return this.adminPanel.open(trigger);
     }
 
     /* ================================================================
@@ -582,61 +511,11 @@ class SmartCinema {
      * ================================================================ */
 
     toggleChatbot(show) {
-        const panel = document.getElementById('ai-chat-panel');
-        if (!panel) return;
-        const visible = show !== undefined ? show : (panel.style.display === 'none' || !panel.style.display);
-        panel.style.display = visible ? 'flex' : 'none';
-        if (visible) {
-            this._renderSuggestions();
-            document.getElementById('ai-chat-input')?.focus();
-        }
-    }
-
-    _renderSuggestions() {
-        const el = document.getElementById('ai-chat-suggestions');
-        if (!el) return;
-        const chips = ['推荐座位', '票价多少', '哪个位置好', '怎么看评分', '放映厅信息', '帮助'];
-        el.innerHTML = chips.map(c =>
-            `<span class="ai-chat-chip" data-q="${c}">${c}</span>`
-        ).join('');
-        el.querySelectorAll('.ai-chat-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
-                document.getElementById('ai-chat-input').value = chip.dataset.q;
-                this.sendChatMessage();
-            });
-        });
+        return this.chatbotController.toggle(show);
     }
 
     sendChatMessage() {
-        const input = document.getElementById('ai-chat-input');
-        const msgDiv = document.getElementById('ai-chat-messages');
-        if (!input || !msgDiv) return;
-        const text = input.value.trim();
-        if (!text) return;
-
-        // 更新 chatbot 的 seatData 引用
-        this.chatbot.sd = this.seatData;
-
-        // 显示用户消息
-        this._appendChatMsg('user', text);
-        input.value = '';
-
-        // 模拟思考延迟（200-600ms）
-        setTimeout(() => {
-            const reply = this.chatbot.chat(text);
-            this._appendChatMsg('bot', reply);
-            msgDiv.scrollTop = msgDiv.scrollHeight;
-        }, 200 + Math.random() * 400);
-    }
-
-    _appendChatMsg(role, text) {
-        const msgDiv = document.getElementById('ai-chat-messages');
-        if (!msgDiv) return;
-        const div = document.createElement('div');
-        div.className = `ai-chat-msg ${role}`;
-        div.textContent = text;
-        msgDiv.appendChild(div);
-        msgDiv.scrollTop = msgDiv.scrollHeight;
+        return this.chatbotController.send();
     }
 
     toggleDarkMode(enabled, persist = true) {
@@ -745,58 +624,11 @@ class SmartCinema {
     }
 
     handleExport() {
-        const includeCredentials = window.confirm(
-            '是否导出可移植的完整备份？\n\n' +
-            '“确定”会包含本地演示账号的明文密码，请妥善保管。\n' +
-            '“取消”仍会导出不含密码的安全备份；该备份只能恢复到保留同一账号的安装。'
-        );
-        const exported = this.controller.exportBackup({ includeCredentials });
-        if (!exported.ok) {
-            window.alert(`✗ 导出失败：${exported.error.message}`);
-            return;
-        }
-
-        const blob = new Blob([exported.value.json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `smartcinema_backup_${new Date().toISOString().slice(0, 10)}.json`;
-        a.hidden = true;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        return this.backupController.export();
     }
 
     handleImport() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'application/json,.json';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const confirmed = window.confirm(
-                    '导入会用所选备份替换当前用户、订单、库存和设置。\n' +
-                    '系统会先保存一份当前 v2 状态用于恢复。是否继续？'
-                );
-                if (!confirmed) return;
-
-                const imported = this.controller.importBackup(ev.target.result);
-                if (!imported.ok) {
-                    window.alert(`✗ 导入失败：${imported.error.message}`);
-                    return;
-                }
-                const cleanupNote = imported.value.cleanupWarning ?
-                    `\n注意：${imported.value.cleanupWarning}` : '';
-                window.alert(`✓ 数据已安全导入，当前登录状态已清除，即将刷新${cleanupNote}`);
-                window.location.reload();
-            };
-            reader.onerror = () => window.alert('✗ 无法读取所选文件');
-            reader.readAsText(file);
-        };
-        input.click();
+        return this.backupController.import();
     }
 
     /* ================================================================
@@ -806,10 +638,6 @@ class SmartCinema {
     _setText(id, text) {
         const el = document.getElementById(id);
         if (el) el.textContent = text;
-    }
-
-    _toggleEl(el, show) {
-        if (el) el.style.display = show ? '' : 'none';
     }
 
     _getDayIndex() {
