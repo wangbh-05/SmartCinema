@@ -11,12 +11,21 @@ const FOCUSABLE_SELECTOR = [
  * 统一 Dialog 行为：Escape、焦点归还、焦点陷阱和安全的 backdrop pointer 手势。
  */
 export class DialogController {
-    constructor({ overlay, dialog, closeButton, initialFocus = null }) {
+    constructor({
+        overlay,
+        dialog,
+        closeButton,
+        initialFocus = null,
+        canCloseFromBackdrop = () => true,
+        onClose = () => {}
+    }) {
         if (!overlay || !dialog || !closeButton) throw new TypeError('DialogController 缺少必要 DOM');
         this.overlay = overlay;
         this.dialog = dialog;
         this.closeButton = closeButton;
         this.initialFocus = initialFocus;
+        this.canCloseFromBackdrop = canCloseFromBackdrop;
+        this.onClose = onClose;
         this.opener = null;
         this.pointerStartedOnBackdrop = false;
         this.bound = false;
@@ -45,6 +54,7 @@ export class DialogController {
         this.pointerStartedOnBackdrop = false;
         if (restoreFocus && this.opener?.isConnected) this.opener.focus();
         this.opener = null;
+        this.onClose();
     }
 
     _bind() {
@@ -57,7 +67,7 @@ export class DialogController {
         this.overlay.addEventListener('pointerup', event => {
             const shouldClose = this.pointerStartedOnBackdrop && event.target === this.overlay;
             this.pointerStartedOnBackdrop = false;
-            if (shouldClose) this.close();
+            if (shouldClose && this.canCloseFromBackdrop()) this.close();
         });
         this.overlay.addEventListener('pointercancel', () => {
             this.pointerStartedOnBackdrop = false;

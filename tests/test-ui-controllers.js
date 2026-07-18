@@ -202,6 +202,7 @@ class TestUiControllers {
             this.assertTrue(context.document.body.classList.contains('colorblind-mode'));
             this.assertTrue(context.voiceValues.includes(true));
             this.assertTrue(context.colorblindValues.includes(true));
+            this.assertTrue(context.heatmapColorblindValues.includes(true));
             this.assertEqual(context.realtimeStarts.value, 1);
             this.assertEqual(context.document.getElementById('accent-picker').value, '#10B981');
             this.assertTrue(context.document.themeDots[1].classList.contains('active'));
@@ -288,7 +289,7 @@ class TestUiControllers {
             };
             const account = new AccountController({ auth, document });
             account.render();
-            this.assertEqual(userInfo.children[0].textContent, '👤 <img src=x onerror=alert(1)>');
+            this.assertEqual(userInfo.children[0].textContent, '<img src=x onerror=alert(1)>');
             this.assertEqual(userInfo.children[0].children.length, 0);
             this.assertEqual(userInfo.children[1].textContent, '会员');
             this.assertEqual(userInfo.style.display, 'flex');
@@ -334,28 +335,31 @@ class TestUiControllers {
         this.test('ChatbotController 应使用按钮建议并安全追加对话文本', () => {
             const document = new FakeDocument();
             document.add('ai-chat-toggle', 'button');
-            document.add('ai-chat-panel');
+            const panel = document.add('ai-chat-panel');
+            panel.hidden = true;
             document.add('ai-chat-close', 'button');
             document.add('ai-chat-send', 'button');
             const input = document.add('ai-chat-input', 'input');
             const messages = document.add('ai-chat-messages');
             const suggestions = document.add('ai-chat-suggestions');
-            const scheduler = new FakeScheduler();
             const controller = new ChatbotController({
-                chatbot: { chat: () => '<img src=x onerror=alert(1)>' },
+                chatbot: { chat: text => `回复：${text}` },
                 document,
-                getSeatData: () => ({}),
-                scheduler,
-                random: () => 0
+                getSeatData: () => ({})
             });
             controller.bind();
             this.assertEqual(suggestions.children[0].tagName, 'BUTTON');
+            this.assertTrue(controller.toggle());
+            this.assertFalse(panel.hidden);
             input.value = '<用户输入>';
             this.assertTrue(controller.send());
-            scheduler.run([...scheduler.tasks.keys()][0]);
+            input.value = '第二条';
+            this.assertTrue(controller.send());
             this.assertEqual(messages.children[0].textContent, '<用户输入>');
-            this.assertEqual(messages.children[1].textContent, '<img src=x onerror=alert(1)>');
+            this.assertEqual(messages.children[1].textContent, '回复：<用户输入>');
             this.assertEqual(messages.children[1].children.length, 0);
+            this.assertEqual(messages.children[2].textContent, '第二条');
+            this.assertEqual(messages.children[3].textContent, '回复：第二条');
         });
 
         this.test('SeatDataProjection 应按顺序投影库存、选择与远端占座', () => {
@@ -458,7 +462,7 @@ class TestUiControllers {
             document.getElementById('movie-type').value = 'solo';
             this.assertTrue(recommendationController.submit());
             const result = document.getElementById('recommend-result');
-            this.assertEqual(result.children[1].textContent, '👤 <Alice>');
+            this.assertEqual(result.children[1].textContent, '<Alice>');
             this.assertEqual(result.children[1].children.length, 0);
             this.assertEqual(previewed[0][0].seatKey, '5-8');
             this.assertTrue(recommendationController.apply());
@@ -554,6 +558,7 @@ class TestUiControllers {
         };
         const voiceValues = [];
         const colorblindValues = [];
+        const heatmapColorblindValues = [];
         const realtimeStarts = { value: 0 };
         const realtimeStops = { value: 0 };
         const errors = [];
@@ -565,6 +570,7 @@ class TestUiControllers {
                 speak: () => {}
             },
             cinema: { setColorblindMode: value => colorblindValues.push(value) },
+            heatmap: { setColorblindMode: value => heatmapColorblindValues.push(value) },
             realtime: {
                 start: () => { realtimeStarts.value++; },
                 stop: () => { realtimeStops.value++; }
@@ -577,6 +583,7 @@ class TestUiControllers {
             settingsController,
             voiceValues,
             colorblindValues,
+            heatmapColorblindValues,
             realtimeStarts,
             realtimeStops,
             errors

@@ -19,16 +19,20 @@ export class AuthDialogController {
         this.name = document.getElementById('auth-name');
         this.email = document.getElementById('auth-email');
         this.extraFields = document.getElementById('register-extra-fields');
+        this.dirty = false;
         this.dialogController = new DialogController({
             overlay: this.overlay,
             dialog: this.dialog,
             closeButton: document.getElementById('auth-modal-close'),
-            initialFocus: this.username
+            initialFocus: this.username,
+            canCloseFromBackdrop: () => this._canCloseFromBackdrop(),
+            onClose: () => this._resetForm()
         });
         this._bind();
     }
 
     open(mode = 'login', trigger = null) {
+        this._resetForm();
         this.setMode(mode);
         this.dialogController.open({ trigger, initialFocus: this.username });
     }
@@ -70,7 +74,6 @@ export class AuthDialogController {
 
         const registered = this.mode === 'register';
         this.close();
-        this.form.reset();
         this.onAuthChanged?.();
         this.onAnnounce?.(`${registered ? '注册' : '登录'}成功，欢迎${result.user.name}`);
         if (registered) this.onNotify?.('注册成功，已自动登录');
@@ -93,10 +96,25 @@ export class AuthDialogController {
             event.preventDefault();
             this.submit();
         });
+        this.form.addEventListener('input', () => {
+            this.dirty = true;
+        });
         this.switchButton.addEventListener('click', () => {
             this.setMode(this.mode === 'login' ? 'register' : 'login');
             this.username.focus();
         });
+    }
+
+    _canCloseFromBackdrop() {
+        if (!this.dirty) return true;
+        this.onNotify?.('表单尚未提交，可使用右上角关闭按钮退出');
+        return false;
+    }
+
+    _resetForm() {
+        this.form.reset();
+        this.dirty = false;
+        this._clearError();
     }
 }
 

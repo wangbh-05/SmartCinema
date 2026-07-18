@@ -1,19 +1,18 @@
 export class BackupController {
-    constructor({ controller, document, browserWindow }) {
+    constructor({ controller, document, browserWindow, notify }) {
         this.controller = controller;
         this.document = document;
         this.window = browserWindow;
+        this.notify = notify;
     }
 
-    export() {
-        const includeCredentials = this.window.confirm(
-            '是否导出可移植的完整备份？\n\n' +
-            '“确定”会包含本地演示账号的明文密码，请妥善保管。\n' +
-            '“取消”仍会导出不含密码的安全备份；该备份只能恢复到保留同一账号的安装。'
-        );
+    export({ includeCredentials = false } = {}) {
+        if (includeCredentials && !this.window.confirm(
+            '完整备份包含本地演示账号的明文密码。请只保存到可信位置。是否继续？'
+        )) return false;
         const exported = this.controller.exportBackup({ includeCredentials });
         if (!exported.ok) {
-            this.window.alert(`✗ 导出失败：${exported.error.message}`);
+            this.notify?.(`导出失败：${exported.error.message}`);
             return false;
         }
 
@@ -27,6 +26,7 @@ export class BackupController {
         link.click();
         link.remove();
         this.window.setTimeout(() => this.window.URL.revokeObjectURL(url), 0);
+        this.notify?.(includeCredentials ? '完整备份已导出，请妥善保管' : '安全备份已导出');
         return true;
     }
 
@@ -44,7 +44,7 @@ export class BackupController {
         }
         const reader = new this.window.FileReader();
         reader.addEventListener('load', event => this._confirmImport(event.target.result), { once: true });
-        reader.addEventListener('error', () => this.window.alert('✗ 无法读取所选文件'), { once: true });
+        reader.addEventListener('error', () => this.notify?.('无法读取所选文件'), { once: true });
         reader.readAsText(file);
     }
 
@@ -59,12 +59,12 @@ export class BackupController {
 
         const imported = this.controller.importBackup(json);
         if (!imported.ok) {
-            this.window.alert(`✗ 导入失败：${imported.error.message}`);
+            this.notify?.(`导入失败：${imported.error.message}`);
             return false;
         }
-        const cleanupNote = imported.value.cleanupWarning ? `\n注意：${imported.value.cleanupWarning}` : '';
-        this.window.alert(`✓ 数据已安全导入，当前登录状态已清除，即将刷新${cleanupNote}`);
-        this.window.location.reload();
+        const cleanupNote = imported.value.cleanupWarning ? `；${imported.value.cleanupWarning}` : '';
+        this.notify?.(`数据已安全导入，当前登录状态已清除${cleanupNote}`);
+        this.window.setTimeout(() => this.window.location.reload(), 700);
         return true;
     }
 }

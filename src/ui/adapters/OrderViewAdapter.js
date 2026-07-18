@@ -5,6 +5,7 @@ const HALL_NAMES = Object.freeze({
     medium: '中厅',
     large: '大厅'
 });
+const DAY_LABELS = Object.freeze(['一', '二', '三', '四', '五', '六', '日']);
 
 function toOrderView(order) {
     const showtime = parseShowtimeId(order.showtimeId);
@@ -106,7 +107,7 @@ export class OrderViewAdapter {
             'SmartCinema 订单收据',
             `订单号: ${order.id}`,
             `状态: ${this.getStatusText(order.status)}`,
-            `放映厅: ${order.hallName} · 周${order.dayIndex + 1}`,
+            `放映厅: ${order.hallName} · 周${DAY_LABELS[order.dayIndex]}`,
             `座位: ${seats}`,
             `数量: ${order.seatCount} 张`,
             `总价: ¥${order.totalPrice}`

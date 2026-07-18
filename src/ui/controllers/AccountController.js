@@ -55,7 +55,7 @@ export class AccountController {
         }
 
         const name = this.document.createElement('span');
-        name.textContent = `👤 ${user.name}`;
+        name.textContent = user.name;
         const badge = this.document.createElement('span');
         badge.className = `badge badge-${isAdmin ? 'primary' : 'success'}`;
         badge.textContent = isAdmin ? '管理员' : '会员';

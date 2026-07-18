@@ -32,13 +32,13 @@ export class OrdersPanelController {
         if (selectedSeats.length === 0) {
             this.summary.textContent = '暂未选择座位';
             this.submitButton.disabled = true;
-            this.submitButton.textContent = '📋 提交订单';
+            this.submitButton.textContent = '提交订单';
             return;
         }
         const total = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
         this.summary.textContent = `已选 ${selectedSeats.length} 座 · 合计 ¥${total}`;
         this.submitButton.disabled = !loggedIn;
-        this.submitButton.textContent = loggedIn ? `📋 提交订单 (¥${total})` : '📋 请先登录';
+        this.submitButton.textContent = loggedIn ? `提交订单 · ¥${total}` : '请先登录';
     }
 
     toggle() {

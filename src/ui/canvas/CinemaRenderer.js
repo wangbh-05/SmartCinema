@@ -54,7 +54,8 @@ export class CinemaRenderer {
         getLayout,
         getInteractionState,
         now = () => globalThis.performance?.now?.() ?? Date.now(),
-        requestFrame = callback => globalThis.requestAnimationFrame(callback)
+        requestFrame = callback => globalThis.requestAnimationFrame(callback),
+        prefersReducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
     }) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
@@ -63,6 +64,7 @@ export class CinemaRenderer {
         this.getInteractionState = getInteractionState;
         this.now = now;
         this.requestFrame = requestFrame;
+        this.prefersReducedMotion = prefersReducedMotion;
         this.colors = DEFAULT_COLORS;
         this.heatColors = DEFAULT_HEAT_COLORS;
         this.heat = [];
@@ -116,7 +118,11 @@ export class CinemaRenderer {
     }
 
     triggerSeatBounce(row, col) {
-        this.animations.push({ row, col, start: this.now(), duration: 350 });
+        if (this.prefersReducedMotion()) {
+            this.redraw();
+            return;
+        }
+        this.animations.push({ row, col, start: this.now(), duration: 240 });
         if (!this.animationFrame) {
             this._runAnimations();
         }
@@ -433,11 +439,32 @@ export class CinemaRenderer {
             { color: this.colors.select, text: '已选', border: this.colors.selectStroke },
             { color: this.colors.sold, text: '已售', border: this.colors.soldStroke },
             { color: this.colors.recommended, text: '推荐', border: this.colors.recommendedStroke },
-            { color: heat('hot'), text: '热门(中)' },
+            { color: heat('hot'), text: '热门' },
             { color: heat('warm'), text: '一般' },
-            { color: heat('cold'), text: '冷门(边)' }
+            { color: heat('cold'), text: '冷门' }
         ];
         const { displayWidth, displayHeight } = this.layout;
+        if (displayWidth < 620) {
+            const itemWidth = Math.max(52, Math.floor((displayWidth - 16) / 4));
+            const startY = displayHeight - 52;
+            this.ctx.font = '9px "Microsoft YaHei",sans-serif';
+            items.forEach((item, index) => {
+                const x = 8 + index % 4 * itemWidth;
+                const y = startY + Math.floor(index / 4) * 17;
+                this.ctx.fillStyle = item.color;
+                this.ctx.fillRect(x, y - 4, 8, 8);
+                if (item.border) {
+                    this.ctx.strokeStyle = item.border;
+                    this.ctx.lineWidth = 1;
+                    this.ctx.strokeRect(x, y - 4, 8, 8);
+                }
+                this.ctx.fillStyle = this.colors.legend;
+                this.ctx.textAlign = 'left';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(item.text, x + 11, y);
+            });
+            return;
+        }
         const y = displayHeight - 26;
         const startX = displayWidth - items.length * 68 - 10;
         this.ctx.font = '11px "Microsoft YaHei",sans-serif';
@@ -460,10 +487,15 @@ export class CinemaRenderer {
     _drawHallInfo() {
         const hall = HALL_CONFIG[this.seatData.hallType];
         this.ctx.fillStyle = this.colors.hallInfo;
-        this.ctx.font = '11px "Microsoft YaHei",sans-serif';
-        this.ctx.textAlign = 'left';
+        const narrow = this.layout.displayWidth < 620;
+        this.ctx.font = `${narrow ? 9 : 11}px "Microsoft YaHei",sans-serif`;
+        this.ctx.textAlign = narrow ? 'center' : 'left';
         this.ctx.textBaseline = 'top';
-        this.ctx.fillText(`${hall.name}·${hall.desc}·${hall.total}座`, 10, this.layout.displayHeight - 22);
+        this.ctx.fillText(
+            `${hall.name}·${hall.desc}·${hall.total}座`,
+            narrow ? this.layout.displayWidth / 2 : 10,
+            narrow ? this.layout.displayHeight - 18 : this.layout.displayHeight - 22
+        );
     }
 
     _roundedRect(x, y, width, height, radius) {

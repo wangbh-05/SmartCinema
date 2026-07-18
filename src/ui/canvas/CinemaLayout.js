@@ -2,18 +2,23 @@ export function calculateCinemaLayout({ rows, cols, availableWidth, availableHei
     if (!Number.isInteger(rows) || rows <= 0 || !Number.isInteger(cols) || cols <= 0) {
         throw new TypeError('Cinema layout 需要有效 rows/cols');
     }
-    const widthLimit = Math.min(Math.max(280, availableWidth), 1100);
+    const widthLimit = Math.min(Math.max(220, availableWidth), 1100);
     const heightLimit = Math.min(Math.max(300, availableHeight), 680);
-    const pitch = cols <= 10 ? 38 : cols <= 20 ? 30 : 22;
-    const seatSize = Math.round(pitch * 0.78);
+    const naturalPitch = cols <= 10 ? 38 : cols <= 20 ? 30 : 22;
     const aisleCols = cols >= 14 ? 2 : cols >= 8 ? 1 : 0;
     const virtualCols = cols + aisleCols;
     const aisleStart = Math.floor((virtualCols - aisleCols) / 2);
-    const topPad = 85;
-    const bottomPad = 45;
-    const requiredWidth = 120 + virtualCols * pitch + 80;
-    const requiredHeight = topPad + rows * pitch + bottomPad + 20;
+    const sidePad = widthLimit < 480 ? 28 : 60;
+    const naturalSeatWidth = naturalPitch * 0.78;
+    const requiredWidth = sidePad * 2 + (virtualCols - 1) * naturalPitch + naturalSeatWidth;
     const displayWidth = Math.round(Math.min(requiredWidth, widthLimit));
+    const availableSeatWidth = Math.max(1, displayWidth - sidePad * 2);
+    const fittedPitch = availableSeatWidth / Math.max(1, virtualCols - 1 + 0.78);
+    const pitch = Math.min(naturalPitch, fittedPitch);
+    const seatSize = Math.max(5, Math.round(pitch * 0.78));
+    const topPad = widthLimit < 480 ? 74 : 85;
+    const bottomPad = widthLimit < 620 ? 68 : 45;
+    const requiredHeight = topPad + rows * pitch + bottomPad + 20;
     const displayHeight = Math.round(Math.min(requiredHeight, heightLimit));
     const seatTop = topPad + pitch;
     const seatHeight = displayHeight - seatTop - bottomPad;

@@ -111,10 +111,15 @@ class TestCanvasInteraction {
         console.log('\n========== Canvas 交互测试 ==========\n');
 
         this.test('CinemaLayout 应服从可用尺寸并提供稳定命中测试', () => {
-            const layout = this._layout(10, 20, 320);
-            this.assertTrue(layout.displayWidth <= 320);
+            const layout = this._layout(10, 20, 240);
+            this.assertTrue(layout.displayWidth <= 240);
             this.assertEqual(layout.positions.length, 10);
             this.assertEqual(layout.positions[0].length, 20);
+            const seats = layout.positions.flat();
+            this.assertTrue(Math.min(...seats.map(position => position.x)) >= 0);
+            this.assertTrue(
+                Math.max(...seats.map(position => position.x + layout.seatSize)) <= layout.displayWidth
+            );
             const target = layout.positions[4][8];
             const hit = hitTestCinemaSeat(layout, { x: target.cx, y: target.cy });
             this.assertEqual(hit.row, 4);

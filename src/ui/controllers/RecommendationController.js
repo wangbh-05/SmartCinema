@@ -96,12 +96,12 @@ export class RecommendationController {
     render(recommendation, userNames) {
         if (!this.result) return;
         this.result.replaceChildren();
-        this.result.appendChild(this._element('h4', '🎯 推荐结果'));
-        this.result.appendChild(this._element('p', `👤 ${userNames.join('、')}`));
+        this.result.appendChild(this._element('h4', '推荐结果'));
+        this.result.appendChild(this._element('p', userNames.join('、')));
         recommendation.reason.split('\n').forEach(line => {
             this.result.appendChild(this._element('p', line));
         });
-        const button = this._element('button', '✓ 应用推荐');
+        const button = this._element('button', '应用推荐');
         button.type = 'button';
         button.className = 'btn btn-primary';
         button.addEventListener('click', () => this.apply());

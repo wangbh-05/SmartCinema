@@ -1,100 +1,68 @@
-/* ===== CSS 变量定义 ===== */
-
 :root {
-    /* 色彩系统 */
-    --color-primary: #FF6B35;
-    --color-primary-dark: #E55A2B;
-    --color-secondary: #004E89;
-    --color-secondary-light: #1E88E5;
-    --color-success: #00AA00;
-    --color-warning: #FFBB00;
-    --color-danger: #FF4444;
-    --color-error: #D32F2F;
-    
-    /* 中性色 */
-    --color-white: #FFFFFF;
-    --color-black: #000000;
-    --color-gray-50: #F9FAFB;
-    --color-gray-100: #F3F4F6;
-    --color-gray-200: #E5E7EB;
-    --color-gray-300: #D1D5DB;
-    --color-gray-400: #9CA3AF;
-    --color-gray-500: #6B7280;
-    --color-gray-600: #4B5563;
-    --color-gray-700: #374151;
-    --color-gray-800: #1F2937;
-    --color-gray-900: #111827;
-    
-    /* 座位颜色 */
-    --seat-available: #E0F2F1;
-    --seat-available-hover: #B2DFDB;
-    --seat-selected: #FF6B35;
-    --seat-unavailable: #BDBDBD;
-    --seat-recommended: #FFBB00;
-    
-    /* 热度地图 */
-    --heatmap-cold: #00AA00;
-    --heatmap-warm: #FFFF00;
-    --heatmap-hot: #FF0000;
-    
-    /* 间距 */
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 16px;
-    --spacing-lg: 24px;
-    --spacing-xl: 32px;
-    --spacing-2xl: 48px;
-    
-    /* 圆角 */
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-    --radius-xl: 16px;
-    --radius-full: 9999px;
-    
-    /* 阴影 */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-    
-    /* 过渡 */
-    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-slow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    
-    /* 字体大小 */
-    --font-xs: 0.75rem;
-    --font-sm: 0.875rem;
-    --font-base: 1rem;
-    --font-lg: 1.125rem;
-    --font-xl: 1.25rem;
-    --font-2xl: 1.5rem;
-    --font-3xl: 1.875rem;
-    --font-4xl: 2.25rem;
-    
-    /* Z-index */
-    --z-base: 0;
-    --z-dropdown: 100;
+    color-scheme: light;
+    --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --surface-page: #f4f5f7;
+    --surface-header: rgba(255, 255, 255, 0.9);
+    --surface-panel: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-subtle: #f0f2f5;
+    --surface-input: #ffffff;
+    --surface-overlay: rgba(15, 18, 24, 0.58);
+    --text-primary: #171a21;
+    --text-secondary: #626a78;
+    --text-tertiary: #858d9a;
+    --border-color: #dfe3e8;
+    --border-strong: #cbd1d9;
+    --accent: #4f72e8;
+    --accent-strong: #3f5fc6;
+    --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+    --success: #24865a;
+    --warning: #b7791f;
+    --danger: #c64646;
+    --focus-ring: color-mix(in srgb, var(--accent) 30%, transparent);
+    --shadow-sm: 0 1px 2px rgba(15, 18, 24, 0.06);
+    --shadow-md: 0 12px 32px rgba(15, 18, 24, 0.1);
+    --shadow-lg: 0 24px 64px rgba(15, 18, 24, 0.18);
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-pill: 999px;
+    --z-header: 100;
+    --z-chat: 800;
     --z-modal: 1000;
-    --z-tooltip: 1100;
-    --z-notification: 1200;
+    --z-toast: 1200;
 }
 
-/* 深色模式 */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --color-white: #1F2937;
-        --color-black: #F9FAFB;
-        color: #E5E7EB;
-        background-color: #111827;
-    }
-}
-
-/* 用户启用深色模式类 */
 body.dark-mode {
-    --color-white: #1F2937;
-    --color-black: #F9FAFB;
-    color: #E5E7EB;
-    background-color: #111827;
+    color-scheme: dark;
+    --surface-page: #101216;
+    --surface-header: rgba(16, 18, 22, 0.9);
+    --surface-panel: #171a20;
+    --surface-raised: #1c2027;
+    --surface-subtle: #20242c;
+    --surface-input: #12151a;
+    --surface-overlay: rgba(3, 5, 8, 0.72);
+    --text-primary: #f1f3f6;
+    --text-secondary: #a1a8b4;
+    --text-tertiary: #7f8794;
+    --border-color: #2c323c;
+    --border-strong: #3b4350;
+    --accent-strong: color-mix(in srgb, var(--accent) 82%, white);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+    --success: #46b77f;
+    --warning: #d8a149;
+    --danger: #e16b6b;
+    --focus-ring: color-mix(in srgb, var(--accent) 42%, transparent);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+    --shadow-md: 0 14px 36px rgba(0, 0, 0, 0.28);
+    --shadow-lg: 0 28px 72px rgba(0, 0, 0, 0.42);
 }

@@ -87,7 +87,6 @@ export class SeatData {
      */
     switchHall(hallType, dayIndex = 3) {
         if (!HALL_CONFIG[hallType]) {
-            console.error(`Invalid hall type: ${hallType}`);
             return false;
         }
         this.hallType = hallType;

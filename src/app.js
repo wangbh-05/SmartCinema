@@ -2,12 +2,12 @@
  * SmartCinema - 主应用入口
  * 初始化所有模块，管理应用状态和交互
  *
- * 加载顺序: Auth → SeatData → Cinema → Modules → UI Bindings
+ * 加载顺序: Application → SeatData projection → Canvas → UI controllers
  */
 
 import { SeatData, HALL_CONFIG } from './core/SeatData.js';
 import { Cinema } from './core/Cinema.js';
-import { HeatmapEngine } from './modules/HeatmapEngine.js';
+import { HeatmapRenderer } from './ui/canvas/HeatmapRenderer.js';
 
 import { AIChatbot } from './modules/AIChatbot.js';
 import { BrowserSpeechService } from './infrastructure/browser/BrowserSpeechService.js';
@@ -65,6 +65,7 @@ class SmartCinema {
         this.hallSelector = document.getElementById('hall-selector');
         this.heatmapCanvas = document.getElementById('heatmap-canvas');
         this.toast = new ToastController({ document, scheduler: window });
+        this.resizeFrame = null;
         this.authDialog = new AuthDialogController({
             auth: this.auth,
             onAuthChanged: () => {
@@ -78,13 +79,13 @@ class SmartCinema {
             auth: this.auth,
             orderManager: this.orderManager,
             document,
-            notify: message => window.alert(message)
+            notify: message => this.toast.show(message)
         });
         this.accountController = new AccountController({
             auth: this.auth,
             document,
             confirmAction: message => window.confirm(message),
-            notify: message => window.alert(message),
+            notify: message => this.toast.show(message),
             onOpenAuth: (mode, trigger) => this.showAuthModal(mode, trigger),
             onOpenAdmin: trigger => this.adminPanel.open(trigger),
             onAuthChanged: () => {
@@ -96,18 +97,18 @@ class SmartCinema {
         this.chatbotController = new ChatbotController({
             chatbot: this.chatbot,
             document,
-            getSeatData: () => this.seatData,
-            scheduler: window
+            getSeatData: () => this.seatData
         });
         this.backupController = new BackupController({
             controller: this.controller,
             document,
-            browserWindow: window
+            browserWindow: window,
+            notify: message => this.toast.show(message)
         });
 
         // 渲染引擎
         this.cinema = new Cinema(this.cinemaCanvas, this.seatData);
-        this.heatmap = this.heatmapCanvas ? new HeatmapEngine(this.heatmapCanvas, this.seatData) : null;
+        this.heatmap = this.heatmapCanvas ? new HeatmapRenderer(this.heatmapCanvas, this.seatData) : null;
 
         // WebSocket 事件模拟器：只产生事件，不直接修改 SeatData/Canvas。
         this.realtime = createBrowserRealtimeSimulator({
@@ -120,8 +121,10 @@ class SmartCinema {
             document,
             a11yManager: this.a11yManager,
             cinema: this.cinema,
+            heatmap: this.heatmap,
             realtime: this.realtime,
-            onExport: () => this.handleExport(),
+            onExport: () => this.handleExport(false),
+            onExportFull: () => this.handleExport(true),
             onImport: () => this.handleImport(),
             onError: message => this.toast.show(message)
         });
@@ -140,7 +143,7 @@ class SmartCinema {
             requireAuth: () => this.requireAuth(),
             onPreview: seats => this._previewRecommendation(seats),
             onApply: seats => this._applyRecommendedSeats(seats),
-            onError: message => window.alert(message)
+            onError: message => this.toast.show(message)
         });
         this.scoringController = new ScoringController({
             controller: this.controller,
@@ -162,8 +165,6 @@ class SmartCinema {
         this.updateUI();
         this.loadSettings();
 
-        console.log('SmartCinema initialized | Hall:', this.seatData.hallType,
-            '| Auth:', this.auth.isLoggedIn() ? this.auth.getCurrentUser().username : 'none');
     }
 
     /* ================================================================
@@ -193,7 +194,7 @@ class SmartCinema {
 
         // ★ 日期切换（热度图动态变化）
         document.getElementById('day-selector')?.addEventListener('change', (e) => {
-            this.switchDay(parseInt(e.target.value));
+            this.switchDay(Number.parseInt(e.target.value, 10));
         });
 
         // ★ 提交订单 → 跳转独立页面
@@ -208,19 +209,16 @@ class SmartCinema {
 
         // 智能推荐按钮
         document.getElementById('smart-recommend')?.addEventListener('click', () => {
-            document.getElementById('recommend-panel')?.scrollIntoView({ behavior: 'smooth' });
+            this._scrollIntoView(document.getElementById('recommend-panel'));
         });
 
         // 手动选座按钮
         document.getElementById('manual-select')?.addEventListener('click', () => {
-            this.cinemaCanvas.scrollIntoView({ behavior: 'smooth' });
+            this._scrollIntoView(this.cinemaCanvas);
         });
 
         // 窗口缩放
-        window.addEventListener('resize', () => {
-            this.cinema.resize();
-            this.updateHeatmap();
-        });
+        window.addEventListener('resize', () => this._scheduleResize());
 
         // 键盘快捷键
         document.addEventListener('keydown', (e) => {
@@ -363,7 +361,7 @@ class SmartCinema {
 
         const selected = this.seatData.getSelectedSeats();
         if (selected.length === 0) {
-            alert('请先选择座位');
+            this.toast.show('请先选择座位');
             return;
         }
 
@@ -377,7 +375,7 @@ class SmartCinema {
             }))
         });
         if (!checkout.ok) {
-            alert(checkout.error.message);
+            this.toast.show(checkout.error.message);
             this.applyPersistedSoldSeats();
             this.cinema.redraw();
             return;
@@ -456,13 +454,13 @@ class SmartCinema {
             if (evt.showtimeId === this.controller.getState().showtimeId) {
                 this.applyPersistedSoldSeats();
             }
-            this.toast.show(`🔔 ${evt.ownerLabel} 刚刚购买了 ${this._seatLabel(evt.seatKey)}`);
+            this.toast.show(`${evt.ownerLabel} 刚刚购买了 ${this._seatLabel(evt.seatKey)}`);
         } else {
             const held = this.controller.applyRemoteHold(evt);
             if (!held.ok || evt.showtimeId !== this.controller.getState().showtimeId) return;
             this._projectRemoteHolds();
             if (evt.type === 'hold') {
-                this.toast.show(`👆 ${evt.ownerLabel} 正在查看 ${this._seatLabel(evt.seatKey)}`);
+                this.toast.show(`${evt.ownerLabel} 正在查看 ${this._seatLabel(evt.seatKey)}`);
             }
         }
         this.cinema.redraw();
@@ -489,8 +487,8 @@ class SmartCinema {
         return this.seatProjection.syncSelection();
     }
 
-    handleExport() {
-        return this.backupController.export();
+    handleExport(includeCredentials = false) {
+        return this.backupController.export({ includeCredentials });
     }
 
     handleImport() {
@@ -527,6 +525,21 @@ class SmartCinema {
         return `${row + 1}排${col + 1}座`;
     }
 
+    _scheduleResize() {
+        if (this.resizeFrame !== null) return;
+        this.resizeFrame = window.requestAnimationFrame(() => {
+            this.resizeFrame = null;
+            this.cinema.resize();
+            this.updateHeatmap();
+        });
+    }
+
+    _scrollIntoView(element) {
+        if (!element) return;
+        const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+        element.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+
     _isEditableTarget(target) {
         if (!(target instanceof Element)) return false;
         return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
@@ -540,7 +553,6 @@ document.addEventListener('DOMContentLoaded', () => {
     app = new SmartCinema();
     // 暴露只读入口，供浏览器回归与本地诊断使用。
     window.app = app;
-    console.log('🎬 SmartCinema ready');
 });
 
 export default SmartCinema;

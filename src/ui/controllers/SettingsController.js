@@ -12,8 +12,10 @@ export class SettingsController {
         document,
         a11yManager,
         cinema,
+        heatmap = null,
         realtime,
         onExport,
+        onExportFull,
         onImport,
         onError
     }) {
@@ -24,8 +26,10 @@ export class SettingsController {
         this.document = document;
         this.a11yManager = a11yManager;
         this.cinema = cinema;
+        this.heatmap = heatmap;
         this.realtime = realtime;
         this.onExport = onExport;
+        this.onExportFull = onExportFull;
         this.onImport = onImport;
         this.onError = onError;
         this.bound = false;
@@ -56,6 +60,7 @@ export class SettingsController {
             this.setAccentColor(event.target.value);
         });
         this.document.getElementById('export-data')?.addEventListener('click', () => this.onExport?.());
+        this.document.getElementById('export-full-data')?.addEventListener('click', () => this.onExportFull?.());
         this.document.getElementById('import-data')?.addEventListener('click', () => this.onImport?.());
     }
 
@@ -167,6 +172,7 @@ export class SettingsController {
     _applyColorblindMode(enabled) {
         this.document.body.classList.toggle('colorblind-mode', enabled);
         this.cinema.setColorblindMode(enabled);
+        this.heatmap?.setColorblindMode(enabled);
     }
 
     _applyRealtimeEnabled(enabled) {

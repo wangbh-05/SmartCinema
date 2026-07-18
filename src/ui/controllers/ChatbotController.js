@@ -1,12 +1,10 @@
 const SUGGESTIONS = ['推荐座位', '票价多少', '哪个位置好', '怎么看评分', '放映厅信息', '帮助'];
 
 export class ChatbotController {
-    constructor({ chatbot, document, getSeatData, scheduler, random = Math.random }) {
+    constructor({ chatbot, document, getSeatData }) {
         this.chatbot = chatbot;
         this.document = document;
         this.getSeatData = getSeatData;
-        this.scheduler = scheduler;
-        this.random = random;
         this.toggleButton = document.getElementById('ai-chat-toggle');
         this.panel = document.getElementById('ai-chat-panel');
         this.closeButton = document.getElementById('ai-chat-close');
@@ -38,9 +36,9 @@ export class ChatbotController {
         if (!this.panel) {
             return false;
         }
-        const currentlyVisible = this.panel.style.display === 'flex';
+        const currentlyVisible = !this.panel.hidden;
         const visible = show === undefined ? !currentlyVisible : Boolean(show);
-        this.panel.style.display = visible ? 'flex' : 'none';
+        this.panel.hidden = !visible;
         this.toggleButton?.setAttribute('aria-expanded', String(visible));
         if (visible) {
             this.input?.focus();
@@ -77,10 +75,7 @@ export class ChatbotController {
         this.chatbot.sd = this.getSeatData();
         this._appendMessage('user', text);
         this.input.value = '';
-        const delay = 200 + this.random() * 400;
-        this.scheduler.setTimeout(() => {
-            this._appendMessage('bot', this.chatbot.chat(text));
-        }, delay);
+        this._appendMessage('bot', this.chatbot.chat(text));
         return true;
     }
 

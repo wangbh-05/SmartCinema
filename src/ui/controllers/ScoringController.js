@@ -81,7 +81,7 @@ export class ScoringController {
         const rows = this._element('div', 'score-detail-rows');
         score.details.forEach(detail => {
             const row = this._element('div', 'score-detail-row');
-            row.appendChild(this._element('span', 'score-detail-category', `${detail.emoji} ${detail.category}`));
+            row.appendChild(this._element('span', 'score-detail-category', detail.category));
             const value = this._element('span', 'score-detail-value');
             value.appendChild(this._element('span', 'score-detail-description', detail.description));
             value.appendChild(this._element('strong', '', `${detail.score} / ${detail.maxScore}`));
@@ -110,7 +110,7 @@ export class ScoringController {
         this.combined.appendChild(this._element(
             'div',
             'combined-score-total',
-            `⭐ 综合评分：${score.totalScore} / 100 · ${score.gradeText}`
+            `综合评分 ${score.totalScore} / 100 · ${score.gradeText}`
         ));
         this.combined.hidden = false;
     }

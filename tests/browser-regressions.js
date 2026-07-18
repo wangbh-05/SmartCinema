@@ -275,22 +275,40 @@ async function run() {
         }
     });
 
-    await xfail('BUG-006', '目标视口矩阵不得产生页面横向溢出', async () => {
+    await regression('BUG-006', '目标视口矩阵不得产生页面溢出或裁掉座位', async () => {
         const widths = [320, 390, 768, 800, 900, 1024, 1440];
         const frame = await createAppFrame(1440);
         try {
             const failures = [];
-            for (const width of widths) {
-                frame.style.width = `${width}px`;
-                frame.contentWindow.dispatchEvent(new Event('resize'));
-                await delay(40);
-                const root = frame.contentDocument.documentElement;
-                if (root.scrollWidth > root.clientWidth + 1) {
-                    failures.push(`${width}px: ${root.scrollWidth} > ${root.clientWidth}`);
+            for (const mode of ['默认', '无障碍']) {
+                if (mode === '无障碍') {
+                    const control = frame.contentDocument.getElementById('accessibility-toggle');
+                    control.checked = true;
+                    control.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+                }
+                for (const width of widths) {
+                    frame.style.width = `${width}px`;
+                    frame.contentWindow.dispatchEvent(new Event('resize'));
+                    await delay(40);
+                    const root = frame.contentDocument.documentElement;
+                    if (root.scrollWidth > root.clientWidth + 1) {
+                        failures.push(`${mode} ${width}px: ${root.scrollWidth} > ${root.clientWidth}`);
+                    }
+                    const layout = frame.contentWindow.app?.cinema?.layout;
+                    const positions = layout?.positions?.flat?.() || [];
+                    if (positions.length > 0) {
+                        const minSeatX = Math.min(...positions.map(position => position.x));
+                        const maxSeatX = Math.max(...positions.map(position => position.x + layout.seatSize));
+                        if (minSeatX < -0.5 || maxSeatX > layout.displayWidth + 0.5) {
+                            failures.push(
+                                `${mode} ${width}px: 座位范围 ${minSeatX.toFixed(1)}–${maxSeatX.toFixed(1)} 超出 Canvas ${layout.displayWidth}`
+                            );
+                        }
+                    }
                 }
             }
 
-            assertContract(failures.length === 0, `横向溢出：${failures.join('；')}`);
+            assertContract(failures.length === 0, `响应式布局失败：${failures.join('；')}`);
         } finally {
             disposeFrame(frame);
         }
@@ -333,6 +351,13 @@ async function run() {
             overlay.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
 
             assertContract(overlay.classList.contains('active'), '从内容拖到遮罩释放后弹窗被误关闭');
+
+            const username = doc.getElementById('auth-username');
+            username.value = 'unfinished';
+            username.dispatchEvent(new win.Event('input', { bubbles: true }));
+            overlay.dispatchEvent(new PointerEventClass('pointerdown', { bubbles: true }));
+            overlay.dispatchEvent(new PointerEventClass('pointerup', { bubbles: true }));
+            assertContract(overlay.classList.contains('active'), '未提交表单被遮罩点击意外关闭');
         } finally {
             disposeFrame(frame);
         }
@@ -495,8 +520,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 10 && state.xfail === 1 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：10 个修复通过，1 个响应式问题稳定复现' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 11 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：11 个缺陷回归全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     document.documentElement.dataset.pass = String(state.pass);
     document.documentElement.dataset.xfail = String(state.xfail);
