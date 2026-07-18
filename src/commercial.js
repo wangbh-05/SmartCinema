@@ -3,6 +3,7 @@ import { AuthViewAdapter } from './ui/adapters/AuthViewAdapter.js';
 import { DialogController } from './ui/components/DialogController.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
 import { CommercialOrdersController } from './ui/controllers/CommercialOrdersController.js';
+import { CommercialPreferencesController } from './ui/controllers/CommercialPreferencesController.js';
 import {
     appendText,
     formatAmount,
@@ -97,6 +98,12 @@ class CommercialBookingPage {
                 if (showtimeId === this.context?.showtime.id) this.refreshInventory();
             }
         });
+        this.preferencesController = new CommercialPreferencesController({
+            preferences: this.app.preferences,
+            account: this.app.account,
+            onNotify: message => this.notify(message),
+            onAnnounce: message => this.announce(message)
+        });
     }
 
     bindStaticEvents() {
@@ -106,9 +113,13 @@ class CommercialBookingPage {
             const result = this.app.account.logout();
             if (!result.ok) return this.notify(result.error.message);
             this.updateAccountHeader();
+            this.preferencesController.refresh();
             this.renderCheckout();
             this.notify('已退出登录');
         });
+        element('btn-preferences').addEventListener('click', event =>
+            this.preferencesController.open(event.currentTarget)
+        );
         element('btn-orders').addEventListener('click', event => this.openOrders(event.currentTarget));
         element('showtime-list').addEventListener('click', event => {
             const button = event.target.closest('[data-showtime-id]');
@@ -908,6 +919,7 @@ class CommercialBookingPage {
 
     handleAuthChanged() {
         this.updateAccountHeader();
+        this.preferencesController.refresh();
         this.renderCheckout();
         if (this.checkoutDialog.isOpen()) {
             requestAnimationFrame(() => element('confirm-order')?.focus());

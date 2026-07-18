@@ -24,6 +24,10 @@
                 </span>
             </a>
             <nav class="header-actions" aria-label="账户导航">
+                <button class="header-link" id="btn-preferences" type="button" aria-label="账户与观影辅助">
+                    <span aria-hidden="true">◐</span>
+                    <span class="header-link-label">观影辅助</span>
+                </button>
                 <button class="header-link" id="btn-orders" type="button">
                     <span aria-hidden="true">◎</span>
                     <span class="header-link-label">我的订单</span>
@@ -225,6 +229,29 @@
                 <button class="primary-action dialog-submit" id="auth-submit" type="submit">登录</button>
                 <button class="text-action" id="auth-switch" type="button">没有账号？立即注册</button>
             </form>
+        </div>
+    </div>
+
+    <div class="dialog-overlay preferences-overlay" id="preferences-dialog" aria-hidden="true">
+        <div class="commerce-dialog preferences-dialog" role="dialog" aria-modal="true" aria-labelledby="preferences-title" tabindex="-1">
+            <button class="dialog-close" id="preferences-close" type="button" aria-label="关闭账户与观影辅助">×</button>
+            <p class="dialog-eyebrow">账户偏好</p>
+            <h2 id="preferences-title">观影辅助</h2>
+            <p class="dialog-intro" id="preferences-scope"></p>
+            <div class="preference-settings">
+                <label class="preference-setting" for="preference-readable">
+                    <span><strong>增强可读性</strong><small>提高文字、边框和焦点的辨识度</small></span>
+                    <input id="preference-readable" type="checkbox">
+                </label>
+                <label class="preference-setting" for="preference-colorblind">
+                    <span><strong>色觉友好座位状态</strong><small>增加纹理与轮廓，减少仅靠颜色区分</small></span>
+                    <input id="preference-colorblind" type="checkbox">
+                </label>
+                <label class="preference-setting" for="preference-motion">
+                    <span><strong>减少动态效果</strong><small>关闭非必要过渡与平滑滚动</small></span>
+                    <input id="preference-motion" type="checkbox">
+                </label>
+            </div>
         </div>
     </div>
 

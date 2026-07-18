@@ -470,6 +470,34 @@ async function run() {
         }
     });
 
+    await regression('A11Y-002', '观影辅助偏好应即时应用并跨刷新持久化', async () => {
+        let frame = await createAppFrame();
+        try {
+            let doc = frame.contentDocument;
+            const win = frame.contentWindow;
+            doc.getElementById('btn-preferences').click();
+            const readable = doc.getElementById('preference-readable');
+            const colorblind = doc.getElementById('preference-colorblind');
+            const motion = doc.getElementById('preference-motion');
+            [readable, colorblind, motion].forEach(input => {
+                input.checked = true;
+                input.dispatchEvent(new win.Event('change', { bubbles: true }));
+            });
+            assertContract(doc.body.classList.contains('commerce-readable'), '增强可读性未即时应用');
+            assertContract(doc.body.classList.contains('commerce-colorblind'), '色觉友好模式未即时应用');
+            assertContract(doc.documentElement.dataset.commerceMotion === 'reduce', '减少动态效果未即时应用');
+
+            disposeFrame(frame);
+            frame = await createAppFrame(1200, true);
+            doc = frame.contentDocument;
+            assertContract(doc.body.classList.contains('commerce-readable'), '刷新后丢失增强可读性偏好');
+            assertContract(doc.body.classList.contains('commerce-colorblind'), '刷新后丢失色觉友好偏好');
+            assertContract(doc.documentElement.dataset.commerceMotion === 'reduce', '刷新后丢失动态偏好');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
     await regression('SEC-001', '用户可控账户字段必须作为纯文本渲染', async () => {
         const frame = await createAppFrame();
         try {
@@ -499,8 +527,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 14 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：13 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 15 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：14 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);

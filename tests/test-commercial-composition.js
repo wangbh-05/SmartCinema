@@ -109,6 +109,42 @@ export default class TestCommercialComposition {
             this.assertEqual(deps.app.account.getCurrentUser().name, '观众');
         });
 
+        this.test('消费者辅助偏好应通过应用服务持久化到 guest 单一状态源', () => {
+            const deps = this._deps();
+            this.assertTrue(deps.app.initialize().ok);
+            const updated = deps.app.preferences.update({
+                accessibilityMode: true,
+                colorblindMode: true,
+                reducedMotion: 'reduce'
+            });
+            this.assertTrue(updated.ok);
+            const settings = deps.app.preferences.get();
+            this.assertTrue(settings.ok);
+            this.assertTrue(settings.value.accessibilityMode);
+            this.assertTrue(settings.value.colorblindMode);
+            this.assertEqual(settings.value.reducedMotion, 'reduce');
+        });
+
+        this.test('登录账户与访客辅助偏好应隔离并在退出后恢复访客设置', () => {
+            const deps = this._deps();
+            this.assertTrue(deps.app.initialize().ok);
+            this.assertTrue(deps.app.preferences.update({ accessibilityMode: true }).ok);
+            this.assertTrue(deps.app.account.register({
+                username: 'preferences-viewer',
+                password: 'secret1',
+                name: '偏好观众',
+                email: ''
+            }).ok);
+            this.assertTrue(deps.app.preferences.get().value.accessibilityMode);
+            this.assertTrue(deps.app.preferences.update({
+                accessibilityMode: false,
+                reducedMotion: 'reduce'
+            }).ok);
+            this.assertTrue(deps.app.account.logout().ok);
+            this.assertTrue(deps.app.preferences.get().value.accessibilityMode);
+            this.assertEqual(deps.app.preferences.get().value.reducedMotion, 'system');
+        });
+
         this.test('推荐应返回合法连座并可由同一应用服务报价', () => {
             const deps = this._deps();
             this.assertTrue(deps.app.initialize().ok);

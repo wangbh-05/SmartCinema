@@ -36,7 +36,9 @@ src/application/commercial/
 ├── CommercialAccountService
 ├── CommercialBookingService
 └── RecommendSeatBlock
-src/ui/controllers/CommercialOrdersController
+src/ui/controllers/
+├── CommercialOrdersController
+└── CommercialPreferencesController
                 ↓
 src/domain/catalog + booking + order
                 ↑
@@ -97,17 +99,17 @@ src/infrastructure/
 
 ```text
 npm test
-总计: 148 | 通过: 148 | 失败: 0
+总计: 150 | 通过: 150 | 失败: 0
 ```
 
 原有 105 项测试全部保留；新增商业目录、Money、BookingDraft、价格、座位规则、hold、订单快照、Storage v3、v2→v3、应用服务、组合根、营业日、推荐和 v3 认证测试。
 
 ```text
 http://127.0.0.1:8080/tests/browser-regressions.html
-PASS 14 · XFAIL 0 · XPASS 0 · ERROR 0
+PASS 15 · XFAIL 0 · XPASS 0 · ERROR 0
 ```
 
-浏览器契约覆盖新生产入口、票座一致、无障碍门控、锁座跨刷新恢复/抢座冲突/释放、访客登录确认、重复提交、政策驱动退票、320–1440px、Enter、背景拖动、关闭/Escape/焦点、键盘选座、安全文本与运行时错误。
+浏览器契约覆盖新生产入口、票座一致、无障碍门控、锁座跨刷新恢复/抢座冲突/释放、访客登录确认、重复提交、政策驱动退票、账户辅助偏好、320–1440px、Enter、背景拖动、关闭/Escape/焦点、键盘选座、安全文本与运行时错误。
 
 ## 7. 当前延期项
 
@@ -119,7 +121,8 @@ PASS 14 · XFAIL 0 · XPASS 0 · ERROR 0
 - 支付网关、优惠券和卖品；
 - [x] 订单取消、退款资格计算和状态时间线；
 - [ ] 电子票二维码与支付渠道退款回调；
-- 账户偏好/辅助设置与内部工具页；
+- [x] 账户/访客观影辅助偏好与生产样式联动；
+- [ ] 完整账户资料与内部工具最终拆分；
 - 真实读屏、高对比、色盲、大字体和 reduced-motion 人工验收；
 - 旧 Canvas、评分、热图、realtime 和备份链路的最终删除。
 

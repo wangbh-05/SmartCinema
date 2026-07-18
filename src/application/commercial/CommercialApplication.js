@@ -7,6 +7,7 @@ export class CommercialApplication {
         v3Migration,
         booking,
         account,
+        preferences,
         guestOwnerRepository,
         bookingDraftRepository,
         stateRepository,
@@ -17,6 +18,7 @@ export class CommercialApplication {
         this.v3Migration = v3Migration;
         this.booking = booking;
         this.account = account;
+        this.preferences = preferences;
         this.guestOwnerRepository = guestOwnerRepository;
         this.bookingDrafts = bookingDraftRepository;
         this.stateRepository = stateRepository;

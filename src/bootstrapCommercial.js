@@ -1,6 +1,7 @@
 import { CommercialAccountService } from './application/commercial/CommercialAccountService.js';
 import { CommercialApplication } from './application/commercial/CommercialApplication.js';
 import { CommercialBookingService } from './application/commercial/CommercialBookingService.js';
+import { CommercialPreferencesService } from './application/commercial/CommercialPreferencesService.js';
 import { BrowserClock } from './infrastructure/browser/BrowserClock.js';
 import { bookableBusinessDateInTimeZone } from './infrastructure/browser/BusinessDate.js';
 import { BrowserIdGenerator } from './infrastructure/browser/BrowserIdGenerator.js';
@@ -41,6 +42,7 @@ export function createBrowserCommercialApplication({
         idGenerator
     });
     const account = new CommercialAccountService({ stateRepository, clock, idGenerator });
+    const preferences = new CommercialPreferencesService({ stateRepository });
     const guestOwnerRepository = new SessionGuestOwnerRepository({
         storage: sessionStorage,
         idGenerator
@@ -51,6 +53,7 @@ export function createBrowserCommercialApplication({
         v3Migration,
         booking,
         account,
+        preferences,
         guestOwnerRepository,
         bookingDraftRepository,
         stateRepository,

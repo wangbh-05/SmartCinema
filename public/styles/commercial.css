@@ -1150,6 +1150,48 @@ button:disabled {
     border-color: var(--commerce-ink);
 }
 
+.preferences-dialog {
+    width: min(100%, 500px);
+}
+
+.preference-settings {
+    display: grid;
+    gap: 9px;
+}
+
+.preference-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 14px;
+    border: 1px solid var(--commerce-border);
+    border-radius: 11px;
+    background: var(--commerce-panel);
+    cursor: pointer;
+}
+
+.preference-setting > span {
+    display: grid;
+    gap: 3px;
+}
+
+.preference-setting strong {
+    font-size: 12px;
+}
+
+.preference-setting small {
+    color: var(--commerce-muted);
+    font-size: 10px;
+}
+
+.preference-setting input {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 auto;
+    accent-color: var(--commerce-accent);
+}
+
 .auth-error {
     display: none;
     margin: 2px 0 12px;
@@ -1472,6 +1514,50 @@ button:disabled {
     color: var(--commerce-muted);
     font-size: 12px;
     text-align: center;
+}
+
+body.commerce-readable {
+    --commerce-muted: #4d4a45;
+    --commerce-border: #c9c3b9;
+    --seat-size: 30px;
+    --seat-gap: 7px;
+}
+
+body.commerce-readable :focus-visible {
+    outline-width: 3px;
+    outline-offset: 3px;
+}
+
+body.commerce-readable .ticket-copy span,
+body.commerce-readable .ticket-copy small,
+body.commerce-readable .refund-note,
+body.commerce-readable .hold-note,
+body.commerce-readable .movie-synopsis {
+    font-size: 12px;
+}
+
+body.commerce-colorblind .seat-button.is-selected {
+    border-color: #176387;
+    background: #176387;
+    box-shadow: inset 0 0 0 2px #fff;
+}
+
+body.commerce-colorblind .seat-button.is-sold,
+body.commerce-colorblind .seat-button.is-held {
+    background: repeating-linear-gradient(135deg, #2a2f38 0 4px, #4a505b 4px 6px);
+}
+
+body.commerce-colorblind .seat-button.is-premium:not(.is-selected) {
+    border-style: dashed;
+}
+
+html[data-commerce-motion="reduce"] *,
+html[data-commerce-motion="reduce"] *::before,
+html[data-commerce-motion="reduce"] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
 }
 
 .toast {
