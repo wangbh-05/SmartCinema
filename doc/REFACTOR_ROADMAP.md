@@ -400,3 +400,15 @@ src/
 - 新增 6 项 UI Controller 测试，覆盖设置加载、写失败回滚、Toast 计时、结算摘要、安全文本渲染和退票回调；Node 全局实测 89/89 通过；
 - `src/app.js` 从 1204 行降至 1062 行；浏览器矩阵仍为 PASS 9、XFAIL 1、XPASS 0、ERROR 0；真实页面验证历史订单空态与注册成功通知；
 - 下一切片把推荐、系统评分和用户评分协调迁入 application/UI 边界，并删除页面入口中的派生状态与大段模板拼接。
+
+### 2026-07-18 · 阶段 3 · 切片 10
+
+- 新增只读 SeatLayoutSnapshot，统一推荐与评分需要的座位、价格、选中、已售和 remote-held 输入；UI adapter 负责从旧 SeatData 生成快照，application 不反向依赖 UI/Core；
+- 新增纯 RecommendSeats 用例，保留少年/老年硬约束与情侣、家庭、团体连续座位策略，并返回 canonical SeatKey；旧 RecommendEngine 缩减为兼容适配器；
+- 新增纯 ScoreSelection/CombineScores 用例，系统评分和用户评分逐项校验并输出冻结的结构化结果；旧 ScoreEngine 缩减为兼容适配器；
+- AppController 新增 recommendation、systemScore、manualScore、combinedScore 命令与 AppState 更新；选择变化和库存 revision 变化按契约失效派生结果；
+- 相同 seatKeys 的 replaceSelection 改为幂等：真实流程发现重复同步会清掉刚计算的 systemScore，修复后相同命令保持当前 AppState 与综合评分；
+- 新增 RecommendationController 与 ScoringController，表单、推荐结果、评分详情和综合评分改用安全 DOM 节点渲染；页面入口不再拼接这些模板，也移除非必要的 400ms 数字滚动动画；
+- 新增 7 项派生状态测试和 2 项 UI 控制器测试；Node 全局实测 98/98 通过；application/domain 边界扫描无 DOM、浏览器存储或 UI 反向依赖；
+- `src/app.js` 从 1062 行降至 858 行；真实浏览器完成“注册 → 推荐 → 应用 → 系统评分 → 用户综合评分”，最终显示系统 95、用户 50、综合 77；
+- 浏览器矩阵再次实测 PASS 9、XFAIL 1、XPASS 0、ERROR 0；下一切片拆分 Canvas 输入、布局与绘制职责。

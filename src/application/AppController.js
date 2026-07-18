@@ -16,6 +16,9 @@ import { changeShowtime } from './selection/ChangeShowtime.js';
 import { toggleSeat } from './selection/ToggleSeat.js';
 import { updateSettings } from './settings/UpdateSettings.js';
 import { applyRemotePurchase } from './selection/ApplyRemotePurchase.js';
+import { getSelectedLayoutSeats } from './cinema/SeatLayoutSnapshot.js';
+import { recommendSeats as runSeatRecommendation } from './recommendation/RecommendSeats.js';
+import { combineScores, scoreSelection } from './scoring/ScoreSelection.js';
 
 export class AppController {
     constructor({
@@ -147,6 +150,11 @@ export class AppController {
 
     replaceSelection(seatKeys) {
         if (!this.appState) return err('VALIDATION_ERROR', 'AppController 尚未初始化');
+        if (Array.isArray(seatKeys)) {
+            const requested = [...seatKeys].sort();
+            const current = [...this.appState.selection.seatKeys].sort();
+            if (JSON.stringify(requested) === JSON.stringify(current)) return ok(this.appState);
+        }
         try {
             const result = replaceSelection(
                 this.appState.selection,
@@ -162,6 +170,45 @@ export class AppController {
         } catch (error) {
             return err('VALIDATION_ERROR', error.message);
         }
+    }
+
+    recommendSeats(layout, input) {
+        if (!this.appState) return err('VALIDATION_ERROR', 'AppController 尚未初始化');
+        const result = runSeatRecommendation(layout, input);
+        if (!result.ok) return result;
+        this.appState = Object.freeze({
+            ...this.appState,
+            recommendation: result.value
+        });
+        return ok({ recommendation: result.value, state: this.appState });
+    }
+
+    calculateSystemScore(layout) {
+        if (!this.appState) return err('VALIDATION_ERROR', 'AppController 尚未初始化');
+        const layoutSeatKeys = getSelectedLayoutSeats(layout).map(seat => seat.seatKey).sort();
+        const stateSeatKeys = [...this.appState.selection.seatKeys].sort();
+        if (JSON.stringify(layoutSeatKeys) !== JSON.stringify(stateSeatKeys)) {
+            return err('STATE_CONFLICT', '评分座位快照与当前选择不一致');
+        }
+        const systemScore = scoreSelection(layout);
+        this.appState = Object.freeze({
+            ...this.appState,
+            systemScore,
+            combinedScore: null
+        });
+        return ok({ systemScore, state: this.appState });
+    }
+
+    submitManualScore(input) {
+        if (!this.appState) return err('VALIDATION_ERROR', 'AppController 尚未初始化');
+        const combined = combineScores(this.appState.systemScore, input);
+        if (!combined.ok) return combined;
+        this.appState = Object.freeze({
+            ...this.appState,
+            manualScore: combined.value.manualScore,
+            combinedScore: combined.value.combinedScore
+        });
+        return ok({ ...combined.value, state: this.appState });
     }
 
     applyRemoteHold(event) {
@@ -212,6 +259,9 @@ export class AppController {
         );
         const selection = selectionResult.ok ? selectionResult.value :
             replaceSelection(this.appState.selection, [], inventory, new Map(), this.clock.now()).value;
+        const inventoryChanged = inventory.revision !== this.appState.inventory.revision ||
+            JSON.stringify(inventory.soldSeatKeys) !== JSON.stringify(this.appState.inventory.soldSeatKeys);
+        const derivedStateIsValid = selectionResult.ok && !inventoryChanged;
         const settingsKey = persistedState.session?.userId || 'guest';
         this.appState = Object.freeze({
             ...this.appState,
@@ -219,9 +269,9 @@ export class AppController {
             session: persistedState.session,
             inventory,
             selection,
-            recommendation: selectionResult.ok ? this.appState.recommendation : null,
-            systemScore: selectionResult.ok ? this.appState.systemScore : null,
-            combinedScore: selectionResult.ok ? this.appState.combinedScore : null,
+            recommendation: derivedStateIsValid ? this.appState.recommendation : null,
+            systemScore: derivedStateIsValid ? this.appState.systemScore : null,
+            combinedScore: derivedStateIsValid ? this.appState.combinedScore : null,
             settings: persistedState.settingsByUser[settingsKey] || persistedState.settingsByUser.guest
         });
     }

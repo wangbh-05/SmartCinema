@@ -7,8 +7,6 @@
 
 import { SeatData, HALL_CONFIG, SEAT_STATUS } from './core/SeatData.js';
 import { Cinema } from './core/Cinema.js';
-import { RecommendEngine } from './modules/RecommendEngine.js';
-import { ScoreEngine } from './modules/ScoreEngine.js';
 import { HeatmapEngine } from './modules/HeatmapEngine.js';
 
 import { AIChatbot } from './modules/AIChatbot.js';
@@ -18,8 +16,11 @@ import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
 import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
 import { OrdersPanelController } from './ui/controllers/OrdersPanelController.js';
+import { RecommendationController } from './ui/controllers/RecommendationController.js';
+import { ScoringController } from './ui/controllers/ScoringController.js';
 import { SettingsController } from './ui/controllers/SettingsController.js';
 import { ToastController } from './ui/components/ToastController.js';
+import { snapshotSeatData } from './ui/adapters/SeatDataLayoutAdapter.js';
 
 class SmartCinema {
     constructor() {
@@ -36,8 +37,6 @@ class SmartCinema {
         this.orderManager = new LegacyOrderFacade(this.controller);
 
         // 引擎
-        this.recommendEngine = new RecommendEngine(this.seatData);
-        this.scoreEngine = new ScoreEngine(this.seatData);
         this.a11yManager = new AccessibilityManager();
 
         // AI 顾问
@@ -45,7 +44,6 @@ class SmartCinema {
 
         // DOM 引用
         this.cinemaCanvas = document.getElementById('cinema-canvas');
-        this.recommendForm = document.getElementById('recommend-form');
         this.hallSelector = document.getElementById('hall-selector');
         this.loginBtn = document.getElementById('btn-login');
         this.registerBtn = document.getElementById('btn-register');
@@ -91,6 +89,21 @@ class SmartCinema {
             onCancelled: order => this._refreshAfterOrderCancellation(order),
             onAnnounce: message => this.a11yManager.announce(message)
         });
+        this.recommendationController = new RecommendationController({
+            controller: this.controller,
+            document,
+            getSeatLayout: () => snapshotSeatData(this.seatData),
+            requireAuth: () => this.requireAuth(),
+            onPreview: seats => this._previewRecommendation(seats),
+            onApply: seats => this._applyRecommendedSeats(seats),
+            onError: message => window.alert(message)
+        });
+        this.scoringController = new ScoringController({
+            controller: this.controller,
+            document,
+            getSeatLayout: () => snapshotSeatData(this.seatData),
+            onError: message => this.toast.show(message)
+        });
 
         // 状态
         this.applyPersistedSoldSeats();
@@ -117,6 +130,8 @@ class SmartCinema {
     bindEvents() {
         this.settingsController.bind();
         this.ordersPanel.bind();
+        this.recommendationController.bind();
+        this.scoringController.bind();
 
         // Canvas 座位选择变更
         this.cinemaCanvas.addEventListener('selectionChange', (e) => {
@@ -134,22 +149,6 @@ class SmartCinema {
         document.getElementById('day-selector')?.addEventListener('change', (e) => {
             this.switchDay(parseInt(e.target.value));
         });
-
-        // 推荐表单
-        if (this.recommendForm) {
-            this.recommendForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.handleRecommend();
-            });
-        }
-
-        // ★ 级联：人数变更 → 更新年龄段选择方式和观影类型选项
-        const groupSizeInput = document.getElementById('group-size');
-        if (groupSizeInput) {
-            groupSizeInput.addEventListener('change', () => this.updateRecommendForm());
-            groupSizeInput.addEventListener('input', () => this.updateRecommendForm());
-            this.updateRecommendForm(); // 初始化
-        }
 
         // ★ 提交订单 → 跳转独立页面
         document.getElementById('btn-submit-order')?.addEventListener('click', () => {
@@ -221,8 +220,6 @@ class SmartCinema {
         this.seatData.switchHall(hallType, dayIndex);
         this.controller.changeShowtime(this._getShowtimeId(hallType, dayIndex));
         this.applyPersistedSoldSeats();
-        this.recommendEngine = new RecommendEngine(this.seatData);
-        this.scoreEngine = new ScoreEngine(this.seatData);
 
         // ★ 复用现有渲染实例，不创建新的 —— 避免多实例事件监听器叠加
         this.cinema.sd = this.seatData;
@@ -234,9 +231,7 @@ class SmartCinema {
         this.updateUI();
         this.updateScore();
 
-        // 清空推荐结果
-        const resultDiv = document.getElementById('recommend-result');
-        if (resultDiv) { resultDiv.innerHTML = ''; resultDiv.classList.remove('active'); }
+        this.recommendationController.clear();
 
         // 更新放映厅名称
         const nameEl1 = document.getElementById('hall-name-display');
@@ -256,6 +251,7 @@ class SmartCinema {
         this.updateHeatmap();
         this.updateUI();
         this.updateScore();
+        this.recommendationController.clear();
 
         const days = ['周一','周二','周三','周四','周五','周六','周日'];
         this.a11yManager.announce(`已切换到${days[dayIndex]}`);
@@ -285,127 +281,32 @@ class SmartCinema {
 
     /** 根据人数动态更新年龄段选择方式和观影类型选项 */
     updateRecommendForm() {
-        const groupSize = parseInt(document.getElementById('group-size')?.value) || 1;
-        const multiAge = groupSize >= 2;
-
-        // 切换年龄段选择方式
-        const selContainer = document.getElementById('age-select-container');
-        const chkContainer = document.getElementById('age-check-container');
-        if (selContainer) selContainer.style.display = multiAge ? 'none' : 'block';
-        if (chkContainer) chkContainer.style.display = multiAge ? 'block' : 'none';
-
-        // 切换姓名输入方式
-        const nameSingle = document.getElementById('name-single-wrapper');
-        const nameGroup = document.getElementById('name-group-wrapper');
-        const hint = document.getElementById('member-count-hint');
-        if (nameSingle) nameSingle.style.display = multiAge ? 'none' : 'block';
-        if (nameGroup) nameGroup.style.display = multiAge ? 'block' : 'none';
-        if (hint) hint.textContent = groupSize;
-
-        // 动态更新观影类型
-        const movieSelect = document.getElementById('movie-type');
-        if (!movieSelect) return;
-
-        let options = [{v:'',t:'-- 选择类型 --'}];
-        if (groupSize === 1) {
-            options.push({v:'solo', t:'🎬 个人观影'});
-        } else if (groupSize === 2) {
-            options.push({v:'couple', t:'💑 情侣'});
-            options.push({v:'friends', t:'👫 朋友'});
-            options.push({v:'parent_child', t:'👨‍👧 亲子'});
-        } else if (groupSize >= 3 && groupSize <= 4) {
-            options.push({v:'family', t:'👨‍👩‍👧 家庭'});
-            options.push({v:'friends', t:'👫 朋友'});
-        } else if (groupSize === 5) {
-            options.push({v:'family', t:'👨‍👩‍👧 家庭'});
-            options.push({v:'group', t:'👥 团体'});
-            options.push({v:'friends', t:'👫 朋友'});
-        } else {
-            options.push({v:'group', t:'👥 团体'});
-            options.push({v:'friends', t:'👫 朋友'});
-        }
-
-        movieSelect.innerHTML = options.map(o =>
-            `<option value="${o.v}">${o.t}</option>`
-        ).join('');
+        return this.recommendationController.updateForm();
     }
 
     /** 获取当前选择的年龄段（支持多选） */
     _getSelectedAges() {
-        const multiAge = parseInt(document.getElementById('group-size')?.value) >= 2;
-        if (multiAge) {
-            const checks = document.querySelectorAll('.age-check:checked');
-            if (checks.length === 0) return '';
-            return Array.from(checks).map(c => c.value).join(',');
-        }
-        return document.getElementById('age-group')?.value || '';
+        return this.recommendationController.getSelectedAges();
     }
 
     handleRecommend() {
-        if (!this.requireAuth()) return;
+        return this.recommendationController.submit();
+    }
 
-        const ageGroup = this._getSelectedAges();
-        const groupSize = parseInt(document.getElementById('group-size')?.value);
-        const movieType = document.getElementById('movie-type')?.value;
+    applyRecommendation() {
+        return this.recommendationController.apply();
+    }
 
-        if (!ageGroup || !movieType || isNaN(groupSize) || groupSize < 1) {
-            alert('请填写完整的推荐参数（人数→年龄段→观影类型→姓名）');
-            return;
-        }
-
-        // 收集姓名
-        let userNames = [];
-        if (groupSize === 1) {
-            const name = document.getElementById('user-name')?.value?.trim();
-            if (!name) { alert('请输入您的姓名'); return; }
-            userNames = [name];
-        } else {
-            const raw = document.getElementById('member-names')?.value?.trim();
-            if (!raw) { alert('请输入成员姓名'); return; }
-            userNames = raw.split('\n').map(s => s.trim()).filter(Boolean);
-            if (userNames.length < groupSize) {
-                alert(`请输入至少 ${groupSize} 位成员的姓名（当前 ${userNames.length} 人）`);
-                return;
-            }
-        }
-
-        const result = this.recommendEngine.recommend(ageGroup, groupSize, movieType);
-
-        if (!result.success) {
-            alert(result.message);
-            return;
-        }
-
-        // 高亮推荐座位
+    _previewRecommendation(seats) {
         this.seatData.clearRecommended();
-        this.seatData.setRecommended(result.seats);
-
-        // 显示推荐结果
-        const resultDiv = document.getElementById('recommend-result');
-        if (resultDiv) {
-            const nameLabel = groupSize === 1 ? userNames[0] : userNames.join('、');
-            resultDiv.innerHTML = `
-                <h4>🎯 推荐结果</h4>
-                <p>👤 ${nameLabel}</p>
-                <p>${result.reason.replace(/\n/g, '<br>')}</p>
-                <button class="btn btn-primary" id="btn-apply-recommend">
-                    ✓ 应用推荐
-                </button>
-            `;
-            resultDiv.classList.add('active');
-            document.getElementById('btn-apply-recommend')?.addEventListener('click', () => {
-                this.applyRecommendation();
-            });
-        }
-
+        this.seatData.setRecommended(seats);
         this.cinema.redraw();
         this.updateHeatmap();
     }
 
-    applyRecommendation() {
+    _applyRecommendedSeats(seats) {
         this.seatData.clearSelection();
-        const recommended = this.seatData.getRecommendedSeats();
-        recommended.forEach(seat => {
+        seats.forEach(seat => {
             this.seatData.selectSeat(seat.row, seat.col);
         });
         this.cinema.redraw();
@@ -418,6 +319,7 @@ class SmartCinema {
     handleClear() {
         this.seatData.clearSelection();
         this.seatData.clearRecommended();
+        this.recommendationController.clear();
         this.cinema.redraw();
         this.updateHeatmap();
         this.updateUI();
@@ -430,127 +332,21 @@ class SmartCinema {
      * ================================================================ */
 
     updateScore() {
-        const combined = document.getElementById('combined-score-result');
-        if (combined) {
-            combined.style.display = 'none';
-            combined.innerHTML = '';
-        }
-        const result = this.scoreEngine.calculateScore();
-        const scoreDiv = document.getElementById('score-details');
-        const manualPanel = document.getElementById('manual-score-panel');
-        if (!scoreDiv) return;
-
-        if (result.totalScore === 0) {
-            scoreDiv.innerHTML = '<p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>';
-            if (manualPanel) manualPanel.style.display = 'none';
-            return;
-        }
-
-        // 显示手动评分面板
-        if (manualPanel) { manualPanel.style.display = 'block'; this._bindManualScore(); }
-
-        const gradeColor = result.grade === 'excellent' ? '#FFD700' : result.grade === 'good' ? '#58A6FF' : '#8B949E';
-
-        let html = `
-            <div class="score-total-row" style="text-align:center;padding:12px 0;border-bottom:1px solid #30363D;margin-bottom:12px;">
-                <span id="score-anim-num" style="font-size:2em;font-weight:700;color:${gradeColor};">0</span>
-                <span style="font-size:0.9em;color:#8B949E;"> / 100</span>
-                <span style="display:inline-block;margin-left:12px;font-size:1.3em;font-weight:700;color:${gradeColor};">${result.gradeText}</span>
-            </div>
-            <div class="score-detail-rows" style="font-size:0.88em;line-height:2;">`;
-
-        result.details.forEach(d => {
-            html += `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
-                    <span>${d.emoji} ${d.category}</span>
-                    <span style="display:flex;align-items:center;gap:8px;">
-                        <span style="color:#8B949E;font-size:0.85em;">${d.description}</span>
-                        <span style="font-weight:600;color:#C9D1D9;">${d.score} / ${d.maxScore}</span>
-                    </span>
-                </div>`;
-        });
-
-        html += '</div>';
-
-        // 改进建议
-        if (result.recommendations && result.recommendations.length > 0) {
-            html += '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #30363D;">';
-            result.recommendations.forEach(r => {
-                html += `<p style="font-size:0.82em;color:#8B949E;margin:4px 0;">${r.message}</p>`;
-            });
-            html += '</div>';
-        }
-
-        scoreDiv.innerHTML = html;
-
-        // 数字滚动动画
-        this._animateScoreNum(result.totalScore);
+        return this.scoringController.update();
     }
 
-    /** 评分数字滚动动画 */
     _animateScoreNum(target) {
-        const el = document.getElementById('score-anim-num');
-        if (!el) return;
-        const start = performance.now();
-        const duration = 400;
-        const step = (now) => {
-            const t = Math.min(1, (now - start) / duration);
-            // easeOutCubic
-            const val = Math.round(target * (1 - Math.pow(1 - t, 3)));
-            el.textContent = val;
-            if (t < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
+        const score = this.controller.getState()?.systemScore;
+        if (score && score.totalScore === target) this.scoringController.renderSystemScore(score);
     }
 
-    /** 绑定手动评分滑块（仅首次） */
     _bindManualScore() {
-        if (this._manualScoreBound) return;
-        this._manualScoreBound = true;
-
-        const sliders = ['vision','distance','comfort','price'];
-        sliders.forEach(key => {
-            const el = document.getElementById(`manual-${key}`);
-            const valEl = document.getElementById(`manual-${key}-val`);
-            if (el && valEl) {
-                el.addEventListener('input', () => { valEl.textContent = el.value; });
-            }
-        });
-
-        document.getElementById('btn-submit-score')?.addEventListener('click', () => {
-            this._submitManualScore();
-        });
+        return this.scoringController.bind();
     }
 
     /** 提交手动评分并显示综合结果 */
     _submitManualScore() {
-        const system = this.scoreEngine.calculateScore();
-        if (system.totalScore === 0) return;
-
-        const uVision = parseFloat(document.getElementById('manual-vision')?.value) || 5;
-        const uDist = parseFloat(document.getElementById('manual-distance')?.value) || 5;
-        const uComfort = parseFloat(document.getElementById('manual-comfort')?.value) || 5;
-        const uPrice = parseFloat(document.getElementById('manual-price')?.value) || 5;
-
-        // 用户评分（相同权重）
-        const userOverall = uVision * 0.35 + uDist * 0.30 + uComfort * 0.20 + uPrice * 0.15;
-        const userTotal = Math.round(userOverall * 10);
-
-        // 综合：系统60% + 用户40%
-        const combined = Math.round(system.totalScore * 0.6 + userTotal * 0.4);
-        const grade = combined >= 80 ? '极佳' : combined >= 60 ? '优秀' : '一般';
-
-        const div = document.getElementById('combined-score-result');
-        if (div) {
-            div.style.display = 'block';
-            div.innerHTML = `
-                <div style="margin-bottom:6px;font-size:0.85em;color:var(--text-secondary);">
-                    系统评分 <b>${system.totalScore}</b> · 我的评分 <b>${userTotal}</b>
-                </div>
-                <div style="font-size:1.3em;font-weight:700;color:#FDD835;">
-                    ⭐ 综合评分：${combined} / 100 · ${grade}
-                </div>`;
-        }
+        return this.scoringController.submitManualScore();
     }
 
     /* ================================================================

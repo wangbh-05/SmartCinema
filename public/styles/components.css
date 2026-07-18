@@ -481,6 +481,99 @@ pre code {
     margin-top: var(--spacing-md);
 }
 
+.score-total-row {
+    padding: var(--spacing-md) 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: var(--spacing-md);
+    text-align: center;
+}
+
+.score-total-number {
+    color: var(--text-secondary);
+    font-size: var(--font-2xl);
+}
+
+.score-total-row.grade-excellent .score-total-number,
+.score-total-row.grade-excellent .score-grade {
+    color: #FFD700;
+}
+
+.score-total-row.grade-good .score-total-number,
+.score-total-row.grade-good .score-grade {
+    color: var(--accent);
+}
+
+.score-total-max {
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+}
+
+.score-grade {
+    display: inline-block;
+    margin-left: var(--spacing-md);
+    color: var(--text-secondary);
+    font-size: var(--font-lg);
+    font-weight: 700;
+}
+
+.score-detail-rows {
+    font-size: var(--font-sm);
+}
+
+.score-detail-row,
+.score-detail-value {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+}
+
+.score-detail-row {
+    padding: var(--spacing-xs) 0;
+}
+
+.score-detail-description,
+.score-suggestions {
+    color: var(--text-secondary);
+    font-size: var(--font-xs);
+}
+
+.score-suggestions {
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-color);
+    margin-top: var(--spacing-sm);
+}
+
+.score-suggestions p + p {
+    margin-top: var(--spacing-xs);
+}
+
+.manual-score-panel {
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    margin-top: var(--spacing-lg);
+}
+
+.combined-score-result {
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-md);
+    background: var(--bg-card);
+    text-align: center;
+}
+
+.combined-score-meta {
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-secondary);
+    font-size: var(--font-xs);
+}
+
+.combined-score-total {
+    color: #FDD835;
+    font-size: var(--font-lg);
+    font-weight: 700;
+}
+
 /* ===== 订单相关样式 ===== */
 .order-item {
     padding: var(--spacing-lg);

@@ -12,6 +12,7 @@ import TestStorageV2 from './test-storage-v2.js';
 import TestStateBackup from './test-state-backup.js';
 import TestMigrationV2 from './test-migration-v2.js';
 import TestApplicationV2 from './test-application-v2.js';
+import TestDerivedState from './test-derived-state.js';
 import TestAppController from './test-app-controller.js';
 import TestUiControllers from './test-ui-controllers.js';
 import TestLegacyFacades from './test-legacy-facades.js';
@@ -75,6 +76,11 @@ class TestRunner {
         const applicationV2Test = new TestApplicationV2();
         const applicationV2Result = applicationV2Test.runAll();
         this.results.push({ name: 'ApplicationV2', ...applicationV2Result });
+
+        // 推荐、评分纯用例与 AppState 派生失效规则
+        const derivedStateTest = new TestDerivedState();
+        const derivedStateResult = derivedStateTest.runAll();
+        this.results.push({ name: 'DerivedState', ...derivedStateResult });
 
         // Composition root 与统一 AppController
         const appControllerTest = new TestAppController();

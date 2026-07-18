@@ -433,7 +433,7 @@
                             <option value="senior">老年人 (60岁以上)</option>
                         </select>
                     </div>
-                    <div id="age-check-container" style="display:none;">
+                    <div id="age-check-container" hidden>
                         <label class="age-check-label"><input type="checkbox" value="youth" class="age-check"> 少年</label>
                         <label class="age-check-label"><input type="checkbox" value="adult" class="age-check" checked> 成年</label>
                         <label class="age-check-label"><input type="checkbox" value="senior" class="age-check"> 老年</label>
@@ -451,7 +451,7 @@
                     <label for="user-name">④ 姓名</label>
                     <input type="text" id="user-name" placeholder="请输入您的姓名" maxlength="30">
                 </div>
-                <div class="form-group" id="name-group-wrapper" style="display:none;">
+                <div class="form-group" id="name-group-wrapper" hidden>
                     <label for="member-names">④ 成员姓名（每行一个，共需 <span id="member-count-hint">2</span> 人）</label>
                     <textarea id="member-names" rows="4" placeholder="张三&#10;李四" maxlength="500"></textarea>
                 </div>
@@ -469,7 +469,7 @@
                 <p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>
             </div>
             <!-- 观众手动评分 -->
-            <div id="manual-score-panel" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);">
+            <div id="manual-score-panel" class="manual-score-panel" hidden>
                 <h3 style="font-size:0.95em;color:var(--accent);margin-bottom:12px;">✍️ 我的评分（0-10分）</h3>
                 <div class="form-group">
                     <label>👁️ 视野质量 <span id="manual-vision-val" style="color:var(--text-secondary);">5</span></label>
@@ -487,7 +487,7 @@
                     <label>💰 价格划算度 <span id="manual-price-val" style="color:var(--text-secondary);">5</span></label>
                     <input type="range" id="manual-price" min="0" max="10" value="5" step="0.5" style="width:100%;">
                 </div>
-                <div id="combined-score-result" style="display:none;margin-top:12px;padding:10px;background:var(--bg-card);border-radius:8px;text-align:center;font-size:0.9em;"></div>
+                <div id="combined-score-result" class="combined-score-result" hidden></div>
                 <button class="btn btn-primary btn-sm" id="btn-submit-score" style="width:100%;margin-top:8px;">📝 提交我的评分</button>
             </div>
         </section>

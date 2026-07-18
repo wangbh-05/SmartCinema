@@ -4,6 +4,8 @@
 
 import { ToastController } from '../src/ui/components/ToastController.js';
 import { OrdersPanelController } from '../src/ui/controllers/OrdersPanelController.js';
+import { RecommendationController } from '../src/ui/controllers/RecommendationController.js';
+import { ScoringController } from '../src/ui/controllers/ScoringController.js';
 import { SettingsController } from '../src/ui/controllers/SettingsController.js';
 
 class FakeClassList {
@@ -20,6 +22,14 @@ class FakeClassList {
 
     contains(name) {
         return this.values.has(name);
+    }
+
+    add(name) {
+        this.values.add(name);
+    }
+
+    remove(name) {
+        this.values.delete(name);
     }
 }
 
@@ -75,6 +85,7 @@ class FakeDocument {
         this.body = new FakeElement('body', 'body');
         this.documentElement = new FakeElement('html', 'html');
         this.themeDots = [];
+        this.ageChecks = [];
     }
 
     add(id, tagName = 'div') {
@@ -92,7 +103,9 @@ class FakeDocument {
     }
 
     querySelectorAll(selector) {
-        return selector === '.theme-dot' ? this.themeDots : [];
+        if (selector === '.theme-dot') return this.themeDots;
+        if (selector === '.age-check:checked') return this.ageChecks.filter(control => control.checked);
+        return [];
     }
 }
 
@@ -225,6 +238,100 @@ class TestUiControllers {
             this.assertEqual(context.cancelled[0], order);
             this.assertEqual(context.announcements[0], '退票成功');
             this.assertEqual(context.confirmations[0], '确定要退票吗？');
+        });
+
+        this.test('RecommendationController 应读取表单并用安全 DOM 渲染应用结果', () => {
+            const document = new FakeDocument();
+            document.add('recommend-form', 'form');
+            document.add('group-size', 'input').value = '1';
+            document.add('recommend-result');
+            document.add('age-select-container');
+            document.add('age-check-container');
+            document.add('name-single-wrapper');
+            document.add('name-group-wrapper');
+            document.add('member-count-hint');
+            document.add('movie-type', 'select');
+            document.add('age-group', 'select').value = 'adult';
+            document.add('user-name', 'input').value = '<Alice>';
+            const recommendation = {
+                seats: [{ seatKey: '5-8', row: 5, col: 8, unitPrice: 120 }],
+                reason: '第一行\n第二行'
+            };
+            const previewed = [];
+            const applied = [];
+            const controller = {
+                recommendSeats: () => ({ ok: true, value: { recommendation } }),
+                getState: () => ({ recommendation })
+            };
+            const recommendationController = new RecommendationController({
+                controller,
+                document,
+                getSeatLayout: () => ({}),
+                requireAuth: () => true,
+                onPreview: seats => previewed.push(seats),
+                onApply: seats => applied.push(seats)
+            });
+            recommendationController.updateForm();
+            document.getElementById('movie-type').value = 'solo';
+            this.assertTrue(recommendationController.submit());
+            const result = document.getElementById('recommend-result');
+            this.assertEqual(result.children[1].textContent, '👤 <Alice>');
+            this.assertEqual(result.children[1].children.length, 0);
+            this.assertEqual(previewed[0][0].seatKey, '5-8');
+            this.assertTrue(recommendationController.apply());
+            this.assertEqual(applied[0][0].seatKey, '5-8');
+        });
+
+        this.test('ScoringController 应同步选择并渲染结构化系统与综合评分', () => {
+            const document = new FakeDocument();
+            document.add('score-details');
+            document.add('manual-score-panel');
+            document.add('combined-score-result');
+            ['vision', 'distance', 'comfort', 'price'].forEach(key => {
+                document.add(`manual-${key}`, 'input').value = '8';
+                document.add(`manual-${key}-val`);
+            });
+            document.add('btn-submit-score', 'button');
+            const selectionCalls = [];
+            const systemScore = {
+                totalScore: 82,
+                grade: 'excellent',
+                gradeText: '极佳',
+                details: [{
+                    emoji: '👁️',
+                    category: '视野质量',
+                    description: '极佳',
+                    score: '9.0',
+                    maxScore: 10
+                }],
+                recommendations: [{ message: '值得推荐' }]
+            };
+            const combinedScore = {
+                systemTotal: 82,
+                manualTotal: 80,
+                totalScore: 81,
+                gradeText: '极佳'
+            };
+            const controller = {
+                replaceSelection: keys => {
+                    selectionCalls.push(keys);
+                    return { ok: true };
+                },
+                calculateSystemScore: () => ({ ok: true, value: { systemScore } }),
+                submitManualScore: () => ({ ok: true, value: { combinedScore } })
+            };
+            const scoringController = new ScoringController({
+                controller,
+                document,
+                getSeatLayout: () => ({
+                    seats: [[{ seatKey: '0-0', isSelected: true }]]
+                })
+            });
+            this.assertTrue(scoringController.update());
+            this.assertEqual(selectionCalls[0][0], '0-0');
+            this.assertFalse(document.getElementById('manual-score-panel').hidden);
+            this.assertTrue(scoringController.submitManualScore());
+            this.assertFalse(document.getElementById('combined-score-result').hidden);
         });
 
         return this.printSummary();
