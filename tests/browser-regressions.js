@@ -15,6 +15,7 @@ class ContractFailure extends Error {
 }
 
 const state = {
+    pass: 0,
     xfail: 0,
     xpass: 0,
     error: 0
@@ -120,9 +121,25 @@ function addPendingResult(id, name) {
 }
 
 function updateSummary() {
+    document.getElementById('pass-count').textContent = String(state.pass);
     document.getElementById('xfail-count').textContent = String(state.xfail);
     document.getElementById('xpass-count').textContent = String(state.xpass);
     document.getElementById('error-count').textContent = String(state.error);
+}
+
+async function regression(id, name, test) {
+    const item = addPendingResult(id, name);
+    try {
+        await test();
+        state.pass++;
+        item.className = 'result pass';
+        item.querySelector('p').textContent = '目标契约通过。';
+    } catch (error) {
+        state.error++;
+        item.className = 'result error';
+        item.querySelector('p').textContent = `${error.name}: ${error.message}`;
+    }
+    updateSummary();
 }
 
 async function xfail(id, name, test) {
@@ -158,12 +175,16 @@ async function run() {
     status.textContent = '运行中…';
     clearTestStorage();
 
-    await xfail('BUG-001', '已售库存必须按影厅与日期隔离', async () => {
+    await regression('BUG-001', '已售库存必须按影厅与日期隔离', async () => {
         const frame = await createAppFrame();
         try {
             const app = frame.contentWindow.app;
             const target = findSeatAvailableOnBothDays('medium', 3, 4);
-            app.storage.addSoldSeats('medium', [target.key]);
+            const purchased = app.controller.applyRemotePurchase({
+                showtimeId: 'medium:day:3',
+                seatKey: target.key
+            });
+            if (!purchased.ok) throw new Error(`测试准备失败：${purchased.error.message}`);
 
             app.switchDay(3);
             const soldOnFirstDay = app.seatData.getSeat(target.row, target.col).status === SEAT_STATUS.OCCUPIED;
@@ -177,24 +198,8 @@ async function run() {
         }
     });
 
-    await xfail('BUG-003', '确认支付必须对快速重复点击幂等', async () => {
-        clearTestStorage();
-        const user = {
-            id: 'user-browser-regression',
-            username: 'browser-user',
-            password: 'browser123',
-            name: '浏览器测试用户',
-            email: 'browser@example.test',
-            role: 'member',
-            createdAt: '2026-07-18T00:00:00.000Z'
-        };
-        localStorage.setItem('smartcinema_users', JSON.stringify([user]));
-        localStorage.setItem('smartcinema_session', JSON.stringify({
-            username: user.username,
-            role: user.role,
-            loginTime: '2026-07-18T00:00:00.000Z'
-        }));
-
+    await regression('BUG-003', '确认支付必须对快速重复点击幂等', async () => {
+        const appFrame = await createAppFrame();
         const seatData = new SeatData('small');
         seatData.initializeSeats(3);
         let selected = null;
@@ -203,20 +208,25 @@ async function run() {
         }
         if (!selected) throw new Error('无法为订单测试找到可用座位');
         const seat = seatData.getSeat(selected[0].row, selected[0].col);
-
-        sessionStorage.setItem('smartcinema_order_summary', JSON.stringify({
-            hallType: 'small',
-            hallName: '小厅',
-            hallDesc: '10排×10座',
-            dayIndex: 3,
-            seats: [{ row: seat.row, col: seat.col, price: seat.price }],
-            totalPrice: seat.price,
-            avgPrice: seat.price,
-            occupiedSeats: [],
-            userName: user.name,
-            userEmail: user.email,
-            timestamp: Date.now()
-        }));
+        const controller = appFrame.contentWindow.app.controller;
+        const registered = controller.register({
+            username: 'browser-user',
+            password: 'browser123',
+            name: '浏览器测试用户',
+            email: 'browser@example.test'
+        });
+        if (!registered.ok) throw new Error(`注册测试用户失败：${registered.error.message}`);
+        const checkout = controller.startCheckout({
+            showtimeId: 'small:day:3',
+            seats: [{
+                seatKey: `${seat.row}-${seat.col}`,
+                row: seat.row,
+                col: seat.col,
+                unitPrice: seat.price
+            }]
+        });
+        if (!checkout.ok) throw new Error(`创建 CheckoutIntent 失败：${checkout.error.message}`);
+        disposeFrame(appFrame);
 
         const frame = await createFrame('/order.html');
         try {
@@ -227,8 +237,10 @@ async function run() {
             button.click();
             button.click();
 
-            const orders = JSON.parse(localStorage.getItem('smartcinema_orders') || '[]');
+            const stateV2 = JSON.parse(localStorage.getItem('smartcinema_state_v2'));
+            const orders = Object.values(stateV2.ordersById);
             assertContract(orders.length === 1, `快速双击创建了 ${orders.length} 个订单`);
+            assertContract(button.disabled, '首次提交后确认按钮没有进入禁用状态');
         } finally {
             disposeFrame(frame);
         }
@@ -354,7 +366,7 @@ async function run() {
         }
     });
 
-    await xfail('BUG-010', '语音与实时设置必须持久化并在加载时恢复', async () => {
+    await regression('BUG-010', '语音与实时设置必须持久化并在加载时恢复', async () => {
         const firstFrame = await createAppFrame();
         const firstDoc = firstFrame.contentDocument;
         const firstWin = firstFrame.contentWindow;
@@ -456,9 +468,10 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.xfail === 10 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：10 个已知问题稳定复现' : '完成：结果与阶段 1 预期不一致';
+    const expected = state.pass === 3 && state.xfail === 7 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：3 个修复通过，7 个已知问题稳定复现' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
+    document.documentElement.dataset.pass = String(state.pass);
     document.documentElement.dataset.xfail = String(state.xfail);
     document.documentElement.dataset.xpass = String(state.xpass);
     document.documentElement.dataset.error = String(state.error);
