@@ -74,6 +74,36 @@ async function createAppFrame(width = 1200, preserveStorage = false) {
     return frame;
 }
 
+async function createOperationsFrame(width = 1200, preserveStorage = false) {
+    if (!preserveStorage) clearTestStorage();
+    const frame = document.createElement('iframe');
+    frame.title = 'SmartCinema 内部运维回归夹具';
+    frame.style.width = `${width}px`;
+    frame.style.height = '900px';
+    frame.src = `/internal.html#regression-${Date.now()}-${Math.random()}`;
+    fixture.appendChild(frame);
+    await new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => reject(new Error('运维 iframe 加载超时')), 5000);
+        frame.addEventListener('load', () => {
+            window.clearTimeout(timer);
+            resolve();
+        }, { once: true });
+    });
+    frame.contentWindow.addEventListener('error', event => {
+        runtimeErrors.push(event.message || '未知运维运行时错误');
+    });
+    frame.contentWindow.addEventListener('unhandledrejection', event => {
+        runtimeErrors.push(event.reason?.message || String(event.reason));
+    });
+    await waitFor(
+        () => ['access-gate', 'dashboard-ready', 'fatal'].includes(
+            frame.contentDocument?.documentElement.dataset.operationsStatus
+        ),
+        '内部运维入口初始化'
+    );
+    return frame;
+}
+
 function disposeFrame(frame) {
     frame.remove();
 }
@@ -139,6 +169,7 @@ async function run() {
             assertContract(!doc.getElementById('heatmap-section'), '消费者页面仍暴露热力图');
             assertContract(!doc.getElementById('experience-score'), '消费者页面仍暴露购前评分');
             assertContract(!doc.querySelector('a[href*="legacy"]'), '消费者导航仍暴露内部工具');
+            assertContract(!doc.querySelector('a[href*="internal"]'), '消费者导航暴露了运维入口');
             assertContract(Boolean(doc.querySelector('.movie-context') && doc.querySelector('.booking-summary')),
                 '缺少影片场次上下文或订单摘要');
         } finally {
@@ -523,8 +554,8 @@ async function run() {
         }
     });
 
-    await regression('ARCH-001', '迁移期内部工具必须有明确边界且禁止索引', async () => {
-        const response = await fetch('/legacy.html');
+    await regression('ARCH-001', '内部运维入口必须独立、禁止索引且不复用消费者组件树', async () => {
+        const response = await fetch('/internal.html');
         assertContract(response.ok, `内部工具响应异常：${response.status}`);
         const html = await response.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -532,8 +563,90 @@ async function run() {
             doc.querySelector('meta[name="robots"]')?.content === 'noindex,nofollow',
             '内部工具未禁止搜索引擎索引'
         );
-        assertContract(Boolean(doc.getElementById('internal-tools-notice')), '内部工具缺少可见边界说明');
-        assertContract(doc.title.includes('内部工具'), '内部工具页面标题仍像消费者产品');
+        assertContract(Boolean(doc.getElementById('operations-access-gate')), '内部工具缺少权限门');
+        assertContract(!doc.querySelector('canvas'), '内部工具仍复用了旧 Canvas 功能仪表盘');
+        assertContract(!html.includes('src/app.js'), '内部工具仍依赖旧消费者 UI 入口');
+        assertContract(doc.title.includes('放映运维'), '内部工具页面标题缺少清晰职责');
+    });
+
+    await regression('OPS-001', '访客与普通会员不得进入内部运维台', async () => {
+        let frame = await createOperationsFrame();
+        try {
+            let doc = frame.contentDocument;
+            assertContract(doc.documentElement.dataset.operationsStatus === 'access-gate', '访客绕过了权限门');
+            assertContract(doc.getElementById('operations-dashboard').hidden, '访客可见运维数据');
+            disposeFrame(frame);
+
+            frame = await createAppFrame(1200, true);
+            doc = frame.contentDocument;
+            const win = frame.contentWindow;
+            doc.getElementById('btn-register').click();
+            doc.getElementById('auth-username').value = 'operations-member';
+            doc.getElementById('auth-password').value = 'browser123';
+            doc.getElementById('auth-name').value = '普通会员';
+            doc.getElementById('auth-email').value = 'member@example.test';
+            doc.getElementById('auth-form').dispatchEvent(new win.Event('submit', {
+                bubbles: true,
+                cancelable: true
+            }));
+            await waitFor(() => doc.getElementById('user-info').textContent.includes('普通会员'), '会员注册完成');
+            disposeFrame(frame);
+
+            frame = await createOperationsFrame(1200, true);
+            doc = frame.contentDocument;
+            doc.getElementById('operations-username').value = 'operations-member';
+            doc.getElementById('operations-password').value = 'browser123';
+            doc.getElementById('operations-login-form').dispatchEvent(new frame.contentWindow.Event('submit', {
+                bubbles: true,
+                cancelable: true
+            }));
+            await delay();
+            assertContract(doc.documentElement.dataset.operationsStatus === 'access-gate', '普通会员进入了运维台');
+            assertContract(doc.getElementById('operations-login-error').textContent.includes('没有内部运维权限'),
+                '越权登录没有给出明确反馈');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
+    await regression('OPS-002', '管理员人工释放锁座必须确认并原子更新库存', async () => {
+        let frame = await createAppFrame();
+        try {
+            openHold(frame.contentDocument);
+            const before = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const hold = Object.values(before.holdsById).find(item => item.status === 'held');
+            assertContract(Boolean(hold), '消费者入口没有创建有效锁座');
+            disposeFrame(frame);
+
+            frame = await createOperationsFrame(1200, true);
+            const doc = frame.contentDocument;
+            doc.getElementById('operations-username').value = 'admin';
+            doc.getElementById('operations-password').value = 'admin123';
+            doc.getElementById('operations-login-form').dispatchEvent(new frame.contentWindow.Event('submit', {
+                bubbles: true,
+                cancelable: true
+            }));
+            await waitFor(() => doc.documentElement.dataset.operationsStatus === 'dashboard-ready', '管理员运维概览');
+            assertContract(doc.getElementById('metric-holds').textContent === '1', '运维概览没有反映有效锁座');
+
+            const release = await waitFor(() => doc.querySelector(`[data-release-hold-id="${hold.id}"]`), '人工释放入口');
+            release.click();
+            assertContract(doc.getElementById('operations-confirm-dialog').classList.contains('active'),
+                '破坏性库存操作没有二次确认');
+            doc.getElementById('operations-confirm-action').click();
+            await waitFor(() => {
+                const current = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+                return current.holdsById[hold.id]?.status === 'released';
+            }, '锁座释放完成');
+
+            const after = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const inventory = after.inventoriesByShowtime[hold.showtimeId];
+            assertContract(hold.seatIds.every(seatId => !inventory.holdIdsBySeatId[seatId]),
+                '锁座记录已释放但库存映射仍占用座位');
+            assertContract(doc.getElementById('metric-holds').textContent === '0', '释放后运维指标未同步');
+        } finally {
+            disposeFrame(frame);
+        }
     });
 
     await regression('QA-001', '核心交互过程中不得出现未处理浏览器错误', async () => {
@@ -541,8 +654,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 16 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：15 个商业与架构回归、运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 18 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：17 个商业、架构与运维回归，加运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);

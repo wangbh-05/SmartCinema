@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SmartCinema v3 内部放映运维工具">
+    <meta name="robots" content="noindex,nofollow">
+    <title>SmartCinema · 放映运维</title>
+    <link rel="stylesheet" href="public/styles/reset.css">
+    <link rel="stylesheet" href="public/styles/variables.css">
+    <link rel="stylesheet" href="public/styles/accessibility.css">
+    <link rel="stylesheet" href="public/styles/operations.css">
+</head>
+<body class="operations-page">
+    <a class="skip-link" href="#operations-main">跳到运维内容</a>
+
+    <header class="operations-header">
+        <div class="operations-brand">
+            <span class="operations-brand-mark" aria-hidden="true">SC</span>
+            <div>
+                <strong>SmartCinema</strong>
+                <span>放映运维</span>
+            </div>
+        </div>
+        <div class="operations-header-actions">
+            <span class="operator-badge" id="operator-info" hidden></span>
+            <a class="secondary-button" href="index.html">返回购票页</a>
+            <button class="secondary-button" id="operations-logout" type="button" hidden>退出</button>
+        </div>
+    </header>
+
+    <main class="operations-shell" id="operations-main">
+        <section class="access-gate" id="operations-access-gate" aria-labelledby="access-title">
+            <div class="access-copy">
+                <span class="eyebrow">限制访问</span>
+                <h1 id="access-title">使用管理员账号继续</h1>
+                <p>这里只承载场次库存、锁座、订单观察与数据恢复。消费者购票页不会暴露此入口。</p>
+            </div>
+            <form class="access-form" id="operations-login-form" novalidate>
+                <div class="field-group">
+                    <label for="operations-username">管理员用户名</label>
+                    <input id="operations-username" name="username" type="text" autocomplete="username" required>
+                </div>
+                <div class="field-group">
+                    <label for="operations-password">密码</label>
+                    <input id="operations-password" name="password" type="password" autocomplete="current-password" required>
+                </div>
+                <p class="form-error" id="operations-login-error" role="alert" tabindex="-1"></p>
+                <button class="primary-button" type="submit">登录运维台</button>
+                <p class="demo-credential">本地演示账号 <code>admin</code> / <code>admin123</code>；请勿输入真实凭证。</p>
+            </form>
+        </section>
+
+        <div class="operations-dashboard" id="operations-dashboard" hidden>
+            <section class="operations-hero" aria-labelledby="operations-title">
+                <div>
+                    <span class="eyebrow">内部运维 · Storage v3</span>
+                    <h1 id="operations-title">今日放映概览</h1>
+                    <p id="operations-sync-meta">正在读取库存…</p>
+                </div>
+                <div class="hero-actions">
+                    <button class="secondary-button" id="operations-refresh" type="button">刷新数据</button>
+                    <button class="secondary-button" id="operations-sweep" type="button">清理过期锁座</button>
+                </div>
+            </section>
+
+            <div class="operations-alert" id="operations-alert" role="status" hidden></div>
+
+            <section class="metric-grid" aria-label="运维核心指标">
+                <article class="metric-card">
+                    <span>今日场次</span>
+                    <strong id="metric-showtimes">—</strong>
+                    <small>当前目录营业日</small>
+                </article>
+                <article class="metric-card">
+                    <span>有效锁座</span>
+                    <strong id="metric-holds">—</strong>
+                    <small>占用库存但尚未成单</small>
+                </article>
+                <article class="metric-card">
+                    <span>已确认订单</span>
+                    <strong id="metric-orders">—</strong>
+                    <small id="metric-cancelled">— 笔已取消</small>
+                </article>
+                <article class="metric-card">
+                    <span>已确认票款</span>
+                    <strong id="metric-revenue">—</strong>
+                    <small id="metric-refunds">— 待退款</small>
+                </article>
+            </section>
+
+            <section class="operations-panel" aria-labelledby="showtime-operations-title">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">实时库存</span>
+                        <h2 id="showtime-operations-title">场次与上座情况</h2>
+                    </div>
+                    <p>数据来自与消费者购票相同的 v3 事实源。</p>
+                </div>
+                <div class="table-scroll">
+                    <table class="operations-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">场次</th>
+                                <th scope="col">已售</th>
+                                <th scope="col">锁座</th>
+                                <th scope="col">可售</th>
+                                <th scope="col">上座率</th>
+                                <th scope="col">库存版本</th>
+                            </tr>
+                        </thead>
+                        <tbody id="operations-showtimes"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="operations-columns">
+                <section class="operations-panel" aria-labelledby="hold-operations-title">
+                    <div class="panel-heading">
+                        <div>
+                            <span class="eyebrow">交易中</span>
+                            <h2 id="hold-operations-title">有效锁座</h2>
+                        </div>
+                        <span class="count-badge" id="active-hold-count">0</span>
+                    </div>
+                    <div class="record-list" id="operations-holds"></div>
+                </section>
+
+                <section class="operations-panel" aria-labelledby="order-operations-title">
+                    <div class="panel-heading">
+                        <div>
+                            <span class="eyebrow">最近事件</span>
+                            <h2 id="order-operations-title">订单状态</h2>
+                        </div>
+                    </div>
+                    <div class="record-list" id="operations-orders"></div>
+                </section>
+            </div>
+
+            <section class="operations-panel" aria-labelledby="user-operations-title">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">权限与审计</span>
+                        <h2 id="user-operations-title">用户概览</h2>
+                    </div>
+                    <p>凭证永远不进入视图模型。</p>
+                </div>
+                <div class="table-scroll">
+                    <table class="operations-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">用户名</th>
+                                <th scope="col">姓名</th>
+                                <th scope="col">角色</th>
+                                <th scope="col">邮箱</th>
+                                <th scope="col">创建时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="operations-users"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="operations-panel recovery-panel" aria-labelledby="recovery-title">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">数据恢复</span>
+                        <h2 id="recovery-title">备份与回滚边界</h2>
+                    </div>
+                    <p>导入完成后会清除当前会话，并保留导入前回滚快照。</p>
+                </div>
+                <div class="recovery-grid">
+                    <article>
+                        <h3>脱敏诊断快照</h3>
+                        <p>不含会话和凭证，适合调试，不可用于恢复。</p>
+                        <button class="secondary-button" id="operations-export-safe" type="button">下载脱敏快照</button>
+                    </article>
+                    <article>
+                        <h3>本地恢复备份</h3>
+                        <p>包含本地演示凭证，只能在受控环境中保管。</p>
+                        <button class="secondary-button" id="operations-export-full" type="button">下载恢复备份</button>
+                    </article>
+                    <article class="danger-zone">
+                        <h3>替换当前数据</h3>
+                        <p>仅接受完整 v3 恢复备份；脱敏快照会被拒绝。</p>
+                        <button class="danger-button" id="operations-import" type="button">选择恢复备份</button>
+                        <input id="operations-import-file" type="file" accept="application/json,.json" hidden>
+                    </article>
+                </div>
+            </section>
+        </div>
+
+        <section class="fatal-state" id="operations-fatal" hidden>
+            <span class="eyebrow">启动失败</span>
+            <h1>运维台暂时不可用</h1>
+            <p id="operations-fatal-message"></p>
+            <a class="secondary-button" href="index.html">返回购票页</a>
+        </section>
+    </main>
+
+    <div class="operations-dialog-overlay" id="operations-confirm-dialog" aria-hidden="true">
+        <div class="operations-dialog" role="dialog" aria-modal="true" aria-labelledby="operations-confirm-title" tabindex="-1">
+            <button class="dialog-close" id="operations-confirm-close" type="button" aria-label="关闭确认对话框">×</button>
+            <span class="eyebrow" id="operations-confirm-eyebrow">需要确认</span>
+            <h2 id="operations-confirm-title">确认操作</h2>
+            <p id="operations-confirm-message"></p>
+            <div class="dialog-actions">
+                <button class="secondary-button" id="operations-confirm-cancel" type="button">返回</button>
+                <button class="danger-button" id="operations-confirm-action" type="button">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="operations-toast" id="operations-toast" role="status" aria-live="polite" hidden></div>
+    <div class="sr-only" id="operations-live-region" aria-live="polite"></div>
+
+    <script type="module" src="src/internal.js"></script>
+</body>
+</html>

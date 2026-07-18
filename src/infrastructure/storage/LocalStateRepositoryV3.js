@@ -59,6 +59,28 @@ export class LocalStateRepositoryV3 {
         }
     }
 
+    replace(expectedRevision, state) {
+        const current = this.read();
+        if (!current.ok) return current;
+        if (current.value.revision !== expectedRevision) {
+            return err('STATE_CONFLICT', 'state revision 已变化', {
+                expectedRevision,
+                actualRevision: current.value.revision
+            });
+        }
+        try {
+            const candidate = cloneJson(state);
+            candidate.schemaVersion = 3;
+            candidate.revision = current.value.revision + 1;
+            candidate.updatedAt = this.clock.now();
+            const validated = validateStateEnvelopeV3(candidate);
+            if (!validated.ok) return validated;
+            return this._write(validated.value);
+        } catch (error) {
+            return err('VALIDATION_ERROR', 'state v3 replace 失败', { reason: error.message });
+        }
+    }
+
     _write(state) {
         const json = JSON.stringify(state);
         try {

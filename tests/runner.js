@@ -22,6 +22,7 @@ import TestCommercialDomain from './test-commercial-domain.js';
 import TestStorageV3 from './test-storage-v3.js';
 import TestCommercialApplication from './test-commercial-application.js';
 import TestCommercialComposition from './test-commercial-composition.js';
+import TestCommercialOperations from './test-commercial-operations.js';
 
 class TestRunner {
     constructor() {
@@ -130,6 +131,11 @@ class TestRunner {
         const commercialCompositionTest = new TestCommercialComposition();
         const commercialCompositionResult = commercialCompositionTest.runAll();
         this.results.push({ name: 'CommercialComposition', ...commercialCompositionResult });
+
+        // v3 内部运维：权限、指标、锁座释放与安全恢复
+        const commercialOperationsTest = new TestCommercialOperations();
+        const commercialOperationsResult = commercialOperationsTest.runAll();
+        this.results.push({ name: 'CommercialOperations', ...commercialOperationsResult });
 
         // 打印总摘要
         this.printGlobalSummary();
