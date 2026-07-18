@@ -1,11 +1,8 @@
 /**
- * 真实浏览器中的已知缺陷契约。
+ * 商业购票入口的真实浏览器契约。
  *
- * 页面通过同源 iframe 运行生产入口，不读取实现源码，也不依赖共享的用户数据。
- * ContractFailure 表示目标行为被当前 Bug 稳定违反；其他异常必须显示为 ERROR。
+ * 每项测试通过同源 iframe 只操作生产 DOM 与 Web Storage，不导入页面实现对象。
  */
-
-import { SeatData, SEAT_STATUS } from '../src/core/SeatData.js';
 
 class ContractFailure extends Error {
     constructor(message) {
@@ -14,45 +11,32 @@ class ContractFailure extends Error {
     }
 }
 
-const state = {
-    pass: 0,
-    xfail: 0,
-    xpass: 0,
-    error: 0
-};
-
+const state = { pass: 0, xfail: 0, xpass: 0, error: 0 };
 const fixture = document.getElementById('fixture');
 const results = document.getElementById('results');
 const status = document.getElementById('run-status');
 const runtimeErrors = [];
 
 function assertContract(condition, message) {
-    if (!condition) {
-        throw new ContractFailure(message);
-    }
+    if (!condition) throw new ContractFailure(message);
 }
 
 function clearTestStorage() {
-    const localKeys = [];
-    for (let index = 0; index < localStorage.length; index++) {
-        const key = localStorage.key(index);
-        if (key?.startsWith('smartcinema_')) localKeys.push(key);
+    for (const storage of [localStorage, sessionStorage]) {
+        const keys = [];
+        for (let index = 0; index < storage.length; index++) {
+            const key = storage.key(index);
+            if (key?.startsWith('smartcinema_')) keys.push(key);
+        }
+        keys.forEach(key => storage.removeItem(key));
     }
-    localKeys.forEach(key => localStorage.removeItem(key));
-
-    const sessionKeys = [];
-    for (let index = 0; index < sessionStorage.length; index++) {
-        const key = sessionStorage.key(index);
-        if (key?.startsWith('smartcinema_')) sessionKeys.push(key);
-    }
-    sessionKeys.forEach(key => sessionStorage.removeItem(key));
 }
 
 function delay(milliseconds = 0) {
     return new Promise(resolve => window.setTimeout(resolve, milliseconds));
 }
 
-async function waitFor(predicate, message, timeout = 4000) {
+async function waitFor(predicate, message, timeout = 5000) {
     const startedAt = performance.now();
     while (performance.now() - startedAt < timeout) {
         const value = predicate();
@@ -62,78 +46,54 @@ async function waitFor(predicate, message, timeout = 4000) {
     throw new Error(`等待超时：${message}`);
 }
 
-async function createFrame(path = '/', width = 1200) {
+async function createAppFrame(width = 1200, preserveStorage = false) {
+    if (!preserveStorage) clearTestStorage();
     const frame = document.createElement('iframe');
-    frame.title = 'SmartCinema 回归测试夹具';
+    frame.title = 'SmartCinema 商业购票回归夹具';
     frame.style.width = `${width}px`;
     frame.style.height = '900px';
-    frame.src = `${path}#regression-${Date.now()}-${Math.random()}`;
+    frame.src = `/#regression-${Date.now()}-${Math.random()}`;
     fixture.appendChild(frame);
-
     await new Promise((resolve, reject) => {
-        const timer = window.setTimeout(() => reject(new Error(`iframe 加载超时：${path}`)), 5000);
+        const timer = window.setTimeout(() => reject(new Error('iframe 加载超时')), 5000);
         frame.addEventListener('load', () => {
             window.clearTimeout(timer);
             resolve();
         }, { once: true });
     });
-
     frame.contentWindow.addEventListener('error', event => {
-        runtimeErrors.push(`${path}: ${event.message || '未知运行时错误'}`);
+        runtimeErrors.push(event.message || '未知运行时错误');
     });
     frame.contentWindow.addEventListener('unhandledrejection', event => {
-        const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
-        runtimeErrors.push(`${path}: 未处理 Promise 拒绝：${reason}`);
+        runtimeErrors.push(event.reason?.message || String(event.reason));
     });
-
-    return frame;
-}
-
-async function createAppFrame(width = 1200, preserveStorage = false) {
-    if (!preserveStorage) clearTestStorage();
-    const frame = await createFrame('/', width);
-    await waitFor(() => frame.contentWindow?.app, 'SmartCinema app 初始化');
+    await waitFor(
+        () => frame.contentDocument?.querySelectorAll('.seat-button').length === 180,
+        '商业座位图初始化'
+    );
     return frame;
 }
 
 function disposeFrame(frame) {
-    try {
-        frame.contentWindow?.app?.realtime?.stop();
-    } catch (error) {
-        console.warn('停止测试 realtime 失败', error);
-    }
     frame.remove();
-}
-
-function findSeatAvailableOnBothDays(hallType, firstDay, secondDay) {
-    const first = new SeatData(hallType);
-    const second = new SeatData(hallType);
-    first.initializeSeats(firstDay);
-    second.initializeSeats(secondDay);
-
-    for (let row = 0; row < first.rows; row++) {
-        for (let col = 0; col < first.cols; col++) {
-            if (first.isSeatAvailable(row, col) && second.isSeatAvailable(row, col)) {
-                return { row, col, key: `${row}-${col}` };
-            }
-        }
-    }
-    throw new Error('无法找到两个日期都可用的确定性座位');
 }
 
 function addPendingResult(id, name) {
     const item = document.createElement('li');
     item.className = 'result pending';
-    item.innerHTML = `<strong>${id} · ${name}</strong><p>运行中…</p>`;
+    const title = document.createElement('strong');
+    title.textContent = `${id} · ${name}`;
+    const description = document.createElement('p');
+    description.textContent = '运行中…';
+    item.append(title, description);
     results.appendChild(item);
     return item;
 }
 
 function updateSummary() {
-    document.getElementById('pass-count').textContent = String(state.pass);
-    document.getElementById('xfail-count').textContent = String(state.xfail);
-    document.getElementById('xpass-count').textContent = String(state.xpass);
-    document.getElementById('error-count').textContent = String(state.error);
+    Object.entries(state).forEach(([key, value]) => {
+        document.getElementById(`${key}-count`).textContent = String(value);
+    });
 }
 
 async function regression(id, name, test) {
@@ -151,27 +111,13 @@ async function regression(id, name, test) {
     updateSummary();
 }
 
-async function xfail(id, name, test) {
-    const item = addPendingResult(id, name);
+function recommend(doc) {
+    doc.getElementById('recommend-seats').click();
+}
 
-    try {
-        await test();
-        state.xpass++;
-        item.className = 'result xpass';
-        item.querySelector('p').textContent = '目标契约已通过；请把本项转为普通回归测试。';
-    } catch (error) {
-        if (error instanceof ContractFailure) {
-            state.xfail++;
-            item.className = 'result xfail';
-            item.querySelector('p').textContent = error.message;
-        } else {
-            state.error++;
-            item.className = 'result error';
-            item.querySelector('p').textContent = `${error.name}: ${error.message}`;
-        }
-    }
-
-    updateSummary();
+function openHold(doc) {
+    recommend(doc);
+    doc.getElementById('continue-booking').click();
 }
 
 async function run() {
@@ -184,168 +130,132 @@ async function run() {
     status.textContent = '运行中…';
     clearTestStorage();
 
-    await regression('BUG-001', '已售库存必须按影厅与日期隔离', async () => {
+    await regression('UX-001', '生产入口应是商业购票漏斗而非功能仪表盘', async () => {
         const frame = await createAppFrame();
         try {
-            const app = frame.contentWindow.app;
-            const target = findSeatAvailableOnBothDays('medium', 3, 4);
-            const purchased = app.controller.applyRemotePurchase({
-                showtimeId: 'medium:day:3',
-                seatKey: target.key
-            });
-            if (!purchased.ok) throw new Error(`测试准备失败：${purchased.error.message}`);
-
-            app.switchDay(3);
-            const soldOnFirstDay = app.seatData.getSeat(target.row, target.col).status === SEAT_STATUS.OCCUPIED;
-            app.switchDay(4);
-            const soldOnSecondDay = app.seatData.getSeat(target.row, target.col).status === SEAT_STATUS.OCCUPIED;
-
-            assertContract(soldOnFirstDay, '测试准备失败：首个日期没有应用已售库存');
-            assertContract(!soldOnSecondDay, `${target.key} 在周四售出后错误地污染了周五库存`);
-        } finally {
-            disposeFrame(frame);
-        }
-    });
-
-    await regression('BUG-003', '确认支付必须对快速重复点击幂等', async () => {
-        const appFrame = await createAppFrame();
-        const seatData = new SeatData('small');
-        seatData.initializeSeats(3);
-        let selected = null;
-        for (let row = 0; row < seatData.rows && !selected; row++) {
-            selected = seatData.findConsecutiveInRow(row, 1);
-        }
-        if (!selected) throw new Error('无法为订单测试找到可用座位');
-        const seat = seatData.getSeat(selected[0].row, selected[0].col);
-        const controller = appFrame.contentWindow.app.controller;
-        const registered = controller.register({
-            username: 'browser-user',
-            password: 'browser123',
-            name: '浏览器测试用户',
-            email: 'browser@example.test'
-        });
-        if (!registered.ok) throw new Error(`注册测试用户失败：${registered.error.message}`);
-        const checkout = controller.startCheckout({
-            showtimeId: 'small:day:3',
-            seats: [{
-                seatKey: `${seat.row}-${seat.col}`,
-                row: seat.row,
-                col: seat.col,
-                unitPrice: seat.price
-            }]
-        });
-        if (!checkout.ok) throw new Error(`创建 CheckoutIntent 失败：${checkout.error.message}`);
-        disposeFrame(appFrame);
-
-        const frame = await createFrame('/order.html');
-        try {
-            const button = await waitFor(
-                () => frame.contentDocument?.getElementById('btn-confirm'),
-                '确认支付按钮'
-            );
-            button.click();
-            button.click();
-
-            const stateV2 = JSON.parse(localStorage.getItem('smartcinema_state_v2'));
-            const orders = Object.values(stateV2.ordersById);
-            assertContract(orders.length === 1, `快速双击创建了 ${orders.length} 个订单`);
-            assertContract(button.disabled, '首次提交后确认按钮没有进入禁用状态');
-        } finally {
-            disposeFrame(frame);
-        }
-    });
-
-    await regression('BUG-005', '文本输入中的 Ctrl+Z 不得清空座位', async () => {
-        const frame = await createAppFrame();
-        try {
-            const app = frame.contentWindow.app;
             const doc = frame.contentDocument;
-            let target = null;
-            for (let row = 0; row < app.seatData.rows && !target; row++) {
-                target = app.seatData.findConsecutiveInRow(row, 1);
-            }
-            if (!target) throw new Error('无法找到可用座位');
+            assertContract(doc.querySelectorAll('.seat-button').length === 180, 'DOM 座位图不完整');
+            assertContract(doc.querySelectorAll('canvas').length === 0, '生产入口仍依赖 Canvas 座位图');
+            assertContract(!doc.getElementById('heatmap-section'), '消费者页面仍暴露热力图');
+            assertContract(!doc.getElementById('experience-score'), '消费者页面仍暴露购前评分');
+            assertContract(Boolean(doc.querySelector('.movie-context') && doc.querySelector('.booking-summary')),
+                '缺少影片场次上下文或订单摘要');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
 
-            app.seatData.selectSeat(target[0].row, target[0].col);
-            app.updateUI();
-            const input = doc.getElementById('member-names');
-            input.value = '测试成员';
-            input.focus();
-            input.dispatchEvent(new frame.contentWindow.KeyboardEvent('keydown', {
-                key: 'z',
-                ctrlKey: true,
+    await regression('UX-002', '票数、推荐连座、报价与继续状态必须一致', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            recommend(doc);
+            await delay();
+            const selected = doc.querySelectorAll('.seat-button.is-selected');
+            const total = doc.getElementById('summary-total').textContent;
+            assertContract(selected.length === 2, `推荐选择了 ${selected.length} 个座位而非 2 个`);
+            assertContract(total.startsWith('¥') && total !== '—', `总价未形成：${total}`);
+            assertContract(!doc.getElementById('continue-booking').disabled, '座位选满后继续按钮仍禁用');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
+    await regression('UX-003', '陪同席应联动轮椅位且确认前不能继续', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            doc.querySelector('[data-seat-id="H-02"]').click();
+            await delay();
+            const selectedIds = [...doc.querySelectorAll('.seat-button.is-selected')].map(item => item.dataset.seatId);
+            assertContract(
+                selectedIds.includes('H-01') && selectedIds.includes('H-02'),
+                `陪同席未联动对应轮椅位：${selectedIds.join(', ')}`
+            );
+            assertContract(doc.getElementById('continue-booking').disabled, '无障碍用途未确认时仍可继续');
+            const acknowledgement = doc.getElementById('accessible-acknowledgement');
+            acknowledgement.checked = true;
+            acknowledgement.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+            await delay();
+            assertContract(!doc.getElementById('continue-booking').disabled, '确认无障碍用途后仍不能继续');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
+    await regression('UX-004', '关闭确认页必须释放整组锁座', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            openHold(doc);
+            await waitFor(() => doc.getElementById('checkout-dialog').classList.contains('active'), '锁座确认页');
+            const stateBefore = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const held = Object.values(stateBefore.holdsById).find(item => item.status === 'held');
+            if (!held) throw new Error('测试准备失败：没有创建 held SeatHold');
+            doc.getElementById('checkout-close').click();
+            await delay();
+            const stateAfter = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const released = stateAfter.holdsById[held.id];
+            const inventory = stateAfter.inventoriesByShowtime[held.showtimeId];
+            assertContract(released.status === 'released', `关闭后的 hold 状态为 ${released.status}`);
+            assertContract(
+                held.seatIds.every(seatId => !inventory.holdIdsBySeatId[seatId]),
+                '关闭确认页后库存仍保留 hold 映射'
+            );
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
+    await regression('UX-005', '访客登录确认与重复提交必须只生成一个订单', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            const win = frame.contentWindow;
+            openHold(doc);
+            doc.getElementById('confirm-order').click();
+            doc.getElementById('auth-switch').click();
+            doc.getElementById('auth-username').value = 'browser-contract';
+            doc.getElementById('auth-password').value = 'browser123';
+            doc.getElementById('auth-name').value = '浏览器契约用户';
+            doc.getElementById('auth-email').value = 'contract@example.test';
+            doc.getElementById('auth-form').dispatchEvent(new win.Event('submit', {
                 bubbles: true,
                 cancelable: true
             }));
-
-            assertContract(app.seatData.selectedSeats.size === 1, '输入框撤销操作把已选座位清空了');
+            await delay();
+            const confirm = doc.getElementById('confirm-order');
+            confirm.click();
+            confirm.click();
+            await delay();
+            const stateV3 = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            assertContract(Object.keys(stateV3.ordersById).length === 1, '重复确认创建了多个订单');
+            assertContract(doc.querySelector('#checkout-content h2')?.textContent === '购票成功', '未显示购票成功凭证');
         } finally {
             disposeFrame(frame);
         }
     });
 
-    await regression('BUG-006', '目标视口矩阵不得产生页面溢出或裁掉座位', async () => {
-        const widths = [320, 390, 768, 800, 900, 1024, 1440];
+    await regression('UX-006', '目标视口不得页面级横向溢出，手机座位图应容器内滚动', async () => {
         const frame = await createAppFrame(1440);
         try {
             const failures = [];
-            for (const mode of ['默认', '无障碍']) {
-                if (mode === '无障碍') {
-                    const control = frame.contentDocument.getElementById('accessibility-toggle');
-                    control.checked = true;
-                    control.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
+            for (const width of [320, 390, 768, 1024, 1440]) {
+                frame.style.width = `${width}px`;
+                frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
+                await delay(40);
+                const root = frame.contentDocument.documentElement;
+                if (root.scrollWidth > root.clientWidth + 1) {
+                    failures.push(`${width}px 页面溢出 ${root.scrollWidth} > ${root.clientWidth}`);
                 }
-                for (const width of widths) {
-                    frame.style.width = `${width}px`;
-                    frame.contentWindow.dispatchEvent(new Event('resize'));
-                    await delay(40);
-                    const root = frame.contentDocument.documentElement;
-                    if (root.scrollWidth > root.clientWidth + 1) {
-                        failures.push(`${mode} ${width}px: ${root.scrollWidth} > ${root.clientWidth}`);
-                    }
-                    const layout = frame.contentWindow.app?.cinema?.layout;
-                    const positions = layout?.positions?.flat?.() || [];
-                    if (positions.length > 0) {
-                        const minSeatX = Math.min(...positions.map(position => position.x));
-                        const maxSeatX = Math.max(...positions.map(position => position.x + layout.seatSize));
-                        if (minSeatX < -0.5 || maxSeatX > layout.displayWidth + 0.5) {
-                            failures.push(
-                                `${mode} ${width}px: 座位范围 ${minSeatX.toFixed(1)}–${maxSeatX.toFixed(1)} 超出 Canvas ${layout.displayWidth}`
-                            );
-                        }
+                if (width <= 390) {
+                    const scroller = frame.contentDocument.getElementById('seat-scroll');
+                    if (scroller.scrollWidth <= scroller.clientWidth) {
+                        failures.push(`${width}px 座位图没有形成内部滚动区域`);
                     }
                 }
             }
-
-            frame.style.width = '320px';
-            frame.contentWindow.dispatchEvent(new Event('resize'));
-            await delay(40);
-            const hallSelector = frame.contentDocument.getElementById('hall-selector');
-            hallSelector.value = 'large';
-            hallSelector.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true }));
-            await delay(40);
-            const fitSeatSize = frame.contentWindow.app.cinema.layout.seatSize;
-            if (frame.contentWindow.app.cinema.layout.positions[0].length !== 30) {
-                failures.push('320px: 大厅没有渲染完整 30 列座位');
-            }
-            const zoomIn = frame.contentDocument.getElementById('zoom-in');
-            for (let step = 0; step < 6; step++) zoomIn.click();
-            await delay(40);
-            const zoomedSeatSize = frame.contentWindow.app.cinema.layout.seatSize;
-            const canvasContainer = frame.contentDocument.querySelector('#seat-selection .canvas-container');
-            const root = frame.contentDocument.documentElement;
-            if (zoomedSeatSize <= fitSeatSize) failures.push('320px 大厅: 放大后座位尺寸没有增加');
-            if (canvasContainer.scrollWidth <= canvasContainer.clientWidth) {
-                failures.push('320px: 放大后座位图没有形成容器内横向浏览区域');
-            }
-            if (root.scrollWidth > root.clientWidth + 1) {
-                failures.push(`320px 放大后页面溢出: ${root.scrollWidth} > ${root.clientWidth}`);
-            }
-            if (!zoomIn.disabled || frame.contentDocument.getElementById('zoom-level').textContent !== '400%') {
-                failures.push('座位图缩放上限或状态反馈不正确');
-            }
-
-            assertContract(failures.length === 0, `响应式布局失败：${failures.join('；')}`);
+            assertContract(failures.length === 0, failures.join('；'));
         } finally {
             disposeFrame(frame);
         }
@@ -354,53 +264,43 @@ async function run() {
     await regression('BUG-007', '登录与注册表单必须支持 Enter 提交', async () => {
         const frame = await createAppFrame();
         try {
-            const app = frame.contentWindow.app;
             const doc = frame.contentDocument;
-            app.showAuthModal('login');
+            const win = frame.contentWindow;
+            doc.getElementById('btn-login').click();
             doc.getElementById('auth-username').value = 'missing-user';
             doc.getElementById('auth-password').value = 'valid123';
-            doc.getElementById('auth-form').dispatchEvent(new Event('submit', {
+            doc.getElementById('auth-form').dispatchEvent(new win.Event('submit', {
                 bubbles: true,
                 cancelable: true
             }));
             await delay();
-
-            const errorText = doc.getElementById('auth-error').textContent.trim();
-            assertContract(errorText.length > 0, '按 Enter 提交后没有运行认证逻辑或显示错误');
+            assertContract(doc.getElementById('auth-error').textContent.trim().length > 0, 'Enter 没有触发认证');
         } finally {
             disposeFrame(frame);
         }
     });
 
-    await regression('BUG-008', '内容区开始的拖动不得在遮罩释放时关闭弹窗', async () => {
+    await regression('BUG-008', '内容拖出与背景点击均不得关闭登录弹窗', async () => {
         const frame = await createAppFrame();
         try {
-            const app = frame.contentWindow.app;
             const doc = frame.contentDocument;
             const win = frame.contentWindow;
-            app.showAuthModal('login');
+            doc.getElementById('btn-login').click();
             const overlay = doc.getElementById('auth-modal');
-            const content = overlay.querySelector('.auth-modal');
-            const PointerEventClass = win.PointerEvent || win.MouseEvent;
-
-            content.dispatchEvent(new PointerEventClass('pointerdown', { bubbles: true }));
-            overlay.dispatchEvent(new PointerEventClass('pointerup', { bubbles: true }));
-            overlay.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
-
-            assertContract(overlay.classList.contains('active'), '从内容拖到遮罩释放后弹窗被误关闭');
-
-            const username = doc.getElementById('auth-username');
-            username.value = 'unfinished';
-            username.dispatchEvent(new win.Event('input', { bubbles: true }));
-            overlay.dispatchEvent(new PointerEventClass('pointerdown', { bubbles: true }));
-            overlay.dispatchEvent(new PointerEventClass('pointerup', { bubbles: true }));
-            assertContract(overlay.classList.contains('active'), '未提交表单被遮罩点击意外关闭');
+            const input = doc.getElementById('auth-username');
+            const Pointer = win.PointerEvent || win.MouseEvent;
+            input.dispatchEvent(new Pointer('pointerdown', { bubbles: true }));
+            overlay.dispatchEvent(new Pointer('pointerup', { bubbles: true }));
+            assertContract(overlay.classList.contains('active'), '从输入框拖到遮罩释放后弹窗被关闭');
+            overlay.dispatchEvent(new Pointer('pointerdown', { bubbles: true }));
+            overlay.dispatchEvent(new Pointer('pointerup', { bubbles: true }));
+            assertContract(overlay.classList.contains('active'), '点击背景后登录弹窗被关闭');
         } finally {
             disposeFrame(frame);
         }
     });
 
-    await regression('BUG-009', '弹窗必须有语义关闭键、Escape 与焦点归还', async () => {
+    await regression('BUG-009', '弹窗必须有关闭键、Escape 与焦点归还', async () => {
         const frame = await createAppFrame();
         try {
             const doc = frame.contentDocument;
@@ -409,148 +309,83 @@ async function run() {
             trigger.focus();
             trigger.click();
             const overlay = doc.getElementById('auth-modal');
-            const semanticClose = overlay.querySelector('button[aria-label*="关闭"]');
-
+            const close = doc.getElementById('auth-modal-close');
             doc.dispatchEvent(new win.KeyboardEvent('keydown', {
                 key: 'Escape',
                 bubbles: true,
                 cancelable: true
             }));
+            assertContract(Boolean(close), '缺少语义关闭按钮');
+            assertContract(!overlay.classList.contains('active'), 'Escape 没有关闭弹窗');
+            assertContract(doc.activeElement === trigger, '关闭后焦点没有归还触发按钮');
 
-            const closesOnEscape = !overlay.classList.contains('active');
-            const restoresFocus = doc.activeElement === trigger;
+            openHold(doc);
+            doc.getElementById('confirm-order').click();
+            doc.dispatchEvent(new win.KeyboardEvent('keydown', {
+                key: 'Escape',
+                bubbles: true,
+                cancelable: true
+            }));
+            assertContract(!overlay.classList.contains('active'), '叠层中的登录弹窗没有响应 Escape');
             assertContract(
-                Boolean(semanticClose) && closesOnEscape && restoresFocus,
-                `语义关闭键=${Boolean(semanticClose)}，Escape关闭=${closesOnEscape}，焦点归还=${restoresFocus}`
+                doc.getElementById('checkout-dialog').classList.contains('active'),
+                '关闭登录弹窗时错误地同时关闭了底层锁座确认页'
             );
+            doc.getElementById('checkout-close').click();
         } finally {
             disposeFrame(frame);
         }
     });
 
-    await regression('BUG-010', '语音与实时设置必须持久化并在加载时恢复', async () => {
-        const firstFrame = await createAppFrame();
-        const firstDoc = firstFrame.contentDocument;
-        const firstWin = firstFrame.contentWindow;
-        const voice = firstDoc.getElementById('voice-toggle');
-        const realtime = firstDoc.getElementById('realtime-toggle');
-        voice.checked = true;
-        voice.dispatchEvent(new firstWin.Event('change', { bubbles: true }));
-        realtime.checked = true;
-        realtime.dispatchEvent(new firstWin.Event('change', { bubbles: true }));
-        firstWin.app.realtime.stop();
-        disposeFrame(firstFrame);
-
-        const secondFrame = await createAppFrame(1200, true);
-        try {
-            const secondDoc = secondFrame.contentDocument;
-            const secondApp = secondFrame.contentWindow.app;
-            const voiceRestored = secondDoc.getElementById('voice-toggle').checked;
-            const realtimeRestored = secondDoc.getElementById('realtime-toggle').checked;
-            const realtimeRunning = secondApp.realtime.running;
-
-            assertContract(
-                voiceRestored && realtimeRestored && realtimeRunning,
-                `语音=${voiceRestored}，实时开关=${realtimeRestored}，实时运行=${realtimeRunning}`
-            );
-        } finally {
-            disposeFrame(secondFrame);
-        }
-    });
-
-    await regression('BUG-011', '座位变化后旧综合评分必须失效', async () => {
+    await regression('A11Y-001', '座位图应使用单一 Tab 停点、方向键移动与 Space 选择', async () => {
         const frame = await createAppFrame();
         try {
-            const app = frame.contentWindow.app;
-            const doc = frame.contentDocument;
-            let target = null;
-            for (let row = 0; row < app.seatData.rows && !target; row++) {
-                target = app.seatData.findConsecutiveInRow(row, 1);
-            }
-            if (!target) throw new Error('无法找到可用座位');
-
-            app.seatData.selectSeat(target[0].row, target[0].col);
-            app.updateScore();
-            doc.getElementById('btn-submit-score').click();
-            const combined = doc.getElementById('combined-score-result');
-            const wasVisible = frame.contentWindow.getComputedStyle(combined).display !== 'none';
-            app.handleClear();
-            const remainsVisible = frame.contentWindow.getComputedStyle(combined).display !== 'none';
-
-            if (!wasVisible) throw new Error('测试准备失败：综合评分没有显示');
-            assertContract(!remainsVisible, '清空座位后仍显示基于旧座位的综合评分');
-        } finally {
-            disposeFrame(frame);
-        }
-    });
-
-    await regression('BUG-012', '快捷键帮助必须与实际处理器一致', async () => {
-        const frame = await createAppFrame();
-        try {
-            const app = frame.contentWindow.app;
             const doc = frame.contentDocument;
             const win = frame.contentWindow;
-            let exportCalls = 0;
-            let importCalls = 0;
-            app.handleExport = () => { exportCalls++; };
-            app.handleImport = () => { importCalls++; };
-
-            doc.dispatchEvent(new win.KeyboardEvent('keydown', {
-                key: 'k',
-                ctrlKey: true,
+            let current = doc.querySelector('.seat-button[tabindex="0"]');
+            const before = current.dataset.seatId;
+            current.focus();
+            current.dispatchEvent(new win.KeyboardEvent('keydown', {
+                key: 'ArrowRight',
                 bubbles: true,
                 cancelable: true
             }));
-            const help = doc.getElementById('keyboard-help');
-            if (!help) throw new Error('Ctrl+K 没有打开快捷键帮助');
-            const helpText = help.textContent;
-
-            doc.dispatchEvent(new win.KeyboardEvent('keydown', {
-                key: 'e',
-                ctrlKey: true,
-                bubbles: true,
-                cancelable: true
-            }));
-            doc.dispatchEvent(new win.KeyboardEvent('keydown', {
-                key: 'i',
-                ctrlKey: true,
-                bubbles: true,
-                cancelable: true
-            }));
-
-            const exportDeclared = helpText.includes('Ctrl + E');
-            const importDeclared = helpText.includes('Ctrl + I');
-            assertContract(
-                exportDeclared === (exportCalls > 0) && importDeclared === (importCalls > 0),
-                `帮助声明 E/I=${exportDeclared}/${importDeclared}，实际处理=${exportCalls}/${importCalls}`
-            );
-        } finally {
-            disposeFrame(frame);
-        }
-    });
-
-    await regression('BUG-013', '用户可控账户字段必须作为纯文本渲染', async () => {
-        const frame = await createAppFrame();
-        try {
-            const app = frame.contentWindow.app;
-            const doc = frame.contentDocument;
-            const payload = '<img src=x onerror=alert(1)>';
-            app.showAuthModal('register');
-            doc.getElementById('auth-username').value = 'safe-render-user';
-            doc.getElementById('auth-password').value = 'browser123';
-            doc.getElementById('auth-name').value = payload;
-            doc.getElementById('auth-email').value = 'safe@example.test';
-            doc.getElementById('auth-form').dispatchEvent(new Event('submit', {
+            current = doc.activeElement;
+            const after = current.dataset.seatId;
+            current.dispatchEvent(new win.KeyboardEvent('keydown', {
+                key: ' ',
                 bubbles: true,
                 cancelable: true
             }));
             await delay();
+            assertContract(before !== after, '方向键没有移动座位焦点');
+            assertContract(doc.querySelectorAll('.seat-button[tabindex="0"]').length === 1, '座位图存在多个 Tab 停点');
+            assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 1, 'Space 没有选择座位');
+            assertContract(doc.activeElement?.dataset.seatId === after, '选座重绘后键盘焦点丢失');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
 
+    await regression('SEC-001', '用户可控账户字段必须作为纯文本渲染', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            const win = frame.contentWindow;
+            const payload = '<img src=x onerror=alert(1)>';
+            doc.getElementById('btn-register').click();
+            doc.getElementById('auth-username').value = 'safe-render-user';
+            doc.getElementById('auth-password').value = 'browser123';
+            doc.getElementById('auth-name').value = payload;
+            doc.getElementById('auth-email').value = 'safe@example.test';
+            doc.getElementById('auth-form').dispatchEvent(new win.Event('submit', {
+                bubbles: true,
+                cancelable: true
+            }));
+            await delay();
             const userInfo = doc.getElementById('user-info');
-            assertContract(
-                userInfo.textContent.includes(payload) && !userInfo.querySelector('img'),
-                '注册姓名被解释为 HTML，存在 DOM 注入风险'
-            );
+            assertContract(userInfo.textContent.includes(payload), '用户姓名没有按文本显示');
+            assertContract(!userInfo.querySelector('img'), '用户姓名被解释为 HTML');
         } finally {
             disposeFrame(frame);
         }
@@ -562,12 +397,11 @@ async function run() {
 
     clearTestStorage();
     const expected = state.pass === 12 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：11 个缺陷回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    status.textContent = expected ? '完成：11 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
-    document.documentElement.dataset.pass = String(state.pass);
-    document.documentElement.dataset.xfail = String(state.xfail);
-    document.documentElement.dataset.xpass = String(state.xpass);
-    document.documentElement.dataset.error = String(state.error);
+    Object.entries(state).forEach(([key, value]) => {
+        document.documentElement.dataset[key] = String(value);
+    });
 }
 
 run().catch(error => {

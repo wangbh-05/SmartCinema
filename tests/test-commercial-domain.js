@@ -171,6 +171,21 @@ class TestCommercialDomain {
             this.assertEqual(result.error.details.seatIds[0], 'A-4');
         });
 
+        this.test('SeatSelectionPolicy 不应把场次原有孤座归因于本次选择', () => {
+            const fixture = this._fixture();
+            const inventory = createShowtimeInventory({
+                showtimeId: fixture.showtime.id,
+                soldSeatIds: ['A-1', 'A-3'],
+                updatedAt: NOW
+            });
+            const result = validateSeatSelection({
+                draft: this._completeDraft(['B-1', 'B-2']),
+                auditorium: fixture.auditorium,
+                inventory
+            });
+            this.assertTrue(result.ok);
+        });
+
         this.test('无障碍与陪同席应要求确认且保持相邻规则', () => {
             const fixture = this._fixture();
             const inventory = createShowtimeInventory({

@@ -12,18 +12,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const __rootdir = path.resolve(__dirname, '..');  // 项目根目录
 
-const PORT = 8080;
+const parsedPort = Number.parseInt(process.env.SMARTCINEMA_PORT || '8080', 10);
+const PORT = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort <= 65535 ? parsedPort : 8080;
 
 // MIME 类型映射
 const mimeTypes = {
-    '.html': 'text/html',
-    '.js': 'text/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.gif': 'image/gif',
-    '.svg': 'image/svg+xml'
+    '.svg': 'image/svg+xml; charset=utf-8'
 };
 
 const server = http.createServer((req, res) => {
@@ -41,14 +42,23 @@ const server = http.createServer((req, res) => {
 
     // 处理 GET 请求
     if (req.method === 'GET') {
-        let filePath = path.join(__rootdir, req.url === '/' ? 'index.html' : req.url);
+        let requestPath;
+        try {
+            requestPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+        } catch {
+            res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Bad Request');
+            return;
+        }
+        const relativePath = requestPath === '/' ? 'index.html' : requestPath.replace(/^\/+/, '');
+        const filePath = path.join(__rootdir, relativePath);
 
         // 安全检查：防止目录遍历
         const realPath = path.resolve(filePath);
         const realBase = path.resolve(__rootdir);
         
-        if (!realPath.startsWith(realBase)) {
-            res.writeHead(403, { 'Content-Type': 'text/plain' });
+        if (realPath !== realBase && !realPath.startsWith(`${realBase}${path.sep}`)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
             res.end('Forbidden');
             return;
         }
@@ -57,10 +67,10 @@ const server = http.createServer((req, res) => {
         fs.readFile(filePath, (err, data) => {
             if (err) {
                 // 返回 404
-                res.writeHead(404, { 'Content-Type': 'text/html' });
+                res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
                 res.end(`
                     <h1>404 Not Found</h1>
-                    <p>请求的文件不存在: ${req.url}</p>
+                    <p>请求的页面不存在。</p>
                     <hr>
                     <p><a href="/">返回首页</a></p>
                 `, 'utf-8');
@@ -76,7 +86,7 @@ const server = http.createServer((req, res) => {
             res.end(data);
         });
     } else {
-        res.writeHead(405, { 'Content-Type': 'text/plain' });
+        res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Method Not Allowed');
     }
 });

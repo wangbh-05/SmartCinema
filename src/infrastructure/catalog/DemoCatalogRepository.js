@@ -42,18 +42,18 @@ function createSeatPlan() {
 
             if (rowLabel === 'H' && seatNumber === 1) {
                 kind = 'wheelchair';
-                normalizedSectionId = 'accessible-left';
+                normalizedSectionId = 'left';
             } else if (rowLabel === 'H' && seatNumber === 2) {
                 kind = 'companion';
                 companionForSeatId = 'H-01';
-                normalizedSectionId = 'accessible-left';
+                normalizedSectionId = 'left';
             } else if (rowLabel === 'H' && seatNumber === 17) {
                 kind = 'wheelchair';
-                normalizedSectionId = 'accessible-right';
+                normalizedSectionId = 'right';
             } else if (rowLabel === 'H' && seatNumber === 18) {
                 kind = 'companion';
                 companionForSeatId = 'H-17';
-                normalizedSectionId = 'accessible-right';
+                normalizedSectionId = 'right';
             }
 
             seats.push({

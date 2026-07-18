@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SmartCinema 智能影院选座系统">
+    <title>SmartCinema Legacy - 旧版功能工作台</title>
+    <link rel="stylesheet" href="public/styles/reset.css">
+    <link rel="stylesheet" href="public/styles/variables.css">
+    <link rel="stylesheet" href="public/styles/app.css">
+    <link rel="stylesheet" href="public/styles/accessibility.css">
+</head>
+<body class="dark-mode">
+    <a class="skip-link" href="#seat-selection">跳到选座区域</a>
+
+    <header class="app-header">
+        <div class="app-brand">
+            <span class="app-brand-mark" aria-hidden="true">SC</span>
+            <div>
+                <div class="app-logo">SmartCinema</div>
+                <div class="app-tagline">更清楚地选到合适座位</div>
+            </div>
+        </div>
+        <div class="header-controls">
+            <label class="header-field">
+                <span>影厅</span>
+                <select id="hall-selector" aria-label="切换放映厅">
+                    <option value="small">小厅 · 100 座</option>
+                    <option value="medium" selected>中厅 · 200 座</option>
+                    <option value="large">大厅 · 300 座</option>
+                </select>
+            </label>
+            <span class="sr-only" id="hall-name-display">中厅</span>
+            <label class="header-field">
+                <span>日期</span>
+                <select id="day-selector" aria-label="切换日期">
+                    <option value="0">周一</option>
+                    <option value="1">周二</option>
+                    <option value="2">周三</option>
+                    <option value="3" selected>周四</option>
+                    <option value="4">周五</option>
+                    <option value="5">周六</option>
+                    <option value="6">周日</option>
+                </select>
+            </label>
+            <span id="user-info" hidden></span>
+            <button class="btn btn-accent btn-sm" id="btn-login">登录</button>
+            <button class="btn btn-sm" id="btn-register">注册</button>
+            <button class="btn btn-sm" id="btn-logout" hidden>退出</button>
+            <button class="btn btn-warning btn-sm" id="btn-admin" hidden>后台</button>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <section class="section-card canvas-section" id="seat-selection">
+            <h2>选择座位</h2>
+            <div class="canvas-toolbar">
+                <button class="btn btn-primary btn-sm" id="smart-recommend">使用智能推荐</button>
+                <button class="btn btn-sm" id="manual-select">定位到座位图</button>
+                <button class="btn btn-sm" id="clear-selection">清空选择</button>
+                <div class="canvas-zoom-controls" role="group" aria-label="座位图缩放">
+                    <button class="btn btn-sm" id="zoom-out" type="button" aria-label="缩小座位图" disabled>−</button>
+                    <output id="zoom-level" for="zoom-out zoom-in" aria-live="polite">100%</output>
+                    <button class="btn btn-sm" id="zoom-in" type="button" aria-label="放大座位图">+</button>
+                </div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="cinema-canvas" role="img" aria-label="影院座位布局图，可使用缩放按钮放大后选择" tabindex="0"></canvas>
+            </div>
+            <p class="canvas-mobile-hint">手动选座时，可先放大座位图，再横向滑动查看。</p>
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-value green" id="available-count">0</div>
+                    <div class="stat-label">空座</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value yellow" id="selected-count">0</div>
+                    <div class="stat-label">已选</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value red" id="sold-count">0</div>
+                    <div class="stat-label">已售</div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="sidebar-stack" aria-label="推荐、评分与订单">
+            <section class="section-card side-panel recommend-section" id="recommend-panel">
+                <h2>智能推荐</h2>
+                <form id="recommend-form" class="recommend-form">
+                    <div class="form-group">
+                        <label for="group-size">① 观影人数</label>
+                        <input type="number" id="group-size" min="1" max="20" value="2" placeholder="1-20 人">
+                    </div>
+                    <div class="form-group" id="age-group-wrapper">
+                        <label>② 观众年龄段</label>
+                        <div id="age-select-container">
+                            <select id="age-group">
+                                <option value="">-- 选择年龄段 --</option>
+                                <option value="youth">少年（15 岁以下）</option>
+                                <option value="adult">成年人（15–59 岁）</option>
+                                <option value="senior">老年人（60 岁以上）</option>
+                            </select>
+                        </div>
+                        <div id="age-check-container" hidden>
+                            <label class="age-check-label"><input type="checkbox" value="youth" class="age-check"> 少年</label>
+                            <label class="age-check-label"><input type="checkbox" value="adult" class="age-check" checked> 成年</label>
+                            <label class="age-check-label"><input type="checkbox" value="senior" class="age-check"> 老年</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="movie-type">③ 观影类型</label>
+                        <select id="movie-type">
+                            <option value="">-- 请先选择人数 --</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="name-single-wrapper">
+                        <label for="user-name">④ 姓名</label>
+                        <input type="text" id="user-name" placeholder="请输入您的姓名" maxlength="30">
+                    </div>
+                    <div class="form-group" id="name-group-wrapper" hidden>
+                        <label for="member-names">④ 成员姓名（每行一个，共需 <span id="member-count-hint">2</span> 人）</label>
+                        <textarea id="member-names" rows="4" placeholder="张三&#10;李四" maxlength="500"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">生成座位建议</button>
+                </form>
+                <div class="recommend-result" id="recommend-result"></div>
+            </section>
+
+            <section class="section-card side-panel score-section" id="experience-score">
+                <h2>观影体验</h2>
+                <div id="score-details">
+                    <p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>
+                </div>
+                <div id="manual-score-panel" class="manual-score-panel" hidden>
+                    <h3 class="manual-score-title">我的评分（0–10 分）</h3>
+                    <div class="form-group">
+                        <label>视野质量 <span class="manual-score-value" id="manual-vision-val">5</span></label>
+                        <input type="range" id="manual-vision" min="0" max="10" value="5" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label>屏幕距离 <span class="manual-score-value" id="manual-distance-val">5</span></label>
+                        <input type="range" id="manual-distance" min="0" max="10" value="5" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label>舒适度 <span class="manual-score-value" id="manual-comfort-val">5</span></label>
+                        <input type="range" id="manual-comfort" min="0" max="10" value="5" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label>价格划算度 <span class="manual-score-value" id="manual-price-val">5</span></label>
+                        <input type="range" id="manual-price" min="0" max="10" value="5" step="0.5">
+                    </div>
+                    <div id="combined-score-result" class="combined-score-result" hidden></div>
+                    <button class="btn btn-primary btn-sm btn-block" id="btn-submit-score">提交我的评分</button>
+                </div>
+            </section>
+
+            <section class="section-card side-panel" id="submit-order-section">
+                <h2>订单</h2>
+                <div class="order-summary-mini" id="order-summary-mini">暂未选择座位</div>
+                <div class="order-actions-stack">
+                    <button class="btn btn-accent btn-block" id="btn-submit-order" disabled>继续确认订单</button>
+                    <button class="btn btn-sm btn-block" id="btn-view-orders">查看历史订单</button>
+                </div>
+                <div id="orders-mini-list" class="orders-mini-list" hidden></div>
+            </section>
+        </aside>
+
+        <section class="section-card full-width" id="heatmap-section">
+            <h2>影院热度地图</h2>
+            <div class="canvas-container">
+                <canvas id="heatmap-canvas" role="img" aria-label="影院热度地图，暖色表示热门，冷色表示冷门"></canvas>
+            </div>
+        </section>
+
+        <section class="section-card full-width" id="settings">
+            <h2>偏好设置</h2>
+            <div class="settings-grid">
+                <label class="setting-control"><input type="checkbox" id="theme-toggle"> 深色模式</label>
+                <label class="setting-control"><input type="checkbox" id="accessibility-toggle"> 无障碍模式</label>
+                <label class="setting-control"><input type="checkbox" id="voice-toggle"> 语音提示</label>
+                <label class="setting-control"><input type="checkbox" id="colorblind-toggle"> 色盲友好模式</label>
+                <label class="setting-control"><input type="checkbox" id="realtime-toggle"> 实时模拟（WebSocket）</label>
+            </div>
+            <div class="setting-actions">
+                <button class="btn btn-sm" id="export-data">导出安全备份</button>
+                <button class="btn btn-warning btn-sm" id="export-full-data">导出完整备份</button>
+                <button class="btn btn-sm" id="import-data">导入备份</button>
+            </div>
+            <div class="accent-controls">
+                <span class="settings-label">主题色</span>
+                <button class="theme-dot" type="button" data-accent="#58A6FF" title="默认蓝" aria-label="使用默认蓝主题色"></button>
+                <button class="theme-dot" type="button" data-accent="#10B981" title="翡翠绿" aria-label="使用翡翠绿主题色"></button>
+                <button class="theme-dot" type="button" data-accent="#F59E0B" title="琥珀金" aria-label="使用琥珀金主题色"></button>
+                <button class="theme-dot" type="button" data-accent="#EC4899" title="玫瑰粉" aria-label="使用玫瑰粉主题色"></button>
+                <button class="theme-dot" type="button" data-accent="#8B5CF6" title="紫罗兰" aria-label="使用紫罗兰主题色"></button>
+                <input type="color" id="accent-picker" value="#58A6FF" title="自定义主题色" aria-label="选择自定义主题色">
+            </div>
+        </section>
+    </main>
+
+    <div class="auth-modal-overlay" id="auth-modal" aria-hidden="true">
+        <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" tabindex="-1">
+            <button class="modal-close" id="auth-modal-close" type="button" aria-label="关闭登录注册对话框">✕</button>
+            <h2 id="auth-title">用户登录</h2>
+            <form id="auth-form">
+                <div class="form-group">
+                    <label for="auth-username">用户名</label>
+                    <input type="text" id="auth-username" placeholder="请输入用户名" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="auth-password">密码</label>
+                    <input type="password" id="auth-password" placeholder="请输入密码" required minlength="6">
+                </div>
+                <div id="register-extra-fields" hidden>
+                    <div class="form-group">
+                        <label for="auth-name">姓名</label>
+                        <input type="text" id="auth-name" placeholder="请输入真实姓名">
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-email">邮箱（选填）</label>
+                        <input type="email" id="auth-email" placeholder="请输入邮箱">
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-block" id="auth-submit" type="submit">登录</button>
+                <div class="auth-error" id="auth-error" role="alert" tabindex="-1"></div>
+                <div class="auth-switch-link">
+                    <button id="auth-switch" type="button">没有账号？立即注册</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="ai-chatbot">
+        <button id="ai-chat-toggle" type="button" title="AI 观影顾问" aria-label="打开 AI 观影顾问" aria-controls="ai-chat-panel" aria-expanded="false">AI</button>
+        <div id="ai-chat-panel" role="region" aria-label="AI 观影顾问" hidden>
+            <div class="ai-chat-header">
+                <span>AI 观影顾问</span>
+                <button id="ai-chat-close" type="button" aria-label="关闭 AI 观影顾问">✕</button>
+            </div>
+            <div id="ai-chat-messages"></div>
+            <div id="ai-chat-suggestions"></div>
+            <div class="ai-chat-input-row">
+                <input type="text" id="ai-chat-input" placeholder="输入问题，如“推荐座位”" maxlength="200">
+                <button id="ai-chat-send" type="button">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-container" class="modal-container" aria-hidden="true"></div>
+    <script type="module" src="src/app.js"></script>
+</body>
+</html>

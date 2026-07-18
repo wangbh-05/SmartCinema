@@ -1,4 +1,6 @@
 import { createBookingDraft, replaceDraftSeats } from '../../domain/booking/BookingDraft.js';
+import { quoteBooking } from '../../domain/booking/PricingQuote.js';
+import { recommendSeatBlock } from './RecommendSeatBlock.js';
 import {
     consumeBookingHold,
     expireBookingHold,
@@ -56,6 +58,45 @@ export class CommercialBookingService {
 
     replaceSeats(draft, seatIds) {
         return replaceDraftSeats(draft, seatIds, this.clock.now());
+    }
+
+    recommendSeats(draft, selectionPolicy = {}) {
+        const context = this.getBookingContext(draft.showtimeId);
+        if (!context.ok) return context;
+        const inventory = this.getInventory(draft.showtimeId);
+        if (!inventory.ok) return inventory;
+        return recommendSeatBlock({
+            draft,
+            auditorium: context.value.auditorium,
+            inventory: inventory.value,
+            updatedAt: this.clock.now(),
+            policy: selectionPolicy
+        });
+    }
+
+    quoteDraft(draft) {
+        const context = this.getBookingContext(draft.showtimeId);
+        if (!context.ok) return context;
+        return quoteBooking({
+            draft,
+            auditorium: context.value.auditorium,
+            ticketTypesById: this.catalogRepository.getTicketTypesById(),
+            pricingPolicy: context.value.pricingPolicy,
+            quotedAt: this.clock.now()
+        });
+    }
+
+    createHoldRequestKey() {
+        return this.idGenerator.next('hold-request');
+    }
+
+    listOrders(userId) {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const orders = Object.values(current.value.ordersById)
+            .filter(order => order.userId === userId)
+            .sort((left, right) => Date.parse(right.confirmedAt) - Date.parse(left.confirmedAt));
+        return ok(Object.freeze(orders));
     }
 
     getInventory(showtimeId) {
@@ -205,7 +246,7 @@ export class CommercialBookingService {
                 auditorium,
                 showtime,
                 refundPolicy,
-                ticketCode: this.idGenerator.next('ticket').toUpperCase(),
+                ticketCode: this._createTicketCode(),
                 qrPayload: `smartcinema:ticket:${orderId}`,
                 confirmedAt: this.clock.now()
             });
@@ -233,6 +274,11 @@ export class CommercialBookingService {
             refundPolicy: this.catalogRepository.getRefundPolicy(showtime.refundPolicyId),
             priceFrom: pricingPolicy?.baseTicketPrice ?? null
         });
+    }
+
+    _createTicketCode() {
+        const raw = this.idGenerator.next('ticket').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        return `SC-${raw.slice(-10).padStart(10, '0')}`;
     }
 
     _validateShowtimeForSale(showtimeId, now) {

@@ -21,6 +21,7 @@ import TestRegressionContracts from './test-regressions.js';
 import TestCommercialDomain from './test-commercial-domain.js';
 import TestStorageV3 from './test-storage-v3.js';
 import TestCommercialApplication from './test-commercial-application.js';
+import TestCommercialComposition from './test-commercial-composition.js';
 
 class TestRunner {
     constructor() {
@@ -124,6 +125,11 @@ class TestRunner {
         const commercialApplicationTest = new TestCommercialApplication();
         const commercialApplicationResult = commercialApplicationTest.runAll();
         this.results.push({ name: 'CommercialApp', ...commercialApplicationResult });
+
+        // 生产 composition root：连续迁移、演示库存、v3 账户和推荐报价
+        const commercialCompositionTest = new TestCommercialComposition();
+        const commercialCompositionResult = commercialCompositionTest.runAll();
+        this.results.push({ name: 'CommercialComposition', ...commercialCompositionResult });
 
         // 打印总摘要
         this.printGlobalSummary();

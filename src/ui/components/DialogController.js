@@ -7,6 +7,8 @@ const FOCUSABLE_SELECTOR = [
     '[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
+const OPEN_DIALOGS = [];
+
 /**
  * 统一 Dialog 行为：Escape、焦点归还、焦点陷阱和安全的 backdrop pointer 手势。
  */
@@ -40,6 +42,8 @@ export class DialogController {
         if (!this.isOpen()) {
             const candidate = trigger || document.activeElement;
             this.opener = candidate instanceof HTMLElement ? candidate : null;
+            OPEN_DIALOGS.push(this);
+            document.body?.classList.add('dialog-open');
         }
         this.overlay.classList.add('active');
         this.overlay.setAttribute('aria-hidden', 'false');
@@ -52,6 +56,9 @@ export class DialogController {
         this.overlay.classList.remove('active');
         this.overlay.setAttribute('aria-hidden', 'true');
         this.pointerStartedOnBackdrop = false;
+        const stackIndex = OPEN_DIALOGS.lastIndexOf(this);
+        if (stackIndex >= 0) OPEN_DIALOGS.splice(stackIndex, 1);
+        if (OPEN_DIALOGS.length === 0) document.body?.classList.remove('dialog-open');
         if (restoreFocus && this.opener?.isConnected) this.opener.focus();
         this.opener = null;
         this.onClose();
@@ -73,9 +80,10 @@ export class DialogController {
             this.pointerStartedOnBackdrop = false;
         });
         document.addEventListener('keydown', event => {
-            if (!this.isOpen()) return;
+            if (!this.isOpen() || OPEN_DIALOGS[OPEN_DIALOGS.length - 1] !== this) return;
             if (event.key === 'Escape') {
                 event.preventDefault();
+                event.stopImmediatePropagation();
                 this.close();
                 return;
             }

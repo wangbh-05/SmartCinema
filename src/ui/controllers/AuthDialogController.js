@@ -106,8 +106,7 @@ export class AuthDialogController {
     }
 
     _canCloseFromBackdrop() {
-        if (!this.dirty) return true;
-        this.onNotify?.('表单尚未提交，可使用右上角关闭按钮退出');
+        this.onNotify?.('可使用右上角关闭按钮或 Esc 退出');
         return false;
     }
 

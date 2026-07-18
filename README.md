@@ -1,6 +1,8 @@
 # SmartCinema
 
-SmartCinema 是一个无运行时依赖的原生 JavaScript 影院选座应用。它使用 Canvas 呈现三种影厅，提供注册登录、规则推荐、体验评分、订单确认与退票、热度地图、实时占座模拟、数据备份以及键盘/辅助显示支持。
+SmartCinema 是一个无运行时依赖的原生 JavaScript 商业影院购票演示。生产入口遵循“场次 → 票种/票数 → 座位 → 锁座 → 身份 → 订单”的交易漏斗，使用 Storage v3 保存场次库存、有效锁座和不可变订单快照。
+
+当前重构在 `zcjx/smart_cinema` 分支进行。旧 Canvas 功能台暂时保留在 `legacy.html`，只用于迁移期对照；生产入口是 `index.html`。
 
 ## 快速开始
 
@@ -17,113 +19,121 @@ npm start
 npm test
 ```
 
-项目不需要打包器；`npm run build` 和 `npm run lint` 当前只是说明性占位命令。
+项目不需要打包器；`npm run build` 和 `npm run lint` 当前是说明性占位命令。
 
-## 核心能力
+## 当前商业流程
 
-- 小厅、中厅、大厅分别提供 100、200、300 个座位；
-- 鼠标、Pointer 拖选与键盘方向键、Enter/Space 均可操作 Canvas；
-- 推荐规则考虑人数、少年/成年/老年以及情侣、朋友、亲子场景；
-- 系统评分覆盖视野、舒适度、银幕距离和价格，并可与用户评分合并；
-- 已售库存以 `showtimeId` 按影厅和日期隔离；
-- 订单按稳定 `userId` 隔离，确认支付具有幂等保护；
-- 本地选择、远端临时占座和已售库存是三个独立状态；
-- 登录/注册 Dialog 支持关闭按钮、Escape、焦点陷阱与焦点归还，拖动越界不会误关闭；
-- 支持深浅主题、自定义强调色、大字体、色盲配色、语音提示和 reduced-motion；
-- 安全备份默认不导出凭据，完整备份会在明确确认后包含本地演示账号凭据。
+- 展示电影、影院、地址、日期、具体时间、影厅、制式、语言和退改政策；
+- 成人/儿童/学生/长者票步进器，单笔限制 1–8 张；
+- 票数必须与座位数严格一致；
+- 180 个语义化 DOM 座位按钮，区分可选、已选、已售/锁定、优选区、轮椅位和陪同席；
+- “帮我选连座”只使用票数和靠中/靠后/过道/无台阶偏好，不收集成员姓名或关系；
+- 桌面 sticky 订单摘要，手机固定底栏持续显示已选数量、总价和下一步；
+- 价格由票种、座位区和服务费政策统一报价，UI 不自行求价；
+- 继续后原子创建 10 分钟 `SeatHold`，关闭/超时会释放库存；
+- 访客可先锁座，仅在确认订单前登录或注册；
+- 确认操作幂等，成功后生成紧凑取票码并进入“我的订单”；
+- 登录 Dialog 有显式关闭键、焦点陷阱、焦点归还和弹窗栈；背景点击或内容拖出不会误关闭。
 
-## 当前结构
+本地演示目录使用虚构影片“星际回响”和固定影院，演示库存是确定性生成的，不依赖网络或随机运行时状态。
+
+## 代码结构
 
 ```text
 SmartCinema/
-├── index.html                  # 选座首页
-├── order.html                  # 订单确认页
+├── index.html                         # 商业购票生产入口
+├── legacy.html                        # 迁移期旧功能台
+├── order.html                         # v2 旧结算入口
 ├── public/styles/
-│   ├── variables.css           # 颜色、间距、圆角、阴影与层级 tokens
-│   ├── app.css                 # 首页设计系统、组件与响应式布局
-│   ├── order.css               # 结算页布局
-│   └── accessibility.css       # 焦点、高对比度与 reduced-motion
+│   ├── commercial.css                 # 新交易外壳、DOM 座位和响应式
+│   ├── variables.css                  # 共享 tokens
+│   ├── accessibility.css              # 焦点、高对比与 reduced-motion
+│   ├── app.css                        # legacy 功能台
+│   └── order.css                      # legacy 结算页
 ├── src/
-│   ├── domain/                 # Hall、Showtime、Inventory、Order、User 等纯领域对象
-│   ├── application/            # 认证、选座、推荐、评分、结算等用例
-│   ├── infrastructure/         # Storage v2、迁移、浏览器和 realtime 适配
-│   ├── ui/
-│   │   ├── adapters/           # AppState 到页面视图的投影
-│   │   ├── canvas/             # Canvas 布局、输入与绘制
-│   │   ├── components/         # Dialog、Toast
-│   │   └── controllers/        # 页面功能控制器
-│   ├── app.js                  # 首页组合与薄事件编排
-│   ├── order.js                # 结算页入口
-│   └── bootstrap.js            # 依赖组合根
-├── tests/                      # Node 契约、浏览器回归与视觉审查入口
-└── doc/                        # 架构、领域、存储、路线图与 QA 文档
+│   ├── domain/
+│   │   ├── catalog/                   # Movie/Cinema/Auditorium/Showtime/票价政策
+│   │   ├── booking/                   # BookingDraft/Inventory/SeatHold/选座规则
+│   │   ├── order/                     # v3 不可变商业订单快照
+│   │   └── user/                      # 用户与设置
+│   ├── application/
+│   │   └── commercial/                # 购票、账户、推荐和应用组合
+│   ├── infrastructure/
+│   │   ├── catalog/                   # 演示目录与确定性库存
+│   │   ├── storage/                   # Storage v2/v3、迁移和 session owner
+│   │   └── browser/                   # Clock、IdGenerator、营业日
+│   ├── ui/                            # Dialog、适配器和 legacy controllers
+│   ├── commercial.js                  # 新生产页面薄编排
+│   ├── bootstrapCommercial.js         # v3 生产组合根
+│   ├── app.js                         # legacy 首页
+│   └── bootstrap.js                   # v2 legacy 组合根
+├── tests/                             # Node 契约与真实浏览器流程
+└── doc/                               # RFC、路线图、迁移与 QA
 ```
 
-依赖方向为：
+依赖方向：
 
 ```text
 UI → Application → Domain / Shared
 Infrastructure ───────────┘
 ```
 
-领域层和应用层不访问 DOM、Canvas、LocalStorage、系统时间或随机源。浏览器能力只在基础设施和组合根注入；UI 不直接读写存储。
+领域和应用层不访问 DOM、LocalStorage、系统时间或随机源；基础设施通过组合根注入，生产 UI 不直接读写 Web Storage。
 
-## 状态与持久化
+## 状态与迁移
 
-当前持久化使用单一 v2 state envelope：
+当前生产事实源是 `smartcinema_state_v3`：
 
-- `smartcinema_state_v2`：用户、session、订单、按场次库存和设置；
-- `smartcinema_checkout_v2`：当前标签页的结算意图，存于 SessionStorage；
-- `smartcinema_v1_backup`：首次迁移旧数据前的备份；
-- `smartcinema_import_backup_v2`：导入替换前的可恢复快照。
+- `usersById` / `session`；
+- `ordersById`：商业订单与 legacy 订单快照；
+- `inventoriesByShowtime`：已售座位和 hold 映射；
+- `holdsById`：pending/held/expired/released/consumed；
+- `settingsByUser`；
+- revision、更新时间和 migration 报告。
 
-Repository 在写入前校验完整 candidate，并使用 revision 检测冲突。旧数据无法可靠推断用户或场次时会进入 quarantine，不会猜测归属。完整协议见 [Storage Schema v2](doc/STORAGE_SCHEMA_V2.md)。
+启动会先保证 v2 存在，再幂等执行 v2→v3 迁移。原 v2 key 不删除，并在 `smartcinema_state_v2_before_v3` 保存迁移前备份；旧订单缺少的电影、影院和具体时间使用显式 `legacy-*`/`unknown`，不会编造事实。完整契约见 [RFC Commercial Domain v3](doc/RFC_COMMERCIAL_DOMAIN_V3.md)。
 
-> 这是本地课程型应用，不是生产认证系统。演示账号密码仍存于本机浏览器；不要录入真实凭据，也不要分享完整备份。
+> 这是本地演示，不是生产认证或支付系统。演示密码仍以明文凭据保存在本机浏览器，请勿录入真实密码或个人数据。
+
+## 交互与可访问性
+
+- 座位图使用 roving tabindex：Tab 进入一次，方向键逐座移动，Space 选择；
+- 每个座位读出排号、座号、座位附加费、类型和当前状态；
+- 手机座位图只在自身容器横向滚动，页面本身在 320px 不横向溢出；
+- 陪同席自动联动对应轮椅位，用途确认前不能继续；
+- `prefers-reduced-motion: reduce` 移除 Dialog 的位移/缩放；
+- 高频选座不使用位移动画，hover 仅对精确指针启用；
+- 多层 Dialog 只允许最上层响应 Escape，关闭后焦点归还原触发点。
 
 ## 测试与验收
 
-Node 测试：
+Node 全量：
 
 ```bash
 npm test
+# 139/139 PASS
 ```
 
-浏览器回归：先运行 `npm start`，再打开：
+启动服务后，以独立 origin 打开浏览器契约：
 
 ```text
 http://127.0.0.1:8080/tests/browser-regressions.html
+# PASS 12 · XFAIL 0 · XPASS 0 · ERROR 0
 ```
 
-必须使用 `127.0.0.1`。测试页会清理该 origin 下的 `smartcinema_` 数据，从而与日常使用的 `localhost` 数据隔离。
+测试页会清理 `127.0.0.1` 下的 `smartcinema_` 数据，不影响日常使用的 `localhost` 数据。浏览器契约覆盖商业入口、票座一致、无障碍门控、锁座释放、访客确认、重复提交、320–1440px、Dialog 指针/Escape/焦点、键盘选座、安全文本和运行时错误。详细说明见 [TESTING.md](TESTING.md)。
 
-窄屏视觉审查：
+## 当前边界
 
-```text
-http://127.0.0.1:8080/tests/visual-review.html
-```
-
-当前自动化覆盖 105 个 Node 测试、11 个真实浏览器缺陷契约和 1 个运行时健康检查，包括 320–1440px 默认/无障碍布局、Canvas 首末座位可见性、弹窗指针手势、重复支付和安全文本渲染。详细说明见 [TESTING.md](TESTING.md)。
-
-## 交互说明
-
-- Canvas 聚焦后可用方向键移动焦点，Enter 或 Space 切换座位；
-- 窄屏可用座位图缩放控件在 100%–400% 间放大，并在 Canvas 容器内横向浏览；
-- `Ctrl/Cmd + K` 打开快捷键帮助；
-- `Ctrl/Cmd + E` 导出不含凭据的安全备份；
-- `Ctrl/Cmd + I` 打开备份导入；
-- 快捷键不会劫持 input、textarea、select 或 contenteditable 的编辑行为；
-- 色盲模式会同时更新座位图与热度图；
-- `prefers-reduced-motion: reduce` 会关闭非必要位移和 Canvas 弹性反馈。
+仍在后续阶段中的能力：刷新后恢复有效草稿/hold、并发冲突一键重选、多日/多影院目录、真实支付、订单取消/退款、二维码、账户偏好、内部工具拆分、真实读屏和完整辅助模式人工验收。不要把 `legacy.html` 中仍存在的热图、评分、模拟或备份入口视为新消费者产品的一部分。
 
 ## 主要文档
 
-- [长程重构路线图](doc/REFACTOR_ROADMAP.md)
-- [目标架构](doc/REFACTOR_ARCHITECTURE.md)
-- [领域契约](doc/DOMAIN_CONTRACTS.md)
-- [Storage v2](doc/STORAGE_SCHEMA_V2.md)
-- [回归测试矩阵](doc/REFACTOR_TEST_MATRIX.md)
-- [2026-07-18 QA 报告](doc/QA_REPORT_2026-07-18.md)
+- [商业产品与体验路线图](doc/COMMERCIAL_UX_ROADMAP.md)
+- [商业纵向切片 QA](doc/COMMERCIAL_UX_PHASE_2_QA.md)
+- [商业领域 v3 RFC](doc/RFC_COMMERCIAL_DOMAIN_V3.md)
+- [商业基线](doc/COMMERCIAL_UX_BASELINE.md)
+- [已完成技术重构路线图](doc/REFACTOR_ROADMAP.md)
 - [测试指南](TESTING.md)
 
 ## 许可证

@@ -108,8 +108,10 @@ export function validateSeatSelection({ draft, auditorium, inventory, policy: in
     }
 
     if (policy.preventOrphanSeat) {
+        const existingOrphans = new Set(findOrphanSeats(auditorium, unavailable));
         const afterSelection = new Set([...unavailable, ...draft.selectedSeatIds]);
-        const orphanSeatIds = findOrphanSeats(auditorium, afterSelection);
+        const orphanSeatIds = findOrphanSeats(auditorium, afterSelection)
+            .filter(seatId => !existingOrphans.has(seatId));
         if (orphanSeatIds.length > 0) {
             return err('ORPHAN_SEAT_CREATED', '当前选择会留下单个孤立空座', { seatIds: orphanSeatIds });
         }
