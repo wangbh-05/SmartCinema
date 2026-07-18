@@ -2,7 +2,7 @@
 
 > 建立日期：2026-07-18
 > 对应阶段：`doc/REFACTOR_ROADMAP.md` 阶段 1
-> 当前状态：5 个状态类 Bug 已转为普通回归测试，7 个交互/响应式 Bug 保持 XFAIL
+> 当前状态：11 个 Bug 已转为普通回归测试，仅响应式 BUG-006 保持 XFAIL
 
 ## 1. XFAIL 约定
 
@@ -63,11 +63,11 @@ http://127.0.0.1:8080/tests/browser-regressions.html
 
 阶段 3 当前实测：
 
-- PASS：3（`BUG-001`、`BUG-003`、`BUG-010`）；
-- XFAIL：7；
+- PASS：9；
+- XFAIL：1（`BUG-006`）；
 - XPASS：0；
 - ERROR：0；
-- 页面状态：`完成：3 个修复通过，7 个已知问题稳定复现`。
+- 页面状态：`完成：9 个修复通过，1 个响应式问题稳定复现`。
 
 结果截图：`/Users/a1/.codex/visualizations/2026/07/17/019f725b-685f-7d91-8dfb-0c4675dbfee7/smartcinema-stage1-regression-contracts.png`
 
@@ -79,14 +79,14 @@ http://127.0.0.1:8080/tests/browser-regressions.html
 | BUG-002 | PASS | Node | 查询 user-a 返回两个用户的订单，订单没有稳定 `userId` | 创建、查询、取消和收据均受 userId 权限约束 |
 | BUG-003 | PASS | 浏览器 | 快速双击“确认支付”创建 2 个订单 | 同一结算意图最多生成 1 个订单 |
 | BUG-004 | PASS | Node | 远端 select 直接修改 `selectedSeats/isSelected` | RemoteHold 与 LocalSelection 分离 |
-| BUG-005 | XFAIL | 浏览器 | 输入框内 Ctrl+Z 清空已选座位 | 文本编辑快捷键不触发全局选座动作 |
+| BUG-005 | PASS | 浏览器 | 输入框内 Ctrl+Z 清空已选座位 | 文本编辑快捷键不触发全局选座动作 |
 | BUG-006 | XFAIL | 浏览器 | 320、390、768、800、900、1024px 均横向溢出 | 320–1440px 矩阵全部无页面级横向溢出 |
-| BUG-007 | XFAIL | 浏览器 | Enter 没有运行认证或显示错误 | 登录/注册使用原生 form submit 语义 |
-| BUG-008 | XFAIL | 浏览器 | 从内容开始、在遮罩释放的拖动会关闭弹窗 | 仅按下和释放均在遮罩时关闭 |
-| BUG-009 | XFAIL | 浏览器 | 无语义关闭键，Escape 不关闭 | 有可访问关闭键、Escape、焦点归还 |
+| BUG-007 | PASS | 浏览器 | Enter 没有运行认证或显示错误 | 登录/注册使用原生 form submit 语义 |
+| BUG-008 | PASS | 浏览器 | 从内容开始、在遮罩释放的拖动会关闭弹窗 | 仅按下和释放均在遮罩时关闭 |
+| BUG-009 | PASS | 浏览器 | 无语义关闭键，Escape 不关闭 | 有可访问关闭键、Escape、焦点归还 |
 | BUG-010 | PASS | 浏览器 | 刷新后语音/实时均为 false，实时未启动 | 控件、存储和运行时状态一致恢复 |
-| BUG-011 | XFAIL | 浏览器 | 清空座位后旧综合评分仍可见 | 座位输入变化立即使派生评分失效 |
-| BUG-012 | XFAIL | 浏览器 | 帮助声明 Ctrl+E/I，实际处理次数为 0/0 | 帮助内容与实际处理器逐项一致 |
+| BUG-011 | PASS | 浏览器 | 清空座位后旧综合评分仍可见 | 座位输入变化立即使派生评分失效 |
+| BUG-012 | PASS | 浏览器 | 帮助声明 Ctrl+E/I，实际处理次数为 0/0 | 帮助内容与实际处理器逐项一致 |
 
 ## 5. 确定性与隔离
 

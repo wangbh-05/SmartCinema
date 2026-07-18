@@ -83,6 +83,7 @@ export class AccessibilityManager {
      * 焦点管理
      */
     manageFocus(event) {
+        if (document.querySelector('[role="dialog"][aria-modal="true"]')?.closest('.active')) return;
         // 实现焦点陷阱，确保焦点在应用内循环
         const focusableElements = document.querySelectorAll(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'

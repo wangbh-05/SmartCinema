@@ -246,7 +246,7 @@ async function run() {
         }
     });
 
-    await xfail('BUG-005', '文本输入中的 Ctrl+Z 不得清空座位', async () => {
+    await regression('BUG-005', '文本输入中的 Ctrl+Z 不得清空座位', async () => {
         const frame = await createAppFrame();
         try {
             const app = frame.contentWindow.app;
@@ -296,7 +296,7 @@ async function run() {
         }
     });
 
-    await xfail('BUG-007', '登录与注册表单必须支持 Enter 提交', async () => {
+    await regression('BUG-007', '登录与注册表单必须支持 Enter 提交', async () => {
         const frame = await createAppFrame();
         try {
             const app = frame.contentWindow.app;
@@ -317,7 +317,7 @@ async function run() {
         }
     });
 
-    await xfail('BUG-008', '内容区开始的拖动不得在遮罩释放时关闭弹窗', async () => {
+    await regression('BUG-008', '内容区开始的拖动不得在遮罩释放时关闭弹窗', async () => {
         const frame = await createAppFrame();
         try {
             const app = frame.contentWindow.app;
@@ -338,7 +338,7 @@ async function run() {
         }
     });
 
-    await xfail('BUG-009', '弹窗必须有语义关闭键、Escape 与焦点归还', async () => {
+    await regression('BUG-009', '弹窗必须有语义关闭键、Escape 与焦点归还', async () => {
         const frame = await createAppFrame();
         try {
             const doc = frame.contentDocument;
@@ -396,7 +396,7 @@ async function run() {
         }
     });
 
-    await xfail('BUG-011', '座位变化后旧综合评分必须失效', async () => {
+    await regression('BUG-011', '座位变化后旧综合评分必须失效', async () => {
         const frame = await createAppFrame();
         try {
             const app = frame.contentWindow.app;
@@ -422,7 +422,7 @@ async function run() {
         }
     });
 
-    await xfail('BUG-012', '快捷键帮助必须与实际处理器一致', async () => {
+    await regression('BUG-012', '快捷键帮助必须与实际处理器一致', async () => {
         const frame = await createAppFrame();
         try {
             const app = frame.contentWindow.app;
@@ -468,8 +468,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 3 && state.xfail === 7 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：3 个修复通过，7 个已知问题稳定复现' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 9 && state.xfail === 1 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：9 个修复通过，1 个响应式问题稳定复现' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     document.documentElement.dataset.pass = String(state.pass);
     document.documentElement.dataset.xfail = String(state.xfail);

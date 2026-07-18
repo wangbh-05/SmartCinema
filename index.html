@@ -212,14 +212,36 @@
             padding: 30px;
             width: 100%;
             max-width: 400px;
+            max-height: calc(100dvh - 32px);
+            overflow-y: auto;
+            position: relative;
             box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         .auth-modal h2 { color: var(--accent); margin-bottom: 20px; text-align: center; }
         .auth-modal .form-group { margin-bottom: 16px; }
         .auth-modal .btn { width: 100%; margin-top: 8px; padding: 10px; }
+        .auth-modal .modal-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 36px;
+            height: 36px;
+            margin: 0;
+            padding: 0;
+            color: var(--text-secondary);
+        }
+        .auth-modal .modal-close:hover { color: var(--text-primary); background: var(--bg-card); }
         .auth-error { color: #F85149; font-size: 0.85em; margin-top: 8px; display: none; }
         .auth-switch-link { text-align: center; margin-top: 12px; font-size: 0.85em; }
-        .auth-switch-link a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+        .auth-switch-link button {
+            border: 0;
+            padding: 4px;
+            background: transparent;
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: underline;
+            font: inherit;
+        }
 
         /* 评分区 */
         .score-placeholder { text-align: center; color: var(--text-secondary); padding: 20px; }
@@ -525,9 +547,10 @@
 
     <!-- ==================== 认证模态框 ==================== -->
     <div class="auth-modal-overlay" id="auth-modal" aria-hidden="true">
-        <div class="auth-modal">
+        <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" tabindex="-1">
+            <button class="modal-close" id="auth-modal-close" type="button" aria-label="关闭登录注册对话框">✕</button>
             <h2 id="auth-title">用户登录</h2>
-            <form id="auth-form" onsubmit="return false">
+            <form id="auth-form">
                 <div class="form-group">
                     <label for="auth-username">用户名</label>
                     <input type="text" id="auth-username" placeholder="请输入用户名" required minlength="3">
@@ -536,7 +559,7 @@
                     <label for="auth-password">密码</label>
                     <input type="password" id="auth-password" placeholder="请输入密码" required minlength="6">
                 </div>
-                <div id="register-extra-fields" style="display:none">
+                <div id="register-extra-fields" hidden>
                     <div class="form-group">
                         <label for="auth-name">姓名</label>
                         <input type="text" id="auth-name" placeholder="请输入真实姓名">
@@ -546,13 +569,12 @@
                         <input type="email" id="auth-email" placeholder="请输入邮箱">
                     </div>
                 </div>
-                <button class="btn btn-primary" id="auth-submit" type="button">登 录</button>
-                <div class="auth-error" id="auth-error"></div>
+                <button class="btn btn-primary" id="auth-submit" type="submit">登 录</button>
+                <div class="auth-error" id="auth-error" role="alert" tabindex="-1"></div>
                 <div class="auth-switch-link">
-                    <a id="auth-switch">没有账号？立即注册</a>
+                    <button id="auth-switch" type="button">没有账号？立即注册</button>
                 </div>
             </form>
-            <button class="btn btn-sm" id="auth-modal-close" style="width:100%;margin-top:8px;">关闭</button>
         </div>
     </div>
 

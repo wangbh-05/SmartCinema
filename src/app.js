@@ -17,6 +17,7 @@ import { AccessibilityManager } from './utils/accessibility.js';
 import { createBrowserAppController, createBrowserRealtimeSimulator } from './bootstrap.js';
 import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
 import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
+import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
 
 class SmartCinema {
     constructor() {
@@ -51,13 +52,16 @@ class SmartCinema {
         this.registerBtn = document.getElementById('btn-register');
         this.logoutBtn = document.getElementById('btn-logout');
         this.adminBtn = document.getElementById('btn-admin');
-        this.authModal = document.getElementById('auth-modal');
-        this.authForm = document.getElementById('auth-form');
-        this.authTitle = document.getElementById('auth-title');
-        this.authSubmit = document.getElementById('auth-submit');
-        this.authSwitch = document.getElementById('auth-switch');
-        this.authError = document.getElementById('auth-error');
         this.heatmapCanvas = document.getElementById('heatmap-canvas');
+        this.authDialog = new AuthDialogController({
+            auth: this.auth,
+            onAuthChanged: () => {
+                this.updateAuthUI();
+                this.loadSettings();
+            },
+            onAnnounce: message => this.a11yManager.announce(message),
+            onNotify: message => this._showToast(message)
+        });
 
         // 渲染引擎
         this.cinema = new Cinema(this.cinemaCanvas, this.seatData);
@@ -71,7 +75,6 @@ class SmartCinema {
         });
 
         // 状态
-        this.authMode = 'login'; // 'login' | 'register'
         this.applyPersistedSoldSeats();
         this.restoreSeatSelection();
         this.cinema.redraw();
@@ -182,22 +185,10 @@ class SmartCinema {
         });
 
         // 认证事件
-        this.loginBtn?.addEventListener('click', () => this.showAuthModal('login'));
-        this.registerBtn?.addEventListener('click', () => this.showAuthModal('register'));
+        this.loginBtn?.addEventListener('click', () => this.showAuthModal('login', this.loginBtn));
+        this.registerBtn?.addEventListener('click', () => this.showAuthModal('register', this.registerBtn));
         this.logoutBtn?.addEventListener('click', () => this.handleLogout());
         this.adminBtn?.addEventListener('click', () => this.showAdminPanel());
-
-        // 认证模态框
-        document.getElementById('auth-modal-close')?.addEventListener('click', () => this.hideAuthModal());
-        this.authSubmit?.addEventListener('click', () => this.handleAuthSubmit());
-        this.authSwitch?.addEventListener('click', () => {
-            this.showAuthModal(this.authMode === 'login' ? 'register' : 'login');
-        });
-
-        // 点击模态框外部关闭
-        this.authModal?.addEventListener('click', (e) => {
-            if (e.target === this.authModal) this.hideAuthModal();
-        });
 
         // 窗口缩放
         window.addEventListener('resize', () => {
@@ -215,9 +206,14 @@ class SmartCinema {
 
         // 键盘快捷键
         document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'z') {
+            if (!(e.ctrlKey || e.metaKey) || this._isEditableTarget(e.target)) return;
+            const key = e.key.toLowerCase();
+            if (key === 'e') {
                 e.preventDefault();
-                this.handleClear();
+                this.handleExport();
+            } else if (key === 'i') {
+                e.preventDefault();
+                this.handleImport();
             }
         });
     }
@@ -447,6 +443,11 @@ class SmartCinema {
      * ================================================================ */
 
     updateScore() {
+        const combined = document.getElementById('combined-score-result');
+        if (combined) {
+            combined.style.display = 'none';
+            combined.innerHTML = '';
+        }
         const result = this.scoreEngine.calculateScore();
         const scoreDiv = document.getElementById('score-details');
         const manualPanel = document.getElementById('manual-score-panel');
@@ -731,80 +732,20 @@ class SmartCinema {
         return true;
     }
 
-    showAuthModal(mode) {
-        this.authMode = mode;
-        if (this.authTitle) {
-            this.authTitle.textContent = mode === 'login' ? '用户登录' : '注册会员';
-        }
-        if (this.authSubmit) {
-            this.authSubmit.textContent = mode === 'login' ? '登 录' : '注 册';
-        }
-        if (this.authSwitch) {
-            this.authSwitch.textContent = mode === 'login' ? '没有账号？立即注册' : '已有账号？立即登录';
-        }
-        if (this.authError) {
-            this.authError.textContent = '';
-        }
-
-        // 注册时显示额外字段
-        const extraFields = document.getElementById('register-extra-fields');
-        if (extraFields) {
-            extraFields.style.display = mode === 'register' ? 'block' : 'none';
-        }
-
-        if (this.authModal) {
-            this.authModal.classList.add('active');
-            this.authModal.setAttribute('aria-hidden', 'false');
-        }
+    showAuthModal(mode, trigger = null) {
+        this.authDialog.open(mode, trigger);
     }
 
     hideAuthModal() {
-        if (this.authModal) {
-            this.authModal.classList.remove('active');
-            this.authModal.setAttribute('aria-hidden', 'true');
-        }
+        this.authDialog.close();
     }
 
     handleAuthSubmit() {
-        const username = document.getElementById('auth-username')?.value?.trim();
-        const password = document.getElementById('auth-password')?.value?.trim();
-
-        if (!username || !password) {
-            this.showAuthError('请填写用户名和密码');
-            return;
-        }
-
-        if (this.authMode === 'register') {
-            const name = document.getElementById('auth-name')?.value?.trim();
-            const email = document.getElementById('auth-email')?.value?.trim();
-            const result = this.auth.register({ username, password, name, email });
-            if (result.success) {
-                this.hideAuthModal();
-                this.updateAuthUI();
-                this.loadSettings();
-                alert('注册成功！您已获得会员资格');
-                this.a11yManager.announce('注册成功，欢迎' + name);
-            } else {
-                this.showAuthError(result.message);
-            }
-        } else {
-            const result = this.auth.login(username, password);
-            if (result.success) {
-                this.hideAuthModal();
-                this.updateAuthUI();
-                this.loadSettings();
-                this.a11yManager.announce('登录成功，欢迎' + result.user.name);
-            } else {
-                this.showAuthError(result.message);
-            }
-        }
+        return this.authDialog.submit();
     }
 
     showAuthError(msg) {
-        if (this.authError) {
-            this.authError.textContent = msg;
-            this.authError.style.display = 'block';
-        }
+        this.authDialog.showError(msg);
     }
 
     handleLogout() {
@@ -1223,6 +1164,11 @@ class SmartCinema {
     _seatLabel(seatKey) {
         const [row, col] = seatKey.split('-').map(Number);
         return `${row + 1}排${col + 1}座`;
+    }
+
+    _isEditableTarget(target) {
+        if (!(target instanceof Element)) return false;
+        return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
     }
 }
 
