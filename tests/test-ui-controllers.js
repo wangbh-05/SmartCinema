@@ -3,7 +3,9 @@
  */
 
 import { ToastController } from '../src/ui/components/ToastController.js';
+import { BrowserSpeechService } from '../src/infrastructure/browser/BrowserSpeechService.js';
 import { AccountController } from '../src/ui/controllers/AccountController.js';
+import { AccessibilityController } from '../src/ui/controllers/AccessibilityController.js';
 import { AdminPanelController } from '../src/ui/controllers/AdminPanelController.js';
 import { ChatbotController } from '../src/ui/controllers/ChatbotController.js';
 import { OrdersPanelController } from '../src/ui/controllers/OrdersPanelController.js';
@@ -57,6 +59,7 @@ class FakeElement {
         this.value = '';
         this.type = '';
         this.focused = false;
+        this.removed = false;
     }
 
     addEventListener(type, listener) {
@@ -85,6 +88,10 @@ class FakeElement {
     focus() {
         this.focused = true;
     }
+
+    remove() {
+        this.removed = true;
+    }
 }
 
 class FakeDocument {
@@ -94,6 +101,7 @@ class FakeDocument {
         this.documentElement = new FakeElement('html', 'html');
         this.themeDots = [];
         this.ageChecks = [];
+        this.listeners = new Map();
     }
 
     add(id, tagName = 'div') {
@@ -114,6 +122,12 @@ class FakeDocument {
         if (selector === '.theme-dot') return this.themeDots;
         if (selector === '.age-check:checked') return this.ageChecks.filter(control => control.checked);
         return [];
+    }
+
+    addEventListener(type, listener) {
+        const listeners = this.listeners.get(type) || [];
+        listeners.push(listener);
+        this.listeners.set(type, listeners);
     }
 }
 
@@ -217,6 +231,45 @@ class TestUiControllers {
             this.assertEqual(toast.element.dataset.visible, 'true');
             scheduler.run(toast.timer);
             this.assertEqual(toast.element.dataset.visible, 'false');
+        });
+
+        this.test('AccessibilityController 应使用统一 Dialog 且语音服务可关闭', () => {
+            const document = new FakeDocument();
+            const scheduler = new FakeScheduler();
+            const spoken = [];
+            let cancelled = 0;
+            class FakeUtterance {
+                constructor(text) {
+                    this.text = text;
+                }
+            }
+            const speechService = new BrowserSpeechService({
+                speechSynthesis: {
+                    speak: utterance => spoken.push(utterance.text),
+                    cancel: () => { cancelled++; }
+                },
+                SpeechSynthesisUtterance: FakeUtterance
+            });
+            const dialogCalls = [];
+            const accessibility = new AccessibilityController({
+                document,
+                browserWindow: {},
+                speechService,
+                scheduler,
+                dialogFactory: () => ({
+                    open: options => dialogCalls.push(options),
+                    close: () => {}
+                })
+            });
+            accessibility.setVoiceEnabled(true);
+            accessibility.showKeyboardHelp(new FakeElement('button'));
+            const overlay = document.body.children[0];
+            this.assertEqual(overlay.id, 'keyboard-help');
+            this.assertEqual(overlay.children[0].attributes.get('role'), 'dialog');
+            this.assertEqual(dialogCalls.length, 1);
+            this.assertEqual(spoken[0], '快捷键帮助已打开');
+            accessibility.setVoiceEnabled(false);
+            this.assertEqual(cancelled, 1);
         });
 
         this.test('AccountController 应将用户字段作为纯文本安全渲染', () => {

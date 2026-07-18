@@ -1,11 +1,12 @@
 /**
- * 单元测试 - ScoreEngine 模块
+ * 评分用例与 SeatData 适配器集成测试。
  */
 
 import { SeatData } from '../src/core/SeatData.js';
-import { ScoreEngine } from '../src/modules/ScoreEngine.js';
+import { scoreSelection } from '../src/application/scoring/ScoreSelection.js';
+import { snapshotSeatData } from '../src/ui/adapters/SeatDataLayoutAdapter.js';
 
-class TestScoreEngine {
+class TestScoreUseCase {
     constructor() {
         this.passed = 0;
         this.failed = 0;
@@ -37,13 +38,12 @@ class TestScoreEngine {
     }
 
     runAll() {
-        console.log('\n========== ScoreEngine 模块测试 ==========\n');
+        console.log('\n========== 评分用例集成测试 ==========\n');
 
         // 测试评分
         this.test('应该能计算空选择的评分', () => {
             const data = new SeatData('medium');
-            const engine = new ScoreEngine(data);
-            const result = engine.calculateScore();
+            const result = this._score(data);
             this.assertEqual(result.totalScore, 0);
         });
 
@@ -60,8 +60,7 @@ class TestScoreEngine {
                 if (data.getSelectedSeats().length >= 3) break;
             }
             
-            const engine = new ScoreEngine(data);
-            const result = engine.calculateScore();
+            const result = this._score(data);
             this.assertTrue(result.totalScore >= 0 && result.totalScore <= 100);
         });
 
@@ -71,8 +70,7 @@ class TestScoreEngine {
             this.assertTrue(found !== null);
             data.selectSeat(found.row, found.col);
             
-            const engine = new ScoreEngine(data);
-            const result = engine.calculateScore();
+            const result = this._score(data);
             this.assertTrue(result.breakdown);
             this.assertTrue(result.details);
             this.assertEqual(result.details.length, 4);
@@ -91,16 +89,18 @@ class TestScoreEngine {
                 data2.selectSeat(5, 10);
             }
             
-            const engine1 = new ScoreEngine(data1);
-            const engine2 = new ScoreEngine(data2);
-            const score1 = engine1.calculateScore().totalScore;
-            const score2 = engine2.calculateScore().totalScore;
+            const score1 = this._score(data1).totalScore;
+            const score2 = this._score(data2).totalScore;
             
             // 分数可能不同
             this.assertTrue(true);
         });
 
         return this.printSummary();
+    }
+
+    _score(data) {
+        return scoreSelection(snapshotSeatData(data));
     }
 
     _findAvailableSeat(data) {
@@ -121,4 +121,4 @@ class TestScoreEngine {
     }
 }
 
-export default TestScoreEngine;
+export default TestScoreUseCase;

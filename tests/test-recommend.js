@@ -1,11 +1,12 @@
 /**
- * 单元测试 - RecommendEngine 模块
+ * 推荐用例与 SeatData 适配器集成测试。
  */
 
 import { SeatData } from '../src/core/SeatData.js';
-import { RecommendEngine } from '../src/modules/RecommendEngine.js';
+import { recommendSeats } from '../src/application/recommendation/RecommendSeats.js';
+import { snapshotSeatData } from '../src/ui/adapters/SeatDataLayoutAdapter.js';
 
-class TestRecommendEngine {
+class TestRecommendUseCase {
     constructor() {
         this.passed = 0;
         this.failed = 0;
@@ -37,78 +38,74 @@ class TestRecommendEngine {
     }
 
     runAll() {
-        console.log('\n========== RecommendEngine 模块测试 ==========\n');
+        console.log('\n========== 推荐用例集成测试 ==========\n');
 
         // 测试推荐
         this.test('应该能推荐座位', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('adult', 2, 'couple');
-            this.assertTrue(result.success);
+            const result = this._recommend(data, 'adult', 2, 'couple');
+            this.assertTrue(result.ok);
         });
 
         this.test('应该能处理无效人数', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('adult', 30, 'couple');
-            this.assertFalse(result.success);
+            const result = this._recommend(data, 'adult', 30, 'couple');
+            this.assertFalse(result.ok);
         });
 
         this.test('推荐结果应该包含座位信息', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('adult', 2, 'couple');
-            if (result.success) {
-                this.assertTrue(result.seats.length > 0);
-                this.assertTrue(result.reason.length > 0);
+            const result = this._recommend(data, 'adult', 2, 'couple');
+            if (result.ok) {
+                this.assertTrue(result.value.seats.length > 0);
+                this.assertTrue(result.value.reason.length > 0);
             }
         });
 
         this.test('少年推荐应该避开前三排', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('youth', 1, 'solo');
-            this.assertTrue(result.success);
-            this.assertTrue(result.seats.every(seat => seat.row >= 3));
+            const result = this._recommend(data, 'youth', 1, 'solo');
+            this.assertTrue(result.ok);
+            this.assertTrue(result.value.seats.every(seat => seat.row >= 3));
         });
 
         this.test('老年人推荐应该避开后三排', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('senior', 1, 'solo');
-            this.assertTrue(result.success);
-            this.assertTrue(result.seats.every(seat => seat.row < data.rows - 3));
+            const result = this._recommend(data, 'senior', 1, 'solo');
+            this.assertTrue(result.ok);
+            this.assertTrue(result.value.seats.every(seat => seat.row < data.rows - 3));
         });
 
         this.test('情侣推荐应该返回同排连续双座', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('adult', 2, 'couple');
-            this.assertTrue(result.success);
-            this.assertEqual(result.seats.length, 2);
-            this.assertEqual(result.seats[0].row, result.seats[1].row);
-            this.assertEqual(result.seats[1].col, result.seats[0].col + 1);
+            const result = this._recommend(data, 'adult', 2, 'couple');
+            this.assertTrue(result.ok);
+            this.assertEqual(result.value.seats.length, 2);
+            this.assertEqual(result.value.seats[0].row, result.value.seats[1].row);
+            this.assertEqual(result.value.seats[1].col, result.value.seats[0].col + 1);
         });
 
         this.test('家庭推荐应该返回指定人数的同排连续座位', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('adult', 4, 'family');
-            this.assertTrue(result.success);
-            this.assertEqual(result.seats.length, 4);
-            this.assertTrue(this._isSameRowConsecutive(result.seats));
+            const result = this._recommend(data, 'adult', 4, 'family');
+            this.assertTrue(result.ok);
+            this.assertEqual(result.value.seats.length, 4);
+            this.assertTrue(this._isSameRowConsecutive(result.value.seats));
         });
 
         this.test('5人团体推荐应该成功且同排连续', () => {
             const data = new SeatData('medium');
-            const engine = new RecommendEngine(data);
-            const result = engine.recommend('adult', 5, 'group');
-            this.assertTrue(result.success);
-            this.assertEqual(result.seats.length, 5);
-            this.assertTrue(this._isSameRowConsecutive(result.seats));
+            const result = this._recommend(data, 'adult', 5, 'group');
+            this.assertTrue(result.ok);
+            this.assertEqual(result.value.seats.length, 5);
+            this.assertTrue(this._isSameRowConsecutive(result.value.seats));
         });
 
         return this.printSummary();
+    }
+
+    _recommend(data, ageGroup, groupSize, movieType) {
+        return recommendSeats(snapshotSeatData(data), { ageGroup, groupSize, movieType });
     }
 
     _isSameRowConsecutive(seats) {
@@ -135,4 +132,4 @@ class TestRecommendEngine {
     }
 }
 
-export default TestRecommendEngine;
+export default TestRecommendUseCase;

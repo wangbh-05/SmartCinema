@@ -10,11 +10,12 @@ import { Cinema } from './core/Cinema.js';
 import { HeatmapEngine } from './modules/HeatmapEngine.js';
 
 import { AIChatbot } from './modules/AIChatbot.js';
-import { AccessibilityManager } from './utils/accessibility.js';
+import { BrowserSpeechService } from './infrastructure/browser/BrowserSpeechService.js';
 import { createBrowserAppController, createBrowserRealtimeSimulator } from './bootstrap.js';
 import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
 import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
 import { AccountController } from './ui/controllers/AccountController.js';
+import { AccessibilityController } from './ui/controllers/AccessibilityController.js';
 import { AdminPanelController } from './ui/controllers/AdminPanelController.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
 import { BackupController } from './ui/controllers/BackupController.js';
@@ -40,8 +41,15 @@ class SmartCinema {
         this.auth = new LegacyAuthFacade(this.controller);
         this.orderManager = new LegacyOrderFacade(this.controller);
 
-        // 引擎
-        this.a11yManager = new AccessibilityManager();
+        this.a11yManager = new AccessibilityController({
+            document,
+            browserWindow: window,
+            speechService: new BrowserSpeechService({
+                speechSynthesis: window.speechSynthesis,
+                SpeechSynthesisUtterance: window.SpeechSynthesisUtterance
+            }),
+            scheduler: window
+        });
 
         // AI 顾问
         this.chatbot = new AIChatbot(this.seatData);
@@ -158,6 +166,7 @@ class SmartCinema {
      * ================================================================ */
 
     bindEvents() {
+        this.a11yManager.bind();
         this.settingsController.bind();
         this.ordersPanel.bind();
         this.recommendationController.bind();

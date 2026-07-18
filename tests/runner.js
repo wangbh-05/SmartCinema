@@ -4,9 +4,8 @@
  */
 
 import TestSeatData from './test-seatdata.js';
-import TestRecommendEngine from './test-recommend.js';
-import TestScoreEngine from './test-score.js';
-import TestOrderManager from './test-order.js';
+import TestRecommendUseCase from './test-recommend.js';
+import TestScoreUseCase from './test-score.js';
 import TestDomainContracts from './test-domain-contracts.js';
 import TestStorageV2 from './test-storage-v2.js';
 import TestStateBackup from './test-state-backup.js';
@@ -38,20 +37,15 @@ class TestRunner {
         const seatDataResult = seatDataTest.runAll();
         this.results.push({ name: 'SeatData', ...seatDataResult });
 
-        // 运行 RecommendEngine 测试
-        const recommendTest = new TestRecommendEngine();
+        // 推荐用例与 SeatData 视图适配器
+        const recommendTest = new TestRecommendUseCase();
         const recommendResult = recommendTest.runAll();
-        this.results.push({ name: 'RecommendEngine', ...recommendResult });
+        this.results.push({ name: 'Recommendation', ...recommendResult });
 
-        // 运行 ScoreEngine 测试
-        const scoreTest = new TestScoreEngine();
+        // 评分用例与 SeatData 视图适配器
+        const scoreTest = new TestScoreUseCase();
         const scoreResult = scoreTest.runAll();
-        this.results.push({ name: 'ScoreEngine', ...scoreResult });
-
-        // 运行 OrderManager 测试
-        const orderTest = new TestOrderManager();
-        const orderResult = orderTest.runAll();
-        this.results.push({ name: 'OrderManager', ...orderResult });
+        this.results.push({ name: 'Scoring', ...scoreResult });
 
         // v2 纯领域模型与状态转换
         const domainTest = new TestDomainContracts();

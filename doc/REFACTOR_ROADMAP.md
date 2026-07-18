@@ -439,3 +439,12 @@ src/
 - 管理员后台改为复用 DialogController，避免每次打开累积 backdrop 监听器，并统一获得语义关闭键、Escape、焦点陷阱与焦点归还；聊天建议从带点击监听的 `span` 改为原生 button，并补充展开与关闭语义；
 - `src/app.js` 从 858 行降至 686 行；新增 3 项控制器测试，Node 全局实测 106/106 通过；浏览器矩阵扩展为 PASS 10、XFAIL 1、XPASS 0、ERROR 0；另实测管理员 Dialog 的打开、关闭标签与 Escape；
 - 阶段 4 状态更新为 12/13，只剩 BUG-006；下一切片审计 AccessibilityManager 的动态帮助弹窗、全局按键拦截和生产无引用的 v1 模块，再判断阶段 3 是否可退出。
+
+### 2026-07-18 · 阶段 3 · 切片 14
+
+- 将旧 AccessibilityManager 拆为 BrowserSpeechService 与 AccessibilityController：浏览器语音能力由 infrastructure 封装，UI 控制器负责公告、快捷键和帮助 Dialog；
+- 快捷键帮助不再使用动态 `innerHTML` 与内联 `onclick`，改为安全 DOM 和统一 DialogController；移除对 Tab、按钮 Enter/Space 与方向键的全局二次处理，避免覆盖浏览器原生交互和 Canvas 输入状态机；Ctrl/Cmd+K 与 Alt+数字现在排除可编辑控件；
+- 删除生产与测试均无引用的旧 AuthManager、Storage；删除只被 v1 自测引用且与原子结算模型冲突的 OrderManager；v1→v2 迁移器继续直接读取旧键，不依赖旧管理器；
+- 推荐/评分测试改为直接覆盖 RecommendSeats、ScoreSelection 与 SeatDataLayoutAdapter，随后删除迁移期 RecommendEngine/ScoreEngine 兼容壳；测试摘要使用真实边界命名；
+- Node 有效测试为 103/103；浏览器矩阵保持 PASS 10、XFAIL 1、XPASS 0、ERROR 0；真实页面实测 Ctrl+K 帮助具备语义关闭键且 Escape 可关闭；
+- 下一切片提取 AppState→SeatData/Canvas 的视图投影和页面场次协调，进一步把 `src/app.js` 收敛为组合根与薄事件编排，再执行阶段 3 退出审计。
