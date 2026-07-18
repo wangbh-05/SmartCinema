@@ -326,6 +326,44 @@ async function run() {
         }
     });
 
+    await regression('UX-008', '并发抢座应移除失效选择并支持一键重新推荐', async () => {
+        const frame = await createAppFrame();
+        try {
+            const doc = frame.contentDocument;
+            recommend(doc);
+            await delay();
+            const selectedIds = [...doc.querySelectorAll('.seat-button.is-selected')]
+                .map(button => button.dataset.seatId);
+            assertContract(selectedIds.length === 2, '测试准备失败：未形成两个推荐座位');
+            const stateV3 = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const showtimeId = doc.querySelector('[data-showtime-id][aria-pressed="true"]').dataset.showtimeId;
+            const inventory = stateV3.inventoriesByShowtime[showtimeId];
+            inventory.soldSeatIds = [...new Set([...inventory.soldSeatIds, ...selectedIds])];
+            inventory.revision++;
+            inventory.updatedAt = new Date().toISOString();
+            stateV3.revision++;
+            stateV3.updatedAt = inventory.updatedAt;
+            localStorage.setItem('smartcinema_state_v3', JSON.stringify(stateV3));
+
+            doc.getElementById('continue-booking').click();
+            const conflict = await waitFor(() => !doc.getElementById('seat-conflict').hidden, '抢座冲突恢复提示');
+            assertContract(Boolean(conflict), '没有显示抢座冲突恢复提示');
+            assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 0, '失效座位仍留在草稿');
+            assertContract(doc.getElementById('continue-booking').disabled, '冲突后仍允许继续结算');
+            assertContract(
+                doc.activeElement === doc.getElementById('seat-conflict-recommend'),
+                '焦点没有移动到冲突恢复动作'
+            );
+            doc.getElementById('seat-conflict-recommend').click();
+            await delay();
+            assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 2, '未重新推荐合法连座');
+            assertContract(doc.getElementById('seat-conflict').hidden, '恢复后冲突提示未清除');
+            assertContract(!doc.getElementById('continue-booking').disabled, '重新推荐后仍不能继续');
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
     await regression('BUG-007', '登录与注册表单必须支持 Enter 提交', async () => {
         const frame = await createAppFrame();
         try {
@@ -461,8 +499,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 13 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：12 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 14 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：13 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);

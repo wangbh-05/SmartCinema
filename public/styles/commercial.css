@@ -639,6 +639,49 @@ button:disabled {
     font-weight: 700;
 }
 
+.seat-conflict {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 24px 18px;
+    padding: 12px 14px;
+    border: 1px solid #e7b6b8;
+    border-radius: 10px;
+    background: var(--commerce-accent-soft);
+    color: var(--commerce-accent-strong);
+}
+
+.seat-conflict[hidden] {
+    display: none;
+}
+
+.seat-conflict div {
+    display: grid;
+    gap: 3px;
+}
+
+.seat-conflict strong {
+    font-size: 11px;
+}
+
+.seat-conflict span {
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.seat-conflict button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid #dda0a3;
+    border-radius: 8px;
+    background: #fff;
+    color: var(--commerce-accent-strong);
+    font-size: 10px;
+    font-weight: 750;
+}
+
 .seat-stage {
     position: relative;
     overflow: hidden;
@@ -1639,6 +1682,7 @@ button:disabled {
 
     .seat-heading,
     .seat-tools,
+    .seat-conflict,
     .seat-legend,
     .accessible-confirm {
         margin-right: 18px;
@@ -1652,6 +1696,15 @@ button:disabled {
     .seat-tools {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .seat-conflict {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .seat-conflict button {
+        width: 100%;
     }
 
     .preference-chips {

@@ -123,6 +123,7 @@ class CommercialBookingPage {
             if (button) this.togglePreference(button.dataset.preference, button);
         });
         element('recommend-seats').addEventListener('click', () => this.recommendSeats());
+        element('seat-conflict-recommend').addEventListener('click', () => this.recommendSeats());
         element('seat-map').addEventListener('click', event => {
             const button = event.target.closest('[data-seat-id]');
             if (button && !button.disabled) this.toggleSeat(button.dataset.seatId);
@@ -245,6 +246,7 @@ class CommercialBookingPage {
         this.draft = replaced?.ok ? replaced.value : draft.value;
         this.quote = null;
         this.lastFocusedSeatId = null;
+        this.hideSeatConflict();
         this.updateQuote();
         this.renderAll();
         if (persist) this.persistDraft();
@@ -274,6 +276,7 @@ class CommercialBookingPage {
         if (next < 0 || nextTotal < 1 || nextTotal > 8) return;
         const hadSeats = this.draft.selectedSeatIds.length > 0;
         this.ticketQuantities.set(ticketTypeId, next);
+        this.hideSeatConflict();
         this.rebuildDraft({ preserveSeats: false });
         if (hadSeats) this.notify('票数已变化，请重新选择对应数量的座位');
     }
@@ -356,6 +359,7 @@ class CommercialBookingPage {
         const replaced = this.booking.replaceSeats(this.draft, [...selected]);
         if (!replaced.ok) return this.notify(replaced.error.message);
         this.draft = replaced.value;
+        this.hideSeatConflict();
         this.updateQuote();
         this.renderSeatMap();
         this.renderSummary();
@@ -367,6 +371,7 @@ class CommercialBookingPage {
         const result = this.booking.recommendSeats(this.draft);
         if (!result.ok) return this.notify(result.error.message);
         this.draft = result.value.draft;
+        this.hideSeatConflict();
         this.lastFocusedSeatId = this.draft.selectedSeatIds[0];
         this.updateQuote();
         this.renderSeatMap({ focusSeat: true });
@@ -659,6 +664,10 @@ class CommercialBookingPage {
             holdDurationSeconds: 600
         });
         if (!result.ok) {
+            if (result.error.code === 'SEAT_UNAVAILABLE') {
+                this.recoverFromSeatConflict(result.error.details.seatIds || []);
+                return;
+            }
             this.refreshInventory();
             if (result.error.code === 'ACCESSIBLE_SEAT_ACKNOWLEDGEMENT_REQUIRED') {
                 element('accessible-confirm').hidden = false;
@@ -673,6 +682,40 @@ class CommercialBookingPage {
         this.checkoutDialog.open({ trigger });
         this.startHoldTimer();
         this.announce('座位已保留 10 分钟，请确认订单');
+    }
+
+    recoverFromSeatConflict(conflictingSeatIds) {
+        const inventory = this.booking.getInventory(this.context.showtime.id);
+        if (!inventory.ok) return this.notify(inventory.error.message);
+        this.inventory = inventory.value;
+        const unavailable = new Set([
+            ...this.inventory.soldSeatIds,
+            ...Object.keys(this.inventory.holdIdsBySeatId)
+        ]);
+        const removed = this.draft.selectedSeatIds.filter(seatId =>
+            unavailable.has(seatId) || conflictingSeatIds.includes(seatId)
+        );
+        const remaining = this.draft.selectedSeatIds.filter(seatId => !unavailable.has(seatId));
+        const replaced = this.booking.replaceSeats(this.draft, remaining);
+        if (replaced.ok) this.draft = replaced.value;
+        this.updateQuote();
+        this.persistDraft();
+        this.renderSeatMap();
+        this.renderSummary();
+        const labels = removed.map(id =>
+            this.context.auditorium.seats.find(seat => seat.id === id)?.label || id
+        );
+        element('seat-conflict-message').textContent = labels.length > 0 ?
+            `${labels.join('、')} 已不可用并从本单移除。` :
+            '原座位组合已不可用并从本单移除。';
+        element('seat-conflict').hidden = false;
+        element('seat-conflict-recommend').focus();
+        this.notify('座位库存刚刚发生变化，请重新选择');
+        this.announce('部分座位已被其他观众抢先选择，已从本单移除');
+    }
+
+    hideSeatConflict() {
+        element('seat-conflict').hidden = true;
     }
 
     renderCheckout() {
