@@ -337,3 +337,11 @@ src/
 - 新增 BrowserClock/BrowserIdGenerator，仅基础设施层访问当前时间、crypto 和随机数；
 - 新增 9 项 Application v2 测试；全局普通测试增至 63/63，XFAIL 仍为 2；
 - 下一切片建立 bootstrap/legacy adapter，让生产页面逐步改用 v2 用例。
+
+### 2026-07-18 · 阶段 3 · 切片 4
+
+- 新增统一 `AppController`，集中暴露认证、结算、订单、设置、场次、选座与远端占座用例，并负责持久状态写入后的内存状态同步；
+- 新增 `src/bootstrap.js` 组合根，浏览器 Storage、Clock 和 IdGenerator 只在基础设施装配处注入；
+- 新增 3 项 AppController 测试，覆盖空白启动、认证/设置同步、订单/库存同步与重复确认幂等；
+- 全局普通测试增至 66/66，XFAIL 仍为 2；边界扫描确认 `src/domain` 与 `src/application` 不访问 DOM、Storage、系统时间或随机源；
+- 该切片尚未替换生产页面的旧管理器；下一切片建立兼容适配层并让首页先从 v2 读取场次、会话、设置与选座状态。
