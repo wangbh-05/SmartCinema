@@ -18,6 +18,7 @@ import TestCanvasInteraction from './test-canvas-interaction.js';
 import TestViewAdapters from './test-view-adapters.js';
 import TestRealtimeV2 from './test-realtime-v2.js';
 import TestRegressionContracts from './test-regressions.js';
+import TestCommercialDomain from './test-commercial-domain.js';
 
 class TestRunner {
     constructor() {
@@ -106,6 +107,11 @@ class TestRunner {
         const regressionTest = new TestRegressionContracts();
         const regressionResult = regressionTest.runAll();
         this.results.push({ name: 'RegressionContracts', ...regressionResult });
+
+        // 商业购票 v3：目录、票种、座位规则、价格、锁座与订单快照
+        const commercialDomainTest = new TestCommercialDomain();
+        const commercialDomainResult = commercialDomainTest.runAll();
+        this.results.push({ name: 'CommercialDomain', ...commercialDomainResult });
 
         // 打印总摘要
         this.printGlobalSummary();
