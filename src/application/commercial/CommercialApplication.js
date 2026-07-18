@@ -8,6 +8,7 @@ export class CommercialApplication {
         booking,
         account,
         guestOwnerRepository,
+        bookingDraftRepository,
         stateRepository,
         catalogRepository,
         clock
@@ -17,6 +18,7 @@ export class CommercialApplication {
         this.booking = booking;
         this.account = account;
         this.guestOwnerRepository = guestOwnerRepository;
+        this.bookingDrafts = bookingDraftRepository;
         this.stateRepository = stateRepository;
         this.catalogRepository = catalogRepository;
         this.clock = clock;
@@ -33,9 +35,12 @@ export class CommercialApplication {
             clock: this.clock
         });
         if (!seeded.ok) return seeded;
+        const swept = this.booking.sweepExpiredHolds();
+        if (!swept.ok) return swept;
         return ok({
-            state: seeded.value.state,
+            state: swept.value.state,
             createdInventories: seeded.value.created,
+            expiredHolds: swept.value.expiredCount,
             migrations: {
                 v2: { migrated: v2.value.migrated, report: v2.value.report },
                 v3: { migrated: v3.value.migrated, report: v3.value.report }
@@ -45,6 +50,11 @@ export class CommercialApplication {
 
     getBookingOwnerId() {
         return this.account.getCurrentUser()?.id || this.guestOwnerRepository.getOwnerId();
+    }
+
+    getBookingOwnerIds() {
+        const userId = this.account.getCurrentUser()?.id;
+        return [...new Set([userId, this.guestOwnerRepository.getOwnerId()].filter(Boolean))];
     }
 }
 

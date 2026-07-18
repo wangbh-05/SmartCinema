@@ -12,6 +12,7 @@ import { LocalStateRepositoryV3 } from './infrastructure/storage/LocalStateRepos
 import { MigrateV2ToV3 } from './infrastructure/storage/MigrateV2ToV3.js';
 import { V1ToV2Migration } from './infrastructure/storage/MigrateV1ToV2.js';
 import { SessionGuestOwnerRepository } from './infrastructure/storage/SessionGuestOwnerRepository.js';
+import { SessionBookingDraftRepository } from './infrastructure/storage/SessionBookingDraftRepository.js';
 
 export function createBrowserCommercialApplication({
     localStorage = globalThis.localStorage,
@@ -44,12 +45,14 @@ export function createBrowserCommercialApplication({
         storage: sessionStorage,
         idGenerator
     });
+    const bookingDraftRepository = new SessionBookingDraftRepository({ storage: sessionStorage });
     return new CommercialApplication({
         v2Migration,
         v3Migration,
         booking,
         account,
         guestOwnerRepository,
+        bookingDraftRepository,
         stateRepository,
         catalogRepository,
         clock

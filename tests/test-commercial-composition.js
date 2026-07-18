@@ -25,8 +25,16 @@ class MemoryWebStorage {
 }
 
 class FakeClock {
+    constructor(value = NOW) {
+        this.value = value;
+    }
+
     now() {
-        return NOW;
+        return this.value;
+    }
+
+    set(value) {
+        this.value = value;
     }
 }
 
@@ -119,20 +127,100 @@ export default class TestCommercialComposition {
             this.assertTrue(quote.value.total.amount > 0);
         });
 
+        this.test('session 草稿仓储应验证、保存、恢复并清除 BookingDraft', () => {
+            const deps = this._deps();
+            this.assertTrue(deps.app.initialize().ok);
+            const showtimeId = deps.app.booking.listShowtimes().value[0].showtime.id;
+            const draft = deps.app.booking.createDraft({
+                showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+                preferences: ['aisle']
+            });
+            this.assertTrue(draft.ok);
+            const recommended = deps.app.booking.recommendSeats(draft.value);
+            this.assertTrue(recommended.ok);
+            this.assertTrue(deps.app.bookingDrafts.save(recommended.value.draft).ok);
+            const restored = deps.app.bookingDrafts.get();
+            this.assertTrue(restored.ok);
+            this.assertEqual(restored.value.showtimeId, showtimeId);
+            this.assertEqual(restored.value.selectedSeatIds.length, 2);
+            this.assertTrue(deps.app.bookingDrafts.clear().ok);
+            this.assertEqual(deps.app.bookingDrafts.get().value, null);
+        });
+
+        this.test('有效锁座应在同一浏览器会话的新 composition root 中恢复', () => {
+            const localStorage = new MemoryWebStorage();
+            const sessionStorage = new MemoryWebStorage();
+            const clock = new FakeClock();
+            const first = this._deps({ localStorage, sessionStorage, clock });
+            this.assertTrue(first.app.initialize().ok);
+            const held = this._placeRecommendedHold(first.app);
+
+            const second = this._deps({ localStorage, sessionStorage, clock });
+            const initialized = second.app.initialize();
+            this.assertTrue(initialized.ok);
+            this.assertEqual(initialized.value.expiredHolds, 0);
+            const restored = second.app.booking.findActiveHold(second.app.getBookingOwnerIds());
+            this.assertTrue(restored.ok);
+            this.assertEqual(restored.value.id, held.id);
+            this.assertEqual(restored.value.ownerId, held.ownerId);
+        });
+
+        this.test('initialize 应原子清扫过期锁座并释放对应库存', () => {
+            const localStorage = new MemoryWebStorage();
+            const sessionStorage = new MemoryWebStorage();
+            const clock = new FakeClock();
+            const first = this._deps({ localStorage, sessionStorage, clock });
+            this.assertTrue(first.app.initialize().ok);
+            const held = this._placeRecommendedHold(first.app);
+            clock.set('2026-07-18T02:11:00.000Z');
+
+            const second = this._deps({ localStorage, sessionStorage, clock });
+            const initialized = second.app.initialize();
+            this.assertTrue(initialized.ok, initialized.error?.message);
+            this.assertEqual(initialized.value.expiredHolds, 1);
+            const state = initialized.value.state;
+            this.assertEqual(state.holdsById[held.id].status, 'expired');
+            const inventory = state.inventoriesByShowtime[held.showtimeId];
+            this.assertTrue(held.seatIds.every(seatId => !inventory.holdIdsBySeatId[seatId]));
+            this.assertEqual(second.app.booking.findActiveHold(second.app.getBookingOwnerIds()).value, null);
+        });
+
         return this.printSummary();
     }
 
-    _deps() {
-        const localStorage = new MemoryWebStorage();
-        const sessionStorage = new MemoryWebStorage();
+    _placeRecommendedHold(app) {
+        const showtimeId = app.booking.listShowtimes().value[0].showtime.id;
+        const draft = app.booking.createDraft({
+            showtimeId,
+            ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+            preferences: ['center']
+        });
+        const recommended = app.booking.recommendSeats(draft.value);
+        const held = app.booking.placeHold({
+            draft: recommended.value.draft,
+            ownerId: app.getBookingOwnerId(),
+            idempotencyKey: app.booking.createHoldRequestKey(),
+            holdDurationSeconds: 600
+        });
+        this.assertTrue(held.ok, held.error?.message);
+        return held.value.hold;
+    }
+
+    _deps({
+        localStorage = new MemoryWebStorage(),
+        sessionStorage = new MemoryWebStorage(),
+        clock = new FakeClock(),
+        idGenerator = new SequenceIdGenerator()
+    } = {}) {
         const app = createBrowserCommercialApplication({
             localStorage,
             sessionStorage,
-            clock: new FakeClock(),
-            idGenerator: new SequenceIdGenerator(),
+            clock,
+            idGenerator,
             businessDate: '2026-07-18'
         });
-        return { app, localStorage, sessionStorage };
+        return { app, localStorage, sessionStorage, clock, idGenerator };
     }
 
     printSummary() {

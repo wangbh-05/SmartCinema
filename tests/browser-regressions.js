@@ -183,15 +183,29 @@ async function run() {
         }
     });
 
-    await regression('UX-004', '关闭确认页必须释放整组锁座', async () => {
-        const frame = await createAppFrame();
+    await regression('UX-004', '刷新应恢复有效锁座，关闭后必须释放整组座位', async () => {
+        let frame = await createAppFrame();
         try {
-            const doc = frame.contentDocument;
+            let doc = frame.contentDocument;
             openHold(doc);
             await waitFor(() => doc.getElementById('checkout-dialog').classList.contains('active'), '锁座确认页');
             const stateBefore = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
             const held = Object.values(stateBefore.holdsById).find(item => item.status === 'held');
             if (!held) throw new Error('测试准备失败：没有创建 held SeatHold');
+
+            disposeFrame(frame);
+            frame = await createAppFrame(1200, true);
+            doc = frame.contentDocument;
+            await waitFor(
+                () => doc.getElementById('checkout-dialog').classList.contains('active'),
+                '刷新后恢复锁座确认页'
+            );
+            const stateRestored = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            assertContract(stateRestored.holdsById[held.id].status === 'held', '刷新后有效 hold 未保持 held');
+            assertContract(
+                doc.getElementById('hold-countdown')?.textContent.startsWith('剩余'),
+                '刷新后未恢复剩余保留时间'
+            );
             doc.getElementById('checkout-close').click();
             await delay();
             const stateAfter = JSON.parse(localStorage.getItem('smartcinema_state_v3'));

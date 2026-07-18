@@ -101,7 +101,7 @@ class CommercialBookingPage {
         const now = Date.parse(this.app.clock.now());
         const initial = this.showtimes.find(item => Date.parse(item.showtime.bookingClosesAt) > now) ||
             this.showtimes[this.showtimes.length - 1];
-        this.selectShowtime(initial.showtime.id, { announce: false });
+        this.restoreBookingSession(initial.showtime.id);
     }
 
     setupDialogs() {
@@ -173,30 +173,123 @@ class CommercialBookingPage {
         element('mobile-continue').addEventListener('click', event => this.placeHold(event.currentTarget));
     }
 
-    selectShowtime(showtimeId, { announce = true } = {}) {
+    restoreBookingSession(fallbackShowtimeId) {
+        const savedDraft = this.app.bookingDrafts.get();
+        if (!savedDraft.ok) {
+            this.app.bookingDrafts.clear();
+            this.notify('上次选座草稿无法恢复，已为你重新开始');
+        }
+        const active = this.booking.findActiveHold(this.app.getBookingOwnerIds());
+        if (!active.ok) {
+            this.notify(active.error.message);
+        } else if (active.value) {
+            const hold = active.value;
+            const matchingDraft = savedDraft.ok && savedDraft.value?.showtimeId === hold.showtimeId ?
+                savedDraft.value : null;
+            this.setTicketItems(hold.ticketItems);
+            this.preferences = new Set(matchingDraft?.preferences || ['center']);
+            const context = this.booking.getBookingContext(hold.showtimeId);
+            const hasAccessibleSeat = context.ok && context.value.auditorium.seats.some(seat =>
+                hold.seatIds.includes(seat.id) && ['wheelchair', 'companion'].includes(seat.kind)
+            );
+            const restoredDraft = {
+                showtimeId: hold.showtimeId,
+                ticketItems: hold.ticketItems,
+                selectedSeatIds: hold.seatIds,
+                preferences: [...this.preferences],
+                accessibilityAcknowledged: hasAccessibleSeat || Boolean(matchingDraft?.accessibilityAcknowledged)
+            };
+            const restored = this.selectShowtime(hold.showtimeId, {
+                announce: false,
+                restoredDraft,
+                allowHoldId: hold.id,
+                persist: false
+            });
+            if (restored) {
+                this.activeHold = hold;
+                this.holdOwnerId = hold.ownerId;
+                this.quote = hold.pricingQuote;
+                this.persistDraft();
+                this.renderSummary();
+                this.renderCheckout();
+                this.checkoutDialog.open();
+                this.startHoldTimer();
+                this.announce('已恢复仍在保留时间内的座位');
+                return;
+            }
+        }
+
+        const draft = savedDraft.ok ? savedDraft.value : null;
+        const draftShowtime = draft && this.showtimes.some(item =>
+            item.showtime.id === draft.showtimeId &&
+            Date.parse(item.showtime.bookingClosesAt) > Date.parse(this.app.clock.now())
+        ) ? draft.showtimeId : fallbackShowtimeId;
+        if (draft && draftShowtime === draft.showtimeId) {
+            this.setTicketItems(draft.ticketItems);
+            this.preferences = new Set(draft.preferences);
+        }
+        this.selectShowtime(draftShowtime, {
+            announce: false,
+            restoredDraft: draftShowtime === draft?.showtimeId ? draft : null
+        });
+    }
+
+    setTicketItems(ticketItems) {
+        this.ticketQuantities = new Map(
+            ticketItems.map(item => [item.ticketTypeId, item.quantity])
+        );
+    }
+
+    selectShowtime(showtimeId, {
+        announce = true,
+        restoredDraft = null,
+        allowHoldId = null,
+        persist = true
+    } = {}) {
         if (this.context?.showtime.id === showtimeId) return;
         const context = this.booking.getBookingContext(showtimeId);
-        if (!context.ok) return this.notify(context.error.message);
+        if (!context.ok) {
+            this.notify(context.error.message);
+            return false;
+        }
         const inventory = this.booking.getInventory(showtimeId);
-        if (!inventory.ok) return this.notify(inventory.error.message);
+        if (!inventory.ok) {
+            this.notify(inventory.error.message);
+            return false;
+        }
         const draft = this.booking.createDraft({
             showtimeId,
             ticketItems: this.ticketItems(),
-            preferences: [...this.preferences]
+            preferences: [...this.preferences],
+            accessibilityAcknowledged: Boolean(restoredDraft?.accessibilityAcknowledged)
         });
         if (!draft.ok) {
             this.notify(draft.error.message);
-            return;
+            return false;
         }
         this.context = context.value;
         this.inventory = inventory.value;
-        this.draft = draft.value;
+        const knownSeatIds = new Set(this.context.auditorium.seats.map(seat => seat.id));
+        const restoredSeatIds = (restoredDraft?.selectedSeatIds || []).filter(seatId =>
+            knownSeatIds.has(seatId) &&
+            !this.inventory.soldSeatIds.includes(seatId) &&
+            (!this.inventory.holdIdsBySeatId[seatId] || this.inventory.holdIdsBySeatId[seatId] === allowHoldId)
+        );
+        const replaced = restoredSeatIds.length > 0 ?
+            this.booking.replaceSeats(draft.value, restoredSeatIds) : null;
+        this.draft = replaced?.ok ? replaced.value : draft.value;
         this.quote = null;
         this.lastFocusedSeatId = null;
+        this.updateQuote();
         this.renderAll();
+        if (persist) this.persistDraft();
+        if (restoredDraft && restoredSeatIds.length < restoredDraft.selectedSeatIds.length) {
+            this.notify('部分座位已不可用，已保留仍可选择的座位');
+        }
         if (announce) {
             this.announce(`已切换到 ${formatTime(this.context.showtime.startsAt)} 场次`);
         }
+        return true;
     }
 
     ticketItems() {
@@ -227,7 +320,11 @@ class CommercialBookingPage {
         this.rebuildDraft({ preserveSeats: true });
     }
 
-    rebuildDraft({ preserveSeats, accessibilityAcknowledged = this.draft.accessibilityAcknowledged }) {
+    rebuildDraft({
+        preserveSeats,
+        accessibilityAcknowledged = this.draft.accessibilityAcknowledged,
+        persist = true
+    }) {
         const selectedSeatIds = preserveSeats ? [...this.draft.selectedSeatIds] : [];
         const next = this.booking.createDraft({
             showtimeId: this.context.showtime.id,
@@ -246,6 +343,13 @@ class CommercialBookingPage {
         this.renderTickets();
         this.renderSeatMap();
         this.renderSummary();
+        if (persist) this.persistDraft();
+    }
+
+    persistDraft() {
+        if (!this.draft) return;
+        const saved = this.app.bookingDrafts.save(this.draft);
+        if (!saved.ok) this.notify(saved.error.message);
     }
 
     toggleSeat(seatId) {
@@ -290,6 +394,7 @@ class CommercialBookingPage {
         this.updateQuote();
         this.renderSeatMap();
         this.renderSummary();
+        this.persistDraft();
         this.announce(`${seat.label}${selected.has(seatId) ? '已选择' : '已取消'}`);
     }
 
@@ -301,6 +406,7 @@ class CommercialBookingPage {
         this.updateQuote();
         this.renderSeatMap({ focusSeat: true });
         this.renderSummary();
+        this.persistDraft();
         this.notify(result.value.reason);
         this.announce(`已推荐 ${result.value.seats.map(seat => seat.label).join('、')}`);
     }
@@ -690,6 +796,7 @@ class CommercialBookingPage {
         if (!result.ok) return this.notify(result.error.message);
         this.confirmedOrder = result.value.order;
         this.activeHold = null;
+        this.app.bookingDrafts.clear();
         this.stopHoldTimer();
         this.refreshInventory();
         this.renderCheckout();
@@ -777,7 +884,8 @@ class CommercialBookingPage {
         }
         if (this.confirmedOrder) {
             this.confirmedOrder = null;
-            this.rebuildDraft({ preserveSeats: false });
+            this.rebuildDraft({ preserveSeats: false, persist: false });
+            this.app.bookingDrafts.clear();
         }
         this.holdOwnerId = null;
     }

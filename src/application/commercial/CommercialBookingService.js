@@ -111,6 +111,67 @@ export class CommercialBookingService {
         }));
     }
 
+    findActiveHold(ownerIds) {
+        const normalizedOwnerIds = [...new Set(
+            (Array.isArray(ownerIds) ? ownerIds : [ownerIds])
+                .filter(ownerId => typeof ownerId === 'string' && ownerId.trim().length > 0)
+                .map(ownerId => ownerId.trim())
+        )];
+        if (normalizedOwnerIds.length === 0) {
+            return err('VALIDATION_ERROR', '查询有效锁座至少需要一个 ownerId');
+        }
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const owners = new Set(normalizedOwnerIds);
+        const hold = Object.values(current.value.holdsById)
+            .filter(candidate => owners.has(candidate.ownerId) && isSeatHoldActive(candidate, this.clock.now()))
+            .sort((left, right) => Date.parse(right.heldAt) - Date.parse(left.heldAt))[0] || null;
+        return ok(hold);
+    }
+
+    sweepExpiredHolds() {
+        const current = this.stateRepository.read();
+        if (!current.ok) return current;
+        const now = this.clock.now();
+        const expiredCandidates = Object.values(current.value.holdsById)
+            .filter(hold => hold.status === 'held' && Date.parse(hold.expiresAt) <= Date.parse(now))
+            .sort((left, right) => Date.parse(left.expiresAt) - Date.parse(right.expiresAt));
+        if (expiredCandidates.length === 0) {
+            return ok({ state: current.value, expiredCount: 0, holds: Object.freeze([]) });
+        }
+
+        const inventoriesByShowtime = { ...current.value.inventoriesByShowtime };
+        const expiredHolds = [];
+        for (const hold of expiredCandidates) {
+            const inventory = inventoriesByShowtime[hold.showtimeId];
+            if (!inventory) {
+                return err('STORAGE_CORRUPTED', '过期锁座缺少对应场次库存', {
+                    holdId: hold.id,
+                    showtimeId: hold.showtimeId
+                });
+            }
+            const expired = expireBookingHold({ hold, inventory }, now);
+            if (!expired.ok) return expired;
+            expiredHolds.push(expired.value.hold);
+            inventoriesByShowtime[hold.showtimeId] = expired.value.inventory;
+        }
+
+        const persisted = this.stateRepository.update(current.value.revision, state => {
+            expiredHolds.forEach(hold => {
+                state.holdsById[hold.id] = hold;
+            });
+            Object.values(inventoriesByShowtime).forEach(inventory => {
+                state.inventoriesByShowtime[inventory.showtimeId] = inventory;
+            });
+        });
+        if (!persisted.ok) return persisted;
+        return ok({
+            state: persisted.value,
+            expiredCount: expiredHolds.length,
+            holds: Object.freeze(expiredHolds)
+        });
+    }
+
     placeHold({
         draft,
         ownerId,
