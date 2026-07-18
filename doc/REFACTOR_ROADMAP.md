@@ -345,3 +345,14 @@ src/
 - 新增 3 项 AppController 测试，覆盖空白启动、认证/设置同步、订单/库存同步与重复确认幂等；
 - 全局普通测试增至 66/66，XFAIL 仍为 2；边界扫描确认 `src/domain` 与 `src/application` 不访问 DOM、Storage、系统时间或随机源；
 - 该切片尚未替换生产页面的旧管理器；下一切片建立兼容适配层并让首页先从 v2 读取场次、会话、设置与选座状态。
+
+### 2026-07-18 · 阶段 3 · 切片 5
+
+- 新增权限受控的 ListUsers 用例，以及只投影旧视图字段、不持有第二份状态的 LegacyAuthFacade/LegacyOrderFacade；
+- 首页生产入口已由 bootstrap 创建唯一 AppController，认证、会话、用户订单、设置、当前场次、选座和已售库存均改从 v2 读写；
+- 首页提交订单改为创建带 `showtimeId`、`userId` 与 idempotencyKey 的 CheckoutIntent，不再写 `smartcinema_order_summary`；
+- 订单页改为读取 CheckoutIntent 并调用 ConfirmCheckout，提交时立即锁定按钮，订单和库存由同一次 repository update 提交；
+- 周一 `dayIndex=0` 不再因 `|| 3` 被错误回退到周四；退票刷新同时校验影厅和日期；
+- 新增 4 项 facade 测试；全局普通测试为 70/70，旧实现上的 BUG-002、BUG-004 契约仍保持 XFAIL，等待阶段 4 改写为面向生产入口的常规回归测试；
+- 真实浏览器完成“注册 → 推荐选座 → CheckoutIntent → 确认 → 返回首页 → 查看订单”流程：周四已售从 60 增至 62，周五仍为 60，切回周四恢复 62；语音设置跨页保持；
+- 当前仅旧版数据导入/导出仍通过 `Storage`，RealtimeSimulator 与 Canvas 仍直接修改 SeatData；下一切片迁移导入/导出、推荐/评分协调和实时适配，再缩减 `src/app.js`。

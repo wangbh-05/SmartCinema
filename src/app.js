@@ -11,28 +11,34 @@ import { RecommendEngine } from './modules/RecommendEngine.js';
 import { ScoreEngine } from './modules/ScoreEngine.js';
 import { HeatmapEngine } from './modules/HeatmapEngine.js';
 
-import { OrderManager } from './modules/OrderManager.js';
-import { AuthManager } from './modules/AuthManager.js';
 import { AIChatbot } from './modules/AIChatbot.js';
 import { RealtimeSimulator } from './modules/RealtimeSimulator.js';
 import { Storage } from './utils/storage.js';
 import { AccessibilityManager } from './utils/accessibility.js';
+import { createBrowserAppController } from './bootstrap.js';
+import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
+import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
 
 class SmartCinema {
     constructor() {
-        // 存储
+        // 旧版导入/导出仍由 Storage 暂时承接；业务事实源统一为 Storage v2。
         this.storage = new Storage();
-
-        // 认证（最先初始化）
-        this.auth = new AuthManager(this.storage);
 
         // 座位数据（默认中厅）
         this.seatData = new SeatData('medium');
 
+        // 应用组合根（最先建立业务状态）
+        this.controller = createBrowserAppController();
+        const initialized = this.controller.initialize(this._getShowtimeId());
+        if (!initialized.ok) {
+            throw new Error(`SmartCinema 初始化失败：${initialized.error.message}`);
+        }
+        this.auth = new LegacyAuthFacade(this.controller);
+        this.orderManager = new LegacyOrderFacade(this.controller);
+
         // 引擎
         this.recommendEngine = new RecommendEngine(this.seatData);
         this.scoreEngine = new ScoreEngine(this.seatData);
-        this.orderManager = new OrderManager(this.storage);
         this.a11yManager = new AccessibilityManager();
 
         // AI 顾问
@@ -158,7 +164,7 @@ class SmartCinema {
             this.toggleAccessibilityMode(e.target.checked);
         });
         document.getElementById('voice-toggle')?.addEventListener('change', (e) => {
-            this.a11yManager.setVoiceEnabled(e.target.checked);
+            this.toggleVoice(e.target.checked);
         });
         document.getElementById('colorblind-toggle')?.addEventListener('change', (e) => {
             this.toggleColorblindMode(e.target.checked);
@@ -226,10 +232,11 @@ class SmartCinema {
         // 保存当前状态
         this.saveToStorage();
 
-        const dayIndex = parseInt(document.getElementById('day-selector')?.value) || 3;
+        const dayIndex = this._getDayIndex();
 
         // 切换数据层
         this.seatData.switchHall(hallType, dayIndex);
+        this.controller.changeShowtime(this._getShowtimeId(hallType, dayIndex));
         this.applyPersistedSoldSeats();
         this.recommendEngine = new RecommendEngine(this.seatData);
         this.scoreEngine = new ScoreEngine(this.seatData);
@@ -258,6 +265,7 @@ class SmartCinema {
     /** 切换日期（热度图动态变化） */
     switchDay(dayIndex) {
         this.seatData.switchDay(dayIndex);
+        this.controller.changeShowtime(this._getShowtimeId(this.seatData.hallType, dayIndex));
         this.applyPersistedSoldSeats();
         this.cinema.sd = this.seatData;
         this.cinema.relayout();
@@ -275,11 +283,17 @@ class SmartCinema {
      * ================================================================ */
 
     onSelectionChange(detail) {
-        this.updateStats(detail.stats);
+        const seatKeys = detail.selectedSeats.map(seat => `${seat.row}-${seat.col}`);
+        const synced = this.controller.replaceSelection(seatKeys);
+        if (!synced.ok) {
+            this._restoreSelectionFromController();
+            this.cinema.redraw();
+            this.a11yManager.announce(synced.error.message);
+        }
+        this.updateStats(this.seatData.getStats());
         this.updateScore();
         this.updateSubmitButton();
         this.updateHeatmap();
-        this.saveToStorage();
     }
 
     /* ================================================================
@@ -586,26 +600,21 @@ class SmartCinema {
             return;
         }
 
-        const user = this.auth.getCurrentUser();
-        const totalPrice = selected.reduce((s, seat) => s + seat.price, 0);
-        const avgPrice = Math.round(totalPrice / selected.length);
-        const dayIndex = parseInt(document.getElementById('day-selector')?.value) || 3;
-
-        // 把订单摘要写入 sessionStorage 供 order.html 读取
-        const summary = {
-            hallType: this.seatData.hallType,
-            hallName: this.seatData.getHallConfig().name,
-            hallDesc: this.seatData.getHallConfig().desc,
-            dayIndex,
-            seats: selected.map(s => ({ row: s.row, col: s.col, price: s.price })),
-            totalPrice,
-            avgPrice,
-            occupiedSeats: this.seatData.getAllOccupiedKeys(),
-            userName: user.name,
-            userEmail: user.email || '',
-            timestamp: Date.now(),
-        };
-        sessionStorage.setItem('smartcinema_order_summary', JSON.stringify(summary));
+        const checkout = this.controller.startCheckout({
+            showtimeId: this._getShowtimeId(),
+            seats: selected.map(seat => ({
+                seatKey: `${seat.row}-${seat.col}`,
+                row: seat.row,
+                col: seat.col,
+                unitPrice: seat.price
+            }))
+        });
+        if (!checkout.ok) {
+            alert(checkout.error.message);
+            this.applyPersistedSoldSeats();
+            this.cinema.redraw();
+            return;
+        }
         window.location.href = 'order.html';
     }
 
@@ -682,11 +691,8 @@ class SmartCinema {
         }
 
         const hallType = order.hallType || this.seatData.hallType;
-        const seatKeys = order.seatKeys || order.seats.map(s => `${s.row}-${s.col}`);
-        this.storage.removeSoldSeats(hallType, seatKeys);
-
-        if (hallType === this.seatData.hallType) {
-            const dayIndex = parseInt(document.getElementById('day-selector')?.value) || 3;
+        if (hallType === this.seatData.hallType && order.dayIndex === this._getDayIndex()) {
+            const dayIndex = this._getDayIndex();
             this.seatData.switchDay(dayIndex);
             this.applyPersistedSoldSeats();
             this.cinema.sd = this.seatData;
@@ -773,10 +779,9 @@ class SmartCinema {
             const email = document.getElementById('auth-email')?.value?.trim();
             const result = this.auth.register({ username, password, name, email });
             if (result.success) {
-                // 注册成功后自动登录
-                this.auth.login(username, password);
                 this.hideAuthModal();
                 this.updateAuthUI();
+                this.loadSettings();
                 alert('注册成功！您已获得会员资格');
                 this.a11yManager.announce('注册成功，欢迎' + name);
             } else {
@@ -787,6 +792,7 @@ class SmartCinema {
             if (result.success) {
                 this.hideAuthModal();
                 this.updateAuthUI();
+                this.loadSettings();
                 this.a11yManager.announce('登录成功，欢迎' + result.user.name);
             } else {
                 this.showAuthError(result.message);
@@ -805,6 +811,7 @@ class SmartCinema {
         if (confirm('确定要退出登录吗？')) {
             this.auth.logout();
             this.updateAuthUI();
+            this.loadSettings();
             this.a11yManager.announce('已退出登录');
         }
     }
@@ -988,27 +995,26 @@ class SmartCinema {
         msgDiv.scrollTop = msgDiv.scrollHeight;
     }
 
-    toggleDarkMode(enabled) {
+    toggleDarkMode(enabled, persist = true) {
         document.body.classList.toggle('dark-mode', enabled);
-        const settings = this.storage.loadSettings();
-        settings.darkMode = enabled;
-        this.storage.saveSettings(settings);
+        if (persist) this.controller.updateSettings({ theme: enabled ? 'dark' : 'light' });
     }
 
-    toggleAccessibilityMode(enabled) {
+    toggleAccessibilityMode(enabled, persist = true) {
         document.body.classList.toggle('accessibility-mode', enabled);
-        const settings = this.storage.loadSettings();
-        settings.accessibilityMode = enabled;
-        this.storage.saveSettings(settings);
-        if (enabled) this.a11yManager.speak('无障碍模式已启用');
+        if (persist) this.controller.updateSettings({ accessibilityMode: enabled });
+        if (enabled && persist) this.a11yManager.speak('无障碍模式已启用');
     }
 
-    toggleColorblindMode(enabled) {
+    toggleVoice(enabled, persist = true) {
+        this.a11yManager.setVoiceEnabled(enabled);
+        if (persist) this.controller.updateSettings({ voiceEnabled: enabled });
+    }
+
+    toggleColorblindMode(enabled, persist = true) {
         document.body.classList.toggle('colorblind-mode', enabled);
         this.cinema.setColorblindMode(enabled);
-        const settings = this.storage.loadSettings();
-        settings.colorblindMode = enabled;
-        this.storage.saveSettings(settings);
+        if (persist) this.controller.updateSettings({ colorblindMode: enabled });
     }
 
     /* ================================================================
@@ -1043,61 +1049,52 @@ class SmartCinema {
         this._toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
     }
 
-    toggleRealtime(enabled) {
+    toggleRealtime(enabled, persist = true) {
         if (enabled) {
-            this.realtime = new RealtimeSimulator(this.seatData, this.cinema, {
-                interval: 6000,
-                onEvent: (evt) => this._onRealtimeEvent(evt),
-            });
             this.realtime.start();
         } else {
             if (this.realtime) this.realtime.stop();
         }
-        const settings = this.storage.loadSettings();
-        settings.realtimeEnabled = enabled;
-        this.storage.saveSettings(settings);
+        if (persist) this.controller.updateSettings({ realtimeEnabled: enabled });
     }
 
     /** 设置主题强调色 */
-    setAccentColor(color) {
+    setAccentColor(color, persist = true) {
         document.documentElement.style.setProperty('--accent', color);
         // 同步 color picker
         const picker = document.getElementById('accent-picker');
         if (picker) picker.value = color;
         // 更新主题圆点 active 状态
         document.querySelectorAll('.theme-dot').forEach(d => {
-            d.classList.toggle('active', d.dataset.accent === color);
+            d.classList.toggle('active', d.dataset.accent.toUpperCase() === color.toUpperCase());
         });
-        // 持久化
-        const settings = this.storage.loadSettings();
-        settings.accentColor = color;
-        this.storage.saveSettings(settings);
+        if (persist) this.controller.updateSettings({ accentColor: color });
     }
 
     loadSettings() {
-        const settings = this.storage.loadSettings();
-        if (settings.darkMode) {
-            const cb = document.getElementById('theme-toggle');
-            if (cb) cb.checked = true;
-            this.toggleDarkMode(true);
-        }
-        if (settings.accessibilityMode) {
-            const cb = document.getElementById('accessibility-toggle');
-            if (cb) cb.checked = true;
-            this.toggleAccessibilityMode(true);
-        }
-        if (settings.colorblindMode) {
-            const cb = document.getElementById('colorblind-toggle');
-            if (cb) cb.checked = true;
-            this.toggleColorblindMode(true);
-        }
-        if (settings.accentColor) {
-            this.setAccentColor(settings.accentColor);
-        }
+        const settings = this.controller.getState().settings;
+        const darkMode = settings.theme === 'dark';
+        const controls = {
+            'theme-toggle': darkMode,
+            'accessibility-toggle': settings.accessibilityMode,
+            'voice-toggle': settings.voiceEnabled,
+            'colorblind-toggle': settings.colorblindMode,
+            'realtime-toggle': settings.realtimeEnabled
+        };
+        Object.entries(controls).forEach(([id, checked]) => {
+            const control = document.getElementById(id);
+            if (control) control.checked = checked;
+        });
+        this.toggleDarkMode(darkMode, false);
+        this.toggleAccessibilityMode(settings.accessibilityMode, false);
+        this.toggleVoice(settings.voiceEnabled, false);
+        this.toggleColorblindMode(settings.colorblindMode, false);
+        this.toggleRealtime(settings.realtimeEnabled, false);
+        this.setAccentColor(settings.accentColor, false);
     }
 
     applyPersistedSoldSeats() {
-        const soldKeys = this.storage.loadSoldSeats(this.seatData.hallType);
+        const soldKeys = this.controller.getState().inventory.soldSeatKeys;
         soldKeys.forEach(key => {
             const [row, col] = key.split('-').map(Number);
             const seat = this.seatData.getSeat(row, col);
@@ -1110,11 +1107,12 @@ class SmartCinema {
     }
 
     restoreSeatSelection() {
-        const saved = this.storage.loadSeatSelection();
-        if (!saved || !Array.isArray(saved.seats)) return;
-        if (saved.stats?.hallType && saved.stats.hallType !== this.seatData.hallType) return;
+        this._restoreSelectionFromController();
+    }
 
-        saved.seats.forEach(key => {
+    _restoreSelectionFromController() {
+        this.seatData.clearSelection();
+        this.controller.getState().selection.seatKeys.forEach(key => {
             const [row, col] = key.split('-').map(Number);
             if (this.seatData.isSeatAvailable(row, col)) {
                 this.seatData.selectSeat(row, col);
@@ -1123,7 +1121,8 @@ class SmartCinema {
     }
 
     saveToStorage() {
-        this.storage.saveSeatSelection(this.seatData);
+        const seatKeys = this.seatData.getSelectedSeats().map(seat => `${seat.row}-${seat.col}`);
+        return this.controller.replaceSelection(seatKeys);
     }
 
     handleExport() {
@@ -1169,6 +1168,15 @@ class SmartCinema {
 
     _toggleEl(el, show) {
         if (el) el.style.display = show ? '' : 'none';
+    }
+
+    _getDayIndex() {
+        const value = Number.parseInt(document.getElementById('day-selector')?.value, 10);
+        return Number.isInteger(value) && value >= 0 && value <= 6 ? value : 3;
+    }
+
+    _getShowtimeId(hallType = this.seatData.hallType, dayIndex = this._getDayIndex()) {
+        return `${hallType}:day:${dayIndex}`;
     }
 }
 

@@ -156,106 +156,109 @@
     </div>
 
     <script type="module">
-        import { Storage } from './src/utils/storage.js';
-        import { AuthManager } from './src/modules/AuthManager.js';
-        import { OrderManager } from './src/modules/OrderManager.js';
-        import { SeatData } from './src/core/SeatData.js';
+        import { createBrowserAppController } from './src/bootstrap.js';
+        import { HALL_CONFIG } from './src/core/SeatData.js';
+        import { parseShowtimeId } from './src/domain/cinema/Showtime.js';
 
-        const storage = new Storage();
-        const auth = new AuthManager(storage);
-        const orderManager = new OrderManager(storage);
+        const controller = createBrowserAppController();
+        const initialized = controller.initialize();
+        let submitting = false;
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.className = 'toast show';
-            setTimeout(() => { t.className = 'toast'; }, 2000);
+        function escapeHtml(value) {
+            const text = document.createElement('span');
+            text.textContent = String(value ?? '');
+            return text.innerHTML;
+        }
+
+        function showToast(message, kind = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = kind === 'error' ? '#DA3633' : '#238636';
+            toast.className = 'toast show';
+            window.setTimeout(() => { toast.className = 'toast'; }, 2000);
+        }
+
+        function renderEmpty(message = '暂无待确认的订单') {
+            document.getElementById('order-container').innerHTML = `
+                <div class="order-card">
+                    <div class="empty-state">
+                        <span class="icon">🛒</span>
+                        <p>${escapeHtml(message)}</p>
+                        <a href="index.html" class="btn">← 返回选座</a>
+                    </div>
+                </div>`;
         }
 
         function render() {
-            const container = document.getElementById('order-container');
-            const user = auth.getCurrentUser();
-
-            // 读取暂存订单摘要
-            const summaryJSON = sessionStorage.getItem('smartcinema_order_summary');
-            if (!summaryJSON) {
-                container.innerHTML = `
-                    <div class="order-card">
-                        <div class="empty-state">
-                            <span class="icon">🛒</span>
-                            <p>暂无待确认的订单</p>
-                            <a href="index.html" class="btn">← 返回选座</a>
-                        </div>
-                    </div>`;
+            if (!initialized.ok) {
+                renderEmpty(`应用初始化失败：${initialized.error.message}`);
                 return;
             }
 
-            const summary = JSON.parse(summaryJSON);
-            const seatData = new SeatData(summary.hallType);
-            seatData.initializeSeats(summary.dayIndex ?? 3);
-
-            // 恢复已售座位
-            if (summary.occupiedSeats) {
-                summary.occupiedSeats.forEach(k => {
-                    const [r, c] = k.split('-').map(Number);
-                    const seat = seatData.getSeat(r, c);
-                    if (seat) seat.status = 'occupied';
-                });
+            const intentResult = controller.getCheckoutIntent();
+            if (!intentResult.ok) {
+                renderEmpty();
+                return;
             }
 
-            // 格式化座位列表
-            const seatChips = summary.seats.map(s =>
-                `<span class="seat-chip">${s.row+1}排${s.col+1}座  ¥${s.price}</span>`
+            const intent = intentResult.value;
+            const showtime = parseShowtimeId(intent.showtimeId);
+            const hall = HALL_CONFIG[showtime.hallType];
+            const user = controller.getCurrentUser();
+            controller.changeShowtime(intent.showtimeId);
+
+            const totalPrice = intent.seats.reduce((sum, seat) => sum + seat.unitPrice, 0);
+            const averagePrice = Math.round(totalPrice / intent.seats.length);
+            const seatChips = intent.seats.map(seat =>
+                `<span class="seat-chip">${seat.row + 1}排${seat.col + 1}座  ¥${seat.unitPrice}</span>`
             ).join('');
 
-            container.innerHTML = `
+            document.getElementById('order-container').innerHTML = `
                 <div class="order-card">
                     <div class="order-header">
                         <h1>🎬 确认订单</h1>
-                        <p class="subtitle">${summary.hallName} · ${summary.hallDesc}</p>
+                        <p class="subtitle">${hall.name} · ${hall.desc} · 周${showtime.dayIndex + 1}</p>
                     </div>
 
                     <div class="order-section">
                         <h3>👤 用户信息</h3>
                         <div class="info-row">
                             <span class="label">用户名</span>
-                            <span class="value">${user ? user.username : '未登录'}</span>
+                            <span class="value">${escapeHtml(user?.username || '未登录')}</span>
                         </div>
                         <div class="info-row">
                             <span class="label">姓名</span>
-                            <span class="value">${user ? user.name : '-'}</span>
+                            <span class="value">${escapeHtml(user?.name || '-')}</span>
                         </div>
-                        ${user && user.email ? `
+                        ${user?.email ? `
                         <div class="info-row">
                             <span class="label">邮箱</span>
-                            <span class="value">${user.email}</span>
+                            <span class="value">${escapeHtml(user.email)}</span>
                         </div>` : ''}
                     </div>
 
                     <div class="order-section">
-                        <h3>💺 选中座位 (${summary.seats.length}张)</h3>
+                        <h3>💺 选中座位 (${intent.seats.length}张)</h3>
                         <div class="seat-chips">${seatChips}</div>
                     </div>
 
                     <div class="order-section">
                         <h3>💰 费用明细</h3>
                         <div class="info-row">
-                            <span class="label">票面单价</span>
-                            <span class="value">¥${summary.avgPrice} / 张</span>
+                            <span class="label">平均票价</span>
+                            <span class="value">¥${averagePrice} / 张</span>
                         </div>
                         <div class="info-row">
                             <span class="label">票数</span>
-                            <span class="value">${summary.seats.length} 张</span>
+                            <span class="value">${intent.seats.length} 张</span>
                         </div>
                         <div class="info-row" style="font-size:1.1em;font-weight:700;">
                             <span class="label">合计</span>
-                            <span class="value" style="color:#FDD835;">¥${summary.totalPrice}</span>
+                            <span class="value" style="color:#FDD835;">¥${totalPrice}</span>
                         </div>
                     </div>
 
-                    <div class="price-highlight">
-                        ¥${summary.totalPrice}
-                    </div>
+                    <div class="price-highlight">¥${totalPrice}</div>
 
                     <div class="btn-row">
                         <button class="btn btn-cancel" id="btn-cancel">取消</button>
@@ -263,58 +266,30 @@
                     </div>
                 </div>`;
 
-            // 绑定按钮
             document.getElementById('btn-confirm').addEventListener('click', () => {
-                if (!auth.isLoggedIn()) {
-                    showToast('请先登录');
+                if (submitting) return;
+                submitting = true;
+                const confirmButton = document.getElementById('btn-confirm');
+                confirmButton.disabled = true;
+                confirmButton.textContent = '处理中…';
+
+                const confirmed = controller.confirmCheckout();
+                if (!confirmed.ok) {
+                    submitting = false;
+                    confirmButton.disabled = false;
+                    confirmButton.textContent = '✅ 确认支付';
+                    showToast(`确认失败：${confirmed.error.message}`, 'error');
                     return;
                 }
 
-                // 恢复座位数据以创建订单
-                const sd = new SeatData(summary.hallType);
-                sd.initializeSeats(summary.dayIndex ?? 3);
-                if (summary.occupiedSeats) {
-                    summary.occupiedSeats.forEach(k => {
-                        const [r, c] = k.split('-').map(Number);
-                        const seat = sd.getSeat(r, c);
-                        if (seat) seat.status = 'occupied';
-                    });
-                }
-                // 把要购买的座位标记为选中
-                summary.seats.forEach(s => {
-                    sd.selectSeat(s.row, s.col);
-                });
-
-                const selectedSeats = sd.getSelectedSeats();
-                const result = orderManager.createOrder(selectedSeats, {
-                    name: user.name,
-                    email: user.email || '',
-                    hallType: summary.hallType,
-                    hallName: summary.hallName,
-                    hallDesc: summary.hallDesc
-                });
-
-                if (result.success) {
-                    const confirmed = orderManager.confirmOrder(result.order.id);
-                    if (!confirmed.success) {
-                        showToast('确认失败: ' + confirmed.message);
-                        return;
-                    }
-
-                    sd.confirmPurchase();
-                    const soldKeys = summary.seats.map(s => `${s.row}-${s.col}`);
-                    storage.addSoldSeats(summary.hallType, soldKeys);
-
-                    sessionStorage.removeItem('smartcinema_order_summary');
-                    showToast('订单已确认！即将返回...');
-                    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
-                } else {
-                    showToast('创建失败: ' + result.message);
-                }
+                controller.clearCheckoutIntent();
+                showToast(confirmed.value.duplicate ? '订单已确认，即将返回…' : '订单确认成功！即将返回…');
+                window.setTimeout(() => { window.location.href = 'index.html'; }, 1200);
             });
 
             document.getElementById('btn-cancel').addEventListener('click', () => {
-                sessionStorage.removeItem('smartcinema_order_summary');
+                if (submitting) return;
+                controller.clearCheckoutIntent();
                 window.location.href = 'index.html';
             });
         }
