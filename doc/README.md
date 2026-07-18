@@ -1,5 +1,12 @@
 # Frontend Agent Kit
 
+## SmartCinema 当前工作入口
+
+- `REFACTOR_ROADMAP.md`：长程目标、阶段顺序、退出门槛、决策与进度日志；
+- `REFACTOR_BASELINE.md`：基线提交、真实测试范围、浏览器证据、存储契约和 Bug 台账。
+
+继续本轮重构前应先阅读以上两个文件，并确认当前分支为 `zcjx/smart_cinema`。下面的内容是仓库早期保留的通用文档包说明，不代表 SmartCinema 当前架构。
+
 This folder is a reusable documentation bundle for another frontend project.
 
 ## What to reuse

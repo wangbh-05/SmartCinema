@@ -1,5 +1,7 @@
 # SmartCinema - 快速测试指南
 
+> **范围说明（2026-07-18）：** `npm test` 当前只自动运行 SeatData、RecommendEngine、ScoreEngine 和 OrderManager 四个纯 JavaScript 套件。本文其余浏览器、认证、Canvas、无障碍和集成检查项属于人工验收说明，不能视为已经由自动化持续证明。当前事实与待补测试见 `doc/REFACTOR_BASELINE.md`。
+
 ## 🚀 启动应用
 
 ```bash
