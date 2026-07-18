@@ -71,7 +71,8 @@ export class SeatData {
                     status: isOccupied ? SEAT_STATUS.OCCUPIED : SEAT_STATUS.AVAILABLE,
                     price: this.getPriceByPosition(row, col),
                     isSelected: false,
-                    isRecommended: false
+                    isRecommended: false,
+                    isRemoteHeld: false
                 };
             }
         }
@@ -172,7 +173,7 @@ export class SeatData {
      */
     isSeatAvailable(row, col) {
         const seat = this.getSeat(row, col);
-        return seat && seat.status === SEAT_STATUS.AVAILABLE && !seat.isSelected;
+        return seat && seat.status === SEAT_STATUS.AVAILABLE && !seat.isSelected && !seat.isRemoteHeld;
     }
 
     /**
@@ -188,7 +189,7 @@ export class SeatData {
      */
     selectSeat(row, col) {
         const seat = this.getSeat(row, col);
-        if (seat && seat.status === SEAT_STATUS.AVAILABLE) {
+        if (seat && seat.status === SEAT_STATUS.AVAILABLE && !seat.isRemoteHeld) {
             seat.isSelected = true;
             this.selectedSeats.add(`${row}-${col}`);
             return true;
@@ -403,7 +404,8 @@ export class SeatData {
                 status: s.status,
                 price: s.price || this.getPriceByPosition(s.row, s.col),
                 isSelected: false,
-                isRecommended: false
+                isRecommended: false,
+                isRemoteHeld: false
             }))
         );
         this.selectedSeats.clear();

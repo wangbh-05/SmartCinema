@@ -12,10 +12,9 @@ import { ScoreEngine } from './modules/ScoreEngine.js';
 import { HeatmapEngine } from './modules/HeatmapEngine.js';
 
 import { AIChatbot } from './modules/AIChatbot.js';
-import { RealtimeSimulator } from './modules/RealtimeSimulator.js';
 import { Storage } from './utils/storage.js';
 import { AccessibilityManager } from './utils/accessibility.js';
-import { createBrowserAppController } from './bootstrap.js';
+import { createBrowserAppController, createBrowserRealtimeSimulator } from './bootstrap.js';
 import { LegacyAuthFacade } from './ui/legacy/LegacyAuthFacade.js';
 import { LegacyOrderFacade } from './ui/legacy/LegacyOrderFacade.js';
 
@@ -64,10 +63,11 @@ class SmartCinema {
         this.cinema = new Cinema(this.cinemaCanvas, this.seatData);
         this.heatmap = this.heatmapCanvas ? new HeatmapEngine(this.heatmapCanvas, this.seatData) : null;
 
-        // WebSocket 实时模拟器
-        this.realtime = new RealtimeSimulator(this.seatData, this.cinema, {
+        // WebSocket 事件模拟器：只产生事件，不直接修改 SeatData/Canvas。
+        this.realtime = createBrowserRealtimeSimulator({
+            getContext: () => this._getRealtimeContext(),
             interval: 6000,
-            onEvent: (evt) => this._onRealtimeEvent(evt),
+            onEvent: event => this._onRealtimeEvent(event)
         });
 
         // 状态
@@ -1022,10 +1022,21 @@ class SmartCinema {
      * ================================================================ */
     _onRealtimeEvent(evt) {
         if (evt.type === 'purchase') {
-            this._showToast(`🔔 ${evt.userName} 刚刚购买了 ${evt.posLabel}`);
+            const purchased = this.controller.applyRemotePurchase(evt);
+            if (!purchased.ok) return;
+            if (evt.showtimeId === this.controller.getState().showtimeId) {
+                this.applyPersistedSoldSeats();
+            }
+            this._showToast(`🔔 ${evt.ownerLabel} 刚刚购买了 ${this._seatLabel(evt.seatKey)}`);
         } else {
-            this._showToast(`👆 ${evt.userName} 正在查看 ${evt.posLabel}`);
+            const held = this.controller.applyRemoteHold(evt);
+            if (!held.ok || evt.showtimeId !== this.controller.getState().showtimeId) return;
+            this._projectRemoteHolds();
+            if (evt.type === 'hold') {
+                this._showToast(`👆 ${evt.ownerLabel} 正在查看 ${this._seatLabel(evt.seatKey)}`);
+            }
         }
+        this.cinema.redraw();
         this.updateUI();
     }
 
@@ -1104,6 +1115,23 @@ class SmartCinema {
                 this.seatData.selectedSeats.delete(key);
             }
         });
+        this._restoreSelectionFromController();
+        this._projectRemoteHolds();
+    }
+
+    _projectRemoteHolds() {
+        for (let row = 0; row < this.seatData.rows; row++) {
+            for (let col = 0; col < this.seatData.cols; col++) {
+                this.seatData.getSeat(row, col).isRemoteHeld = false;
+            }
+        }
+        this.controller.getState().remoteHoldsBySeatKey.forEach((hold, seatKey) => {
+            const [row, col] = seatKey.split('-').map(Number);
+            const seat = this.seatData.getSeat(row, col);
+            if (seat && seat.status === SEAT_STATUS.AVAILABLE && !seat.isSelected) {
+                seat.isRemoteHeld = true;
+            }
+        });
     }
 
     restoreSeatSelection() {
@@ -1177,6 +1205,24 @@ class SmartCinema {
 
     _getShowtimeId(hallType = this.seatData.hallType, dayIndex = this._getDayIndex()) {
         return `${hallType}:day:${dayIndex}`;
+    }
+
+    _getRealtimeContext() {
+        const availableSeatKeys = [];
+        for (let row = 0; row < this.seatData.rows; row++) {
+            for (let col = 0; col < this.seatData.cols; col++) {
+                if (this.seatData.isSeatAvailable(row, col)) availableSeatKeys.push(`${row}-${col}`);
+            }
+        }
+        return {
+            showtimeId: this._getShowtimeId(),
+            availableSeatKeys
+        };
+    }
+
+    _seatLabel(seatKey) {
+        const [row, col] = seatKey.split('-').map(Number);
+        return `${row + 1}排${col + 1}座`;
     }
 }
 

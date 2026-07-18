@@ -356,3 +356,13 @@ src/
 - 新增 4 项 facade 测试；全局普通测试为 70/70，旧实现上的 BUG-002、BUG-004 契约仍保持 XFAIL，等待阶段 4 改写为面向生产入口的常规回归测试；
 - 真实浏览器完成“注册 → 推荐选座 → CheckoutIntent → 确认 → 返回首页 → 查看订单”流程：周四已售从 60 增至 62，周五仍为 60，切回周四恢复 62；语音设置跨页保持；
 - 当前仅旧版数据导入/导出仍通过 `Storage`，RealtimeSimulator 与 Canvas 仍直接修改 SeatData；下一切片迁移导入/导出、推荐/评分协调和实时适配，再缩减 `src/app.js`。
+
+### 2026-07-18 · 阶段 3 · 切片 6
+
+- 新增无 SeatData/Canvas 依赖的 `RealtimeEventSimulator`，只产生带 canonical `showtimeId` 的 hold、release 与 purchase 事件；随机数、Clock、IdGenerator 和 scheduler 均可注入；
+- 新增 ApplyRemotePurchase 用例，远端购买通过 StateRepository 写入对应场次库存，重复事件幂等；
+- AppController 按场次接收 RemoteHold，非当前场次事件不污染当前内存状态；远端 purchase 后统一同步库存与本地 selection；
+- 生产页改用新事件模拟器，Canvas 中 remote-held 只是 AppState 的视图投影，不能点击、拖选或键盘选中，也不会写入 `selectedSeats`；
+- 新增 3 项 Realtime v2 测试；全局普通测试为 73/73；旧 `src/modules/RealtimeSimulator.js` 暂留给阶段 1 的 XFAIL，阶段 4 转换回归契约后删除；
+- 真实浏览器启用 realtime 10.5 秒后收到“观众D 正在查看 8排15座”，已选数量始终为 0；关闭开关会释放活跃 hold；
+- 下一切片迁移推荐/评分状态协调与 v2 导入导出，然后拆分 `src/app.js` 的页面控制职责。

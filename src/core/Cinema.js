@@ -11,7 +11,7 @@ import { SEAT_STATUS, HALL_CONFIG } from './SeatData.js';
 const CLR = {
     bg:'#FFFFFF', bgGrid:'rgba(0,0,0,0.04)', screen:'#3B82F6',
     avail:'#F9FAFB',availS:'#E5E7EB', select:'#F59E0B',selectS:'#D97706',
-    sold:'#9CA3AF',soldS:'#6B7280', rec:'#8B5CF6',recS:'#7C3AED',
+    sold:'#9CA3AF',soldS:'#6B7280', remote:'#FDE68A',remoteS:'#D97706', rec:'#8B5CF6',recS:'#7C3AED',
     rowLabel:'#6B7280',legend:'#4B5563',hallInfo:'#6B7280',dragLine:'#FBBF24',
     tooltipBg:'rgba(255,255,255,0.96)',tooltipBd:'#D1D5DB',tooltipTxt:'#1F2937',
 };
@@ -20,7 +20,7 @@ const CLR = {
 const CLR_CB = {
     bg:'#FFFFFF', bgGrid:'rgba(0,0,0,0.04)', screen:'#2563EB',
     avail:'#F0F4FF',availS:'#BFDBFE', select:'#F97316',selectS:'#EA580C',
-    sold:'#78716C',soldS:'#57534E', rec:'#1D4ED8',recS:'#1E3A8A',
+    sold:'#78716C',soldS:'#57534E', remote:'#FED7AA',remoteS:'#C2410C', rec:'#1D4ED8',recS:'#1E3A8A',
     rowLabel:'#6B7280',legend:'#4B5563',hallInfo:'#6B7280',dragLine:'#FBBF24',
     tooltipBg:'rgba(255,255,255,0.96)',tooltipBd:'#D1D5DB',tooltipTxt:'#1F2937',
 };
@@ -149,10 +149,10 @@ export class Cinema {
     _t(e){const t=e.touches[0];return{clientX:t.clientX,clientY:t.clientY,ctrlKey:false};}
     _cp(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.dispW/r.width),y:(e.clientY-r.top)*(this.dispH/r.height)};}
     _hit(px,py){const s=this._seatSize;const{rows,cols}=this.sd;for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const p=this._pos[r][c];if(px>=p.x-3&&px<=p.x+s+3&&py>=p.y-3&&py<=p.y+s+3)return{row:r,col:c};}return null;}
-    _click(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(!s)return;const seat=this.sd.getSeat(s.row,s.col);if(!seat||seat.status===SEAT_STATUS.OCCUPIED)return;seat.isSelected?this.sd.deselectSeat(s.row,s.col):this.sd.selectSeat(s.row,s.col);this._triggerBounce(s.row,s.col);this._heat=this._calcHeat();this.redraw();this._emit();}
+    _click(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(!s)return;const seat=this.sd.getSeat(s.row,s.col);if(!seat||seat.status===SEAT_STATUS.OCCUPIED||seat.isRemoteHeld)return;seat.isSelected?this.sd.deselectSeat(s.row,s.col):this.sd.selectSeat(s.row,s.col);this._triggerBounce(s.row,s.col);this._heat=this._calcHeat();this.redraw();this._emit();}
     _down(e){const p=this._cp(e);this.dragStart=this._hit(p.x,p.y);this.isDragging=false;}
     _move(e){const p=this._cp(e),s=this._hit(p.x,p.y);if(this.dragStart&&s&&(s.row!==this.dragStart.row||s.col!==this.dragStart.col)){this.isDragging=true;this.dragEnd=s;this.redraw();return;}const prev=this._hover;if(!s&&!prev)return;if(s&&prev&&s.row===prev.row&&s.col===prev.col)return;this._hover=s;this._tooltip=s;this.redraw();this.canvas.style.cursor=s?'pointer':'default';}
-    _up(e){if(this.isDragging&&this.dragStart&&this.dragEnd){const r1=Math.min(this.dragStart.row,this.dragEnd.row),r2=Math.max(this.dragStart.row,this.dragEnd.row);const c1=Math.min(this.dragStart.col,this.dragEnd.col),c2=Math.max(this.dragStart.col,this.dragEnd.col);for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++){const st=this.sd.getSeat(r,c);if(st&&st.status===SEAT_STATUS.AVAILABLE)this.sd.selectSeat(r,c);}this._heat=this._calcHeat();this.redraw();this._emit();}this.dragStart=null;this.dragEnd=null;this.isDragging=false;}
+    _up(e){if(this.isDragging&&this.dragStart&&this.dragEnd){const r1=Math.min(this.dragStart.row,this.dragEnd.row),r2=Math.max(this.dragStart.row,this.dragEnd.row);const c1=Math.min(this.dragStart.col,this.dragEnd.col),c2=Math.max(this.dragStart.col,this.dragEnd.col);for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++){const st=this.sd.getSeat(r,c);if(st&&st.status===SEAT_STATUS.AVAILABLE&&!st.isRemoteHeld)this.sd.selectSeat(r,c);}this._heat=this._calcHeat();this.redraw();this._emit();}this.dragStart=null;this.dragEnd=null;this.isDragging=false;}
     _leave(){this.dragStart=null;this.dragEnd=null;this.isDragging=false;this._hover=null;this._tooltip=null;this.redraw();}
     _emit(){this.canvas.dispatchEvent(new CustomEvent('selectionChange',{detail:{selectedSeats:this.sd.getSelectedSeats(),stats:this.sd.getStats()}}));}
     _key(e){
@@ -167,7 +167,7 @@ export class Cinema {
         else if(e.key==='ArrowRight')col=Math.min(cols-1,col+1);
         else{
             const seat=this.sd.getSeat(row,col);
-            if(seat&&seat.status!==SEAT_STATUS.OCCUPIED){
+            if(seat&&seat.status!==SEAT_STATUS.OCCUPIED&&!seat.isRemoteHeld){
                 seat.isSelected?this.sd.deselectSeat(row,col):this.sd.selectSeat(row,col);
                 this._triggerBounce(row,col);
                 this._heat=this._calcHeat();
@@ -342,6 +342,8 @@ export class Cinema {
             fill=this._clr.sold; stroke=heatStroke;          // 灰色填充+热度边框
         }else if(seat.isSelected){
             fill=this._clr.select; stroke=this._clr.selectS;        // 琥珀色，固定边框
+        }else if(seat.isRemoteHeld){
+            fill=this._clr.remote; stroke=this._clr.remoteS;        // 远端临时占座
         }else if(seat.isRecommended){
             fill=this._clr.rec; stroke=this._clr.recS;              // 紫色，固定边框
         }else{
@@ -356,6 +358,9 @@ export class Cinema {
         if(seat.isSelected){
             ctx.fillStyle='#1C1917';ctx.font=`bold ${Math.max(9,s*0.48)}px Arial`;
             ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',x+s/2,y+s/2);
+        }else if(seat.isRemoteHeld){
+            ctx.fillStyle='#78350F';ctx.font=`bold ${Math.max(9,s*0.42)}px Arial`;
+            ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('…',x+s/2,y+s/2);
         }
         if(scale!==1)ctx.restore();
     }

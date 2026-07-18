@@ -15,6 +15,7 @@ import { applyRemoteHold } from './selection/ApplyRemoteHold.js';
 import { changeShowtime } from './selection/ChangeShowtime.js';
 import { toggleSeat } from './selection/ToggleSeat.js';
 import { updateSettings } from './settings/UpdateSettings.js';
+import { applyRemotePurchase } from './selection/ApplyRemotePurchase.js';
 
 export class AppController {
     constructor({
@@ -141,8 +142,17 @@ export class AppController {
 
     applyRemoteHold(event) {
         if (!this.appState) return err('VALIDATION_ERROR', 'AppController 尚未初始化');
-        this.appState = applyRemoteHold(this.appState, event, this.clock.now());
-        return ok(this.appState);
+        if (event.showtimeId && event.showtimeId !== this.appState.showtimeId) return ok(this.appState);
+        try {
+            this.appState = applyRemoteHold(this.appState, event, this.clock.now());
+            return ok(this.appState);
+        } catch (error) {
+            return err('VALIDATION_ERROR', error.message);
+        }
+    }
+
+    applyRemotePurchase(event) {
+        return this._applyPersistentResult(applyRemotePurchase(this._deps(), event));
     }
 
     _deps() {

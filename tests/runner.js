@@ -13,6 +13,7 @@ import TestMigrationV2 from './test-migration-v2.js';
 import TestApplicationV2 from './test-application-v2.js';
 import TestAppController from './test-app-controller.js';
 import TestLegacyFacades from './test-legacy-facades.js';
+import TestRealtimeV2 from './test-realtime-v2.js';
 import TestRegressionContracts from './test-regressions.js';
 
 class TestRunner {
@@ -77,6 +78,11 @@ class TestRunner {
         const legacyFacadesTest = new TestLegacyFacades();
         const legacyFacadesResult = legacyFacadesTest.runAll();
         this.results.push({ name: 'LegacyFacades', ...legacyFacadesResult });
+
+        // 无 SeatData/Canvas 副作用的 realtime event adapter
+        const realtimeV2Test = new TestRealtimeV2();
+        const realtimeV2Result = realtimeV2Test.runAll();
+        this.results.push({ name: 'RealtimeV2', ...realtimeV2Result });
 
         // 已知缺陷契约：修复前稳定 XFAIL，异常或意外通过会计为失败
         const regressionTest = new TestRegressionContracts();

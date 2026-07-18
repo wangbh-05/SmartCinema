@@ -4,6 +4,7 @@ import { BrowserIdGenerator } from './infrastructure/browser/BrowserIdGenerator.
 import { LocalStateRepository } from './infrastructure/storage/LocalStateRepository.js';
 import { V1ToV2Migration } from './infrastructure/storage/MigrateV1ToV2.js';
 import { SessionCheckoutIntentRepository } from './infrastructure/storage/SessionCheckoutIntentRepository.js';
+import { RealtimeEventSimulator } from './infrastructure/realtime/RealtimeEventSimulator.js';
 
 export function createBrowserAppController({
     localStorage = globalThis.localStorage,
@@ -25,5 +26,29 @@ export function createBrowserAppController({
         migration,
         clock,
         idGenerator
+    });
+}
+
+export function createBrowserRealtimeSimulator({
+    getContext,
+    onEvent,
+    interval = 5000,
+    jitter = 3000,
+    maxEvents = 0,
+    clock = new BrowserClock(),
+    idGenerator = new BrowserIdGenerator(),
+    random = Math.random,
+    scheduler = globalThis
+}) {
+    return new RealtimeEventSimulator({
+        getContext,
+        onEvent,
+        interval,
+        jitter,
+        maxEvents,
+        clock,
+        idGenerator,
+        random,
+        scheduler
     });
 }
