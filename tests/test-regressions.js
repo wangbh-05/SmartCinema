@@ -1,134 +1,111 @@
 /**
- * 已知缺陷契约测试
+ * 已修复的状态类缺陷回归测试。
  *
- * 这些测试使用 XFAIL 固定修复前必然违反的目标契约。只有契约断言失败才算
- * “已复现”；测试准备错误会计为失败，契约意外通过也会要求维护者把它转成
- * 普通回归测试，避免修复悄悄失去保护。
+ * 这些契约只面向生产使用的 v2 AppController，不再探测已经退出生产路径的旧模块。
  */
 
-import { OrderManager } from '../src/modules/OrderManager.js';
-import { RealtimeSimulator } from '../src/modules/RealtimeSimulator.js';
+import { createBrowserAppController } from '../src/bootstrap.js';
 
-class ContractFailure extends Error {
-    constructor(message) {
-        super(message);
-        this.name = 'ContractFailure';
-    }
-}
+const NOW = '2026-07-18T00:00:00.000Z';
 
-class MemoryStorage {
+class MemoryWebStorage {
     constructor() {
-        this.data = {};
+        this.data = new Map();
     }
 
-    loadOrders() {
-        return this.data.orders || [];
+    getItem(key) {
+        return this.data.has(key) ? this.data.get(key) : null;
     }
 
-    save(key, value) {
-        this.data[key] = value;
-        return true;
+    setItem(key, value) {
+        this.data.set(key, String(value));
+    }
+
+    removeItem(key) {
+        this.data.delete(key);
     }
 }
 
 class TestRegressionContracts {
     constructor() {
-        this.expectedFailures = 0;
+        this.passed = 0;
         this.failed = 0;
     }
 
-    assertContract(condition, message) {
-        if (!condition) {
-            throw new ContractFailure(message);
+    test(id, name, fn) {
+        try {
+            fn();
+            this.passed++;
+            console.log(`✓ ${id} ${name}`);
+        } catch (error) {
+            this.failed++;
+            console.error(`✗ ${id} ${name}：${error.message}`);
         }
     }
 
-    xfail(id, name, fn) {
-        try {
-            fn();
-            this.failed++;
-            console.error(`✗ XPASS ${id} ${name}：目标契约已通过，请转为普通回归测试`);
-        } catch (error) {
-            if (error instanceof ContractFailure) {
-                this.expectedFailures++;
-                console.log(`⊘ XFAIL ${id} ${name}：${error.message}`);
-                return;
-            }
+    assertEqual(actual, expected) {
+        if (actual !== expected) throw new Error(`Expected ${expected}, got ${actual}`);
+    }
 
-            this.failed++;
-            console.error(`✗ ERROR ${id} ${name}：${error.message}`);
-        }
+    assertTrue(value, message = '') {
+        if (!value) throw new Error(`Expected true. ${message}`);
     }
 
     runAll() {
-        console.log('\n========== 已知缺陷契约测试 ==========\n');
+        console.log('\n========== 已修复缺陷回归测试 ==========\n');
 
-        this.xfail('BUG-002', '订单必须按稳定 userId 隔离', () => {
-            const manager = new OrderManager(new MemoryStorage());
-            const seats = [{ row: 5, col: 5, price: 100 }];
-
-            manager.createOrder(seats, {
-                userId: 'user-a',
-                name: '用户 A'
+        this.test('BUG-002', '订单必须按稳定 userId 隔离', () => {
+            const controller = this._controller();
+            controller.register({ username: 'alice', password: 'secret1', name: '用户 A' });
+            controller.startCheckout({
+                showtimeId: 'medium:day:3',
+                seats: [{ seatKey: '5-8', row: 5, col: 8, unitPrice: 120 }]
             });
-            manager.createOrder(seats, {
-                userId: 'user-b',
-                name: '用户 B'
-            });
+            controller.confirmCheckout();
+            controller.logout();
+            controller.register({ username: 'bobby', password: 'secret2', name: '用户 B' });
 
-            const userAOrders = manager.getOrders({ userId: 'user-a' });
-            this.assertContract(
-                userAOrders.length === 1 && userAOrders[0].userId === 'user-a',
-                `查询 user-a 得到 ${userAOrders.length} 个订单，且订单没有稳定 userId`
-            );
+            const userBOrders = controller.listOrders({ scope: 'mine' });
+            this.assertTrue(userBOrders.ok);
+            this.assertEqual(userBOrders.value.length, 0);
         });
 
-        this.xfail('BUG-004', '远端临时占座不得写入本地选择', () => {
-            const seat = {
-                row: 0,
-                col: 0,
-                status: 'available',
-                isSelected: false
-            };
-            const seatData = {
-                rows: 1,
-                cols: 1,
-                selectedSeats: new Set(),
-                getStats: () => ({ available: 1 }),
-                getSeat: () => seat
-            };
-            const cinema = {
-                redraw() {},
-                _emit() {}
-            };
-            const simulator = new RealtimeSimulator(seatData, cinema);
-            const originalRandom = Math.random;
-            const originalSetTimeout = globalThis.setTimeout;
+        this.test('BUG-004', '远端临时占座不得写入本地选择', () => {
+            const controller = this._controller();
+            controller.replaceSelection(['5-8']);
+            const held = controller.applyRemoteHold({
+                type: 'hold',
+                id: 'remote-1',
+                showtimeId: 'medium:day:3',
+                seatKey: '5-9',
+                ownerLabel: '观众 B',
+                expiresAt: '2026-07-18T00:01:00.000Z'
+            });
 
-            try {
-                Math.random = () => 0.9;
-                globalThis.setTimeout = () => 0;
-                simulator._tick();
-            } finally {
-                Math.random = originalRandom;
-                globalThis.setTimeout = originalSetTimeout;
-            }
-
-            this.assertContract(
-                seatData.selectedSeats.size === 0 && seat.isSelected === false,
-                '远端 select 事件直接修改了 selectedSeats/isSelected'
-            );
+            this.assertTrue(held.ok);
+            this.assertEqual(controller.getState().selection.seatKeys.join(','), '5-8');
+            this.assertTrue(controller.getState().remoteHoldsBySeatKey.has('5-9'));
         });
 
-        console.log('\n========== 已知缺陷摘要 ==========');
-        console.log(`稳定复现: ${this.expectedFailures} | 异常/意外通过: ${this.failed}\n`);
-
+        console.log('\n========== 测试摘要 ==========');
+        console.log(`总计: ${this.passed + this.failed} | 通过: ${this.passed} | 失败: ${this.failed}\n`);
         return {
-            passed: 0,
+            passed: this.passed,
             failed: this.failed,
-            total: this.failed,
-            expectedFailures: this.expectedFailures
+            total: this.passed + this.failed
         };
+    }
+
+    _controller() {
+        let sequence = 0;
+        const controller = createBrowserAppController({
+            localStorage: new MemoryWebStorage(),
+            sessionStorage: new MemoryWebStorage(),
+            clock: { now: () => NOW },
+            idGenerator: { next: prefix => `${prefix}-${++sequence}` }
+        });
+        controller.initialize('medium:day:3');
+        return controller;
     }
 }
 

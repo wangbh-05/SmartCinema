@@ -150,9 +150,9 @@ src/
 ### P1 正确性问题
 
 - [ ] `BUG-001` 已售座位缺少日期/场次维度；
-- [ ] `BUG-002` 历史订单缺少登录校验与用户隔离；
+- [x] `BUG-002` 历史订单缺少登录校验与用户隔离；
 - [ ] `BUG-003` 确认支付可重复提交；
-- [ ] `BUG-004` 实时模拟将远端占座加入当前选择；
+- [x] `BUG-004` 实时模拟将远端占座加入当前选择；
 - [ ] `BUG-005` `Ctrl+Z` 在文本输入时清空座位；
 - [ ] `BUG-006` 900px 以下网格产生隐式第二列与横向溢出。
 
@@ -363,6 +363,7 @@ src/
 - 新增 ApplyRemotePurchase 用例，远端购买通过 StateRepository 写入对应场次库存，重复事件幂等；
 - AppController 按场次接收 RemoteHold，非当前场次事件不污染当前内存状态；远端 purchase 后统一同步库存与本地 selection；
 - 生产页改用新事件模拟器，Canvas 中 remote-held 只是 AppState 的视图投影，不能点击、拖选或键盘选中，也不会写入 `selectedSeats`；
-- 新增 3 项 Realtime v2 测试；全局普通测试为 73/73；旧 `src/modules/RealtimeSimulator.js` 暂留给阶段 1 的 XFAIL，阶段 4 转换回归契约后删除；
+- 新增 3 项 Realtime v2 测试，并将 BUG-002/004 从旧实现 XFAIL 转为面向 AppController 的普通回归测试；全局测试为 75/75；
+- 删除生产与测试均不再引用的旧 `src/modules/RealtimeSimulator.js`，避免用死代码制造“缺陷仍存在”的假象；
 - 真实浏览器启用 realtime 10.5 秒后收到“观众D 正在查看 8排15座”，已选数量始终为 0；关闭开关会释放活跃 hold；
 - 下一切片迁移推荐/评分状态协调与 v2 导入导出，然后拆分 `src/app.js` 的页面控制职责。
