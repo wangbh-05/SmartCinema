@@ -8,6 +8,8 @@ import TestRecommendEngine from './test-recommend.js';
 import TestScoreEngine from './test-score.js';
 import TestOrderManager from './test-order.js';
 import TestDomainContracts from './test-domain-contracts.js';
+import TestStorageV2 from './test-storage-v2.js';
+import TestMigrationV2 from './test-migration-v2.js';
 import TestRegressionContracts from './test-regressions.js';
 
 class TestRunner {
@@ -47,6 +49,16 @@ class TestRunner {
         const domainTest = new TestDomainContracts();
         const domainResult = domainTest.runAll();
         this.results.push({ name: 'DomainContracts', ...domainResult });
+
+        // Storage v2 validator、revision repository 与 CheckoutIntent
+        const storageV2Test = new TestStorageV2();
+        const storageV2Result = storageV2Test.runAll();
+        this.results.push({ name: 'StorageV2', ...storageV2Result });
+
+        // v1 备份、校验、quarantine 与 v2 提交
+        const migrationV2Test = new TestMigrationV2();
+        const migrationV2Result = migrationV2Test.runAll();
+        this.results.push({ name: 'MigrationV2', ...migrationV2Result });
 
         // 已知缺陷契约：修复前稳定 XFAIL，异常或意外通过会计为失败
         const regressionTest = new TestRegressionContracts();

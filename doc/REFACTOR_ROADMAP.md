@@ -317,3 +317,13 @@ src/
 - 新增 `tests/test-domain-contracts.js`，14/14 通过；全局普通测试从 25 增至 39，XFAIL 仍为 2；
 - 边界扫描确认 `src/domain`、`src/shared` 不访问 DOM、Storage、当前时间或随机数；
 - 该切片尚未接管旧 UI；下一切片实现 v2 validator、StateRepository 与 v1 migration。
+
+### 2026-07-18 · 阶段 3 · 切片 2
+
+- 新增 Settings 与 CheckoutIntent 领域对象，结算意图支持 consumed 状态和同一 orderId 的幂等消费；
+- 新增 `StorageValidator.js`，验证 schema、用户、会话、订单、库存、设置、总价、idempotencyKey 与引用完整性；
+- 新增 revision-aware `LocalStateRepository`，candidate 完整校验后单次写入，冲突和写失败均返回稳定错误码；
+- 新增 `SessionCheckoutIntentRepository`，损坏 intent 会被清除且不创建订单；
+- 新增 `MigrateV1ToV2.js`，先备份 v1，再迁移可靠数据，并将无 owner/showtime 的订单与无日期 sold seats 放入 quarantine；
+- 新增 Storage v2 9 项、migration 6 项测试；全局普通测试增至 54/54，XFAIL 仍为 2；
+- 下一切片实现 Auth、Selection、Booking、Settings 应用用例和内存 AppState。

@@ -18,7 +18,7 @@ function requireIsoDate(value, fieldName) {
     return value;
 }
 
-function createOrderSeats(showtimeId, seats) {
+export function createOrderSeats(showtimeId, seats) {
     if (!Array.isArray(seats) || seats.length === 0) {
         throw new ValidationError('订单必须至少包含一个座位');
     }
@@ -97,4 +97,45 @@ export function cancelOrder(order, { cancelledAt, reason }) {
         })
     });
     return ok(next);
+}
+
+export function rehydrateOrder(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new ValidationError('订单必须是对象');
+    }
+
+    const confirmed = createConfirmedOrder({
+        id: data.id,
+        idempotencyKey: data.idempotencyKey,
+        userId: data.userId,
+        showtimeId: data.showtimeId,
+        seats: data.seats,
+        createdAt: data.createdAt,
+        confirmedAt: data.confirmedAt
+    });
+
+    if (data.totalPrice !== confirmed.totalPrice || data.currency !== 'CNY') {
+        throw new ValidationError('订单金额或币种校验失败', {
+            storedTotal: data.totalPrice,
+            calculatedTotal: confirmed.totalPrice,
+            currency: data.currency
+        });
+    }
+
+    if (data.status === ORDER_STATUS.CONFIRMED) return confirmed;
+    if (data.status === ORDER_STATUS.CANCELLED) {
+        const cancelled = cancelOrder(confirmed, {
+            cancelledAt: data.cancelledAt,
+            reason: data.cancelReason
+        });
+        if (!cancelled.ok) throw new ValidationError(cancelled.error.message);
+        const normalized = cancelled.value;
+        if (!data.refund || data.refund.amount !== normalized.refund.amount ||
+            data.refund.currency !== normalized.refund.currency || data.refund.status !== normalized.refund.status) {
+            throw new ValidationError('取消订单的退款信息无效', { orderId: data.id });
+        }
+        return normalized;
+    }
+
+    throw new ValidationError('订单状态无效', { status: data.status });
 }
