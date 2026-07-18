@@ -138,6 +138,7 @@ async function run() {
             assertContract(doc.querySelectorAll('canvas').length === 0, '生产入口仍依赖 Canvas 座位图');
             assertContract(!doc.getElementById('heatmap-section'), '消费者页面仍暴露热力图');
             assertContract(!doc.getElementById('experience-score'), '消费者页面仍暴露购前评分');
+            assertContract(!doc.querySelector('a[href*="legacy"]'), '消费者导航仍暴露内部工具');
             assertContract(Boolean(doc.querySelector('.movie-context') && doc.querySelector('.booking-summary')),
                 '缺少影片场次上下文或订单摘要');
         } finally {
@@ -522,13 +523,26 @@ async function run() {
         }
     });
 
+    await regression('ARCH-001', '迁移期内部工具必须有明确边界且禁止索引', async () => {
+        const response = await fetch('/legacy.html');
+        assertContract(response.ok, `内部工具响应异常：${response.status}`);
+        const html = await response.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        assertContract(
+            doc.querySelector('meta[name="robots"]')?.content === 'noindex,nofollow',
+            '内部工具未禁止搜索引擎索引'
+        );
+        assertContract(Boolean(doc.getElementById('internal-tools-notice')), '内部工具缺少可见边界说明');
+        assertContract(doc.title.includes('内部工具'), '内部工具页面标题仍像消费者产品');
+    });
+
     await regression('QA-001', '核心交互过程中不得出现未处理浏览器错误', async () => {
         assertContract(runtimeErrors.length === 0, runtimeErrors.join('；'));
     });
 
     clearTestStorage();
-    const expected = state.pass === 15 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：14 个商业流程回归与运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 16 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：15 个商业与架构回归、运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);

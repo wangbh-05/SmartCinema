@@ -310,7 +310,8 @@ Order
 - [x] 从消费者偏好中删除主题色、realtime、备份等非购票能力；
 - [ ] 补全账户资料页；
 - [ ] 评分仅对已结束且已确认订单开放；
-- [ ] 建立内部工具页承载模拟、备份、用户与库存管理；
+- [x] 将 `legacy.html` 正式收口为 noindex 迁移期内部操作台，承载旧模拟、备份、用户与库存能力；
+- [ ] 用独立 v3 内部运维工具取代迁移操作台；
 - [x] 从生产入口删除浮动 AI，保留上下文“帮我选”；
 - [ ] 清理失去入口的旧 controller、CSS 和测试。
 
@@ -338,7 +339,7 @@ Order
 - [x] 刷新恢复与 hold 过期清扫；
 - [x] 核心流程控制台与 DOM 安全自动化；
 - [ ] 性能和死代码审计；
-- [ ] README、TESTING、架构、迁移与 QA 报告更新。
+- [x] README、TESTING、架构、迁移与 QA 报告更新。
 
 退出门槛：所有量化验收项有当前测试或浏览器证据，旧路线图的正确性不倒退。
 
@@ -386,7 +387,7 @@ Order
 ## 13. 当前下一步
 
 1. 完成电子票二维码与真实支付/退款渠道适配；
-2. 推进 Phase 5：把设置/辅助功能迁到账户，把模拟、备份与后台迁到内部工具入口；
+2. 推进 Phase 5：用独立 v3 运维页取代迁移期内部操作台，再删除旧 UI 链路；
 3. 扩展多营业日、多电影和多影院目录导航；
 4. 仅在新消费者流程等价覆盖后清理 `legacy.html`、旧 Canvas/评分/热图 controller 与旧浏览器测试资产；
 5. 完成高对比、色盲、真实读屏、reduced-motion、损坏 v3 和性能验收。
@@ -402,12 +403,12 @@ Order
 
 ### Phase 2–4 可运行切片证据
 
-- `index.html` 已切换到商业购票漏斗；旧功能台保留于 `legacy.html`，便于迁移期对照与回退；
+- `index.html` 已切换到商业购票漏斗；`legacy.html` 已收口为可见标记且 noindex 的迁移期内部操作台；
 - `src/bootstrapCommercial.js` 是 v3 生产组合根，连续执行 v1→v2→v3 迁移并初始化确定性场次库存；
-- `src/commercial.js` 只通过应用服务访问目录、库存、认证、锁座和订单，不直接访问 Web Storage；
+- `src/commercial.js` 只通过应用服务访问目录、库存、认证、锁座和订单，不直接访问 Web Storage；座位 DOM/键盘/焦点下沉至 `CommercialSeatMapController`，锁座确认/倒计时/认证叠层/释放/成单下沉至 `CommercialCheckoutController`；
 - 生产入口已具备场次上下文、四票种 stepper、180 个 DOM 座位、连座推荐、逐项价格、sticky 摘要和移动底栏；
 - 访客可创建 10 分钟 hold，登录/注册后消费同一 hold，成功后生成取票码并进入账户订单；
 - 登录 Dialog 有显式关闭键，输入框拖到遮罩释放和背景点击均不会关闭；叠层 Dialog 只允许最上层响应 Escape；
 - 390px 实测页面级横向溢出为 0，座位图在 360px 容器内浏览 650px 内容；
-- 浏览器商业流程契约：15/15 PASS、0 XFAIL、0 XPASS、0 ERROR；
+- 浏览器商业与架构契约：16/16 PASS、0 XFAIL、0 XPASS、0 ERROR；
 - 详细证据与延期项见 `doc/COMMERCIAL_UX_PHASE_2_QA.md`。

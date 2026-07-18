@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="SmartCinema 智能影院选座系统">
-    <title>SmartCinema Legacy - 旧版功能工作台</title>
+    <meta name="description" content="SmartCinema 迁移期内部工具，非消费者购票入口">
+    <meta name="robots" content="noindex,nofollow">
+    <title>SmartCinema 内部工具（迁移期）</title>
     <link rel="stylesheet" href="public/styles/reset.css">
     <link rel="stylesheet" href="public/styles/variables.css">
     <link rel="stylesheet" href="public/styles/app.css">
+    <link rel="stylesheet" href="public/styles/internal-tools.css">
     <link rel="stylesheet" href="public/styles/accessibility.css">
 </head>
 <body class="dark-mode">
@@ -17,8 +19,8 @@
         <div class="app-brand">
             <span class="app-brand-mark" aria-hidden="true">SC</span>
             <div>
-                <div class="app-logo">SmartCinema</div>
-                <div class="app-tagline">更清楚地选到合适座位</div>
+                <div class="app-logo">SmartCinema · 内部工具</div>
+                <div class="app-tagline">迁移期算法、库存与数据运维台</div>
             </div>
         </div>
         <div class="header-controls">
@@ -52,8 +54,17 @@
     </header>
 
     <main class="main-container">
+        <aside class="internal-tools-notice" id="internal-tools-notice" role="note">
+            <div>
+                <span class="internal-tools-kicker">非消费者入口</span>
+                <h1>迁移期内部操作台</h1>
+                <p>此页仅用于校验旧算法、库存模拟、数据备份和管理员能力；它不属于新购票漏斗，也不应从生产导航暴露。</p>
+            </div>
+            <a class="internal-tools-exit" href="index.html">返回消费者购票页</a>
+        </aside>
+
         <section class="section-card canvas-section" id="seat-selection">
-            <h2>选择座位</h2>
+            <h2>库存与座位状态调试</h2>
             <div class="canvas-toolbar">
                 <button class="btn btn-primary btn-sm" id="smart-recommend">使用智能推荐</button>
                 <button class="btn btn-sm" id="manual-select">定位到座位图</button>
@@ -86,7 +97,7 @@
 
         <aside class="sidebar-stack" aria-label="推荐、评分与订单">
             <section class="section-card side-panel recommend-section" id="recommend-panel">
-                <h2>智能推荐</h2>
+                <h2>旧推荐算法诊断</h2>
                 <form id="recommend-form" class="recommend-form">
                     <div class="form-group">
                         <label for="group-size">① 观影人数</label>
@@ -128,7 +139,7 @@
             </section>
 
             <section class="section-card side-panel score-section" id="experience-score">
-                <h2>观影体验</h2>
+                <h2>旧评分引擎诊断</h2>
                 <div id="score-details">
                     <p class="score-placeholder">请先选择座位，系统将为您计算观影体验评分</p>
                 </div>
@@ -156,7 +167,7 @@
             </section>
 
             <section class="section-card side-panel" id="submit-order-section">
-                <h2>订单</h2>
+                <h2>迁移订单调试</h2>
                 <div class="order-summary-mini" id="order-summary-mini">暂未选择座位</div>
                 <div class="order-actions-stack">
                     <button class="btn btn-accent btn-block" id="btn-submit-order" disabled>继续确认订单</button>
@@ -167,14 +178,14 @@
         </aside>
 
         <section class="section-card full-width" id="heatmap-section">
-            <h2>影院热度地图</h2>
+            <h2>库存热度诊断</h2>
             <div class="canvas-container">
                 <canvas id="heatmap-canvas" role="img" aria-label="影院热度地图，暖色表示热门，冷色表示冷门"></canvas>
             </div>
         </section>
 
         <section class="section-card full-width" id="settings">
-            <h2>偏好设置</h2>
+            <h2>内部运行与数据工具</h2>
             <div class="settings-grid">
                 <label class="setting-control"><input type="checkbox" id="theme-toggle"> 深色模式</label>
                 <label class="setting-control"><input type="checkbox" id="accessibility-toggle"> 无障碍模式</label>

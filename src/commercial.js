@@ -1,9 +1,10 @@
 import { createBrowserCommercialApplication } from './bootstrapCommercial.js';
 import { AuthViewAdapter } from './ui/adapters/AuthViewAdapter.js';
-import { DialogController } from './ui/components/DialogController.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
+import { CommercialCheckoutController } from './ui/controllers/CommercialCheckoutController.js';
 import { CommercialOrdersController } from './ui/controllers/CommercialOrdersController.js';
 import { CommercialPreferencesController } from './ui/controllers/CommercialPreferencesController.js';
+import { CommercialSeatMapController } from './ui/controllers/CommercialSeatMapController.js';
 import {
     appendText,
     formatAmount,
@@ -14,16 +15,6 @@ import {
 
 function element(id) {
     return document.getElementById(id);
-}
-
-function seatStatusLabel(seat, selected, sold, held) {
-    if (selected) return '已选';
-    if (sold) return '已售';
-    if (held) return '已被其他观众锁定';
-    if (seat.kind === 'wheelchair') return '可选轮椅位';
-    if (seat.kind === 'companion') return '可选陪同席';
-    if (seat.zoneId === 'preferred') return '可选优选区座位';
-    return '可选';
 }
 
 class CommercialBookingPage {
@@ -37,13 +28,8 @@ class CommercialBookingPage {
         this.quote = null;
         this.ticketQuantities = new Map([['adult', 2]]);
         this.preferences = new Set(['center']);
-        this.activeHold = null;
-        this.holdOwnerId = null;
-        this.confirmedOrder = null;
-        this.holdTimer = null;
         this.toastTimer = null;
         this.pendingOrdersOpen = false;
-        this.lastFocusedSeatId = null;
     }
 
     start() {
@@ -53,6 +39,7 @@ class CommercialBookingPage {
             return;
         }
         this.setupDialogs();
+        this.setupSeatMap();
         this.bindStaticEvents();
         this.updateAccountHeader();
 
@@ -77,16 +64,17 @@ class CommercialBookingPage {
             onNotify: message => this.notify(message)
         });
 
-        const checkoutOverlay = element('checkout-dialog');
-        this.checkoutDialog = new DialogController({
-            overlay: checkoutOverlay,
-            dialog: checkoutOverlay.querySelector('.checkout-dialog'),
-            closeButton: element('checkout-close'),
-            canCloseFromBackdrop: () => {
-                this.notify('请使用右上角关闭按钮或“返回改座”');
-                return false;
-            },
-            onClose: () => this.handleCheckoutClosed()
+        this.checkout = new CommercialCheckoutController({
+            booking: this.booking,
+            account: this.app.account,
+            bookingDrafts: this.app.bookingDrafts,
+            clock: this.app.clock,
+            authDialog: this.authDialog,
+            getContext: () => this.context,
+            onNotify: message => this.notify(message),
+            onAnnounce: message => this.announce(message),
+            onInventoryChanged: () => this.refreshInventory(),
+            onCheckoutCompleted: () => this.rebuildDraft({ preserveSeats: false, persist: false })
         });
 
         this.ordersController = new CommercialOrdersController({
@@ -106,6 +94,22 @@ class CommercialBookingPage {
         });
     }
 
+    setupSeatMap() {
+        this.seatMap = new CommercialSeatMapController({
+            map: element('seat-map'),
+            scroller: element('seat-scroll'),
+            accessibleConfirm: element('accessible-confirm'),
+            accessibleAcknowledgement: element('accessible-acknowledgement'),
+            selectedProgress: element('selected-progress'),
+            getState: () => ({
+                context: this.context,
+                draft: this.draft,
+                inventory: this.inventory
+            }),
+            onToggleSeat: seatId => this.toggleSeat(seatId)
+        });
+    }
+
     bindStaticEvents() {
         element('btn-login').addEventListener('click', event => this.authDialog.open('login', event.currentTarget));
         element('btn-register').addEventListener('click', event => this.authDialog.open('register', event.currentTarget));
@@ -114,7 +118,7 @@ class CommercialBookingPage {
             if (!result.ok) return this.notify(result.error.message);
             this.updateAccountHeader();
             this.preferencesController.refresh();
-            this.renderCheckout();
+            this.checkout.refreshForAuth();
             this.notify('已退出登录');
         });
         element('btn-preferences').addEventListener('click', event =>
@@ -135,11 +139,6 @@ class CommercialBookingPage {
         });
         element('recommend-seats').addEventListener('click', () => this.recommendSeats());
         element('seat-conflict-recommend').addEventListener('click', () => this.recommendSeats());
-        element('seat-map').addEventListener('click', event => {
-            const button = event.target.closest('[data-seat-id]');
-            if (button && !button.disabled) this.toggleSeat(button.dataset.seatId);
-        });
-        element('seat-map').addEventListener('keydown', event => this.handleSeatKeydown(event));
         element('accessible-acknowledgement').addEventListener('change', event => {
             this.rebuildDraft({
                 preserveSeats: true,
@@ -183,15 +182,14 @@ class CommercialBookingPage {
                 persist: false
             });
             if (restored) {
-                this.activeHold = hold;
-                this.holdOwnerId = hold.ownerId;
                 this.quote = hold.pricingQuote;
                 this.persistDraft();
                 this.renderSummary();
-                this.renderCheckout();
-                this.checkoutDialog.open();
-                this.startHoldTimer();
-                this.announce('已恢复仍在保留时间内的座位');
+                this.checkout.openHold({
+                    hold,
+                    ownerId: hold.ownerId,
+                    restored: true
+                });
                 return;
             }
         }
@@ -256,7 +254,7 @@ class CommercialBookingPage {
             this.booking.replaceSeats(draft.value, restoredSeatIds) : null;
         this.draft = replaced?.ok ? replaced.value : draft.value;
         this.quote = null;
-        this.lastFocusedSeatId = null;
+        this.seatMap.resetFocus();
         this.hideSeatConflict();
         this.updateQuote();
         this.renderAll();
@@ -335,7 +333,7 @@ class CommercialBookingPage {
         const selected = new Set(this.draft.selectedSeatIds);
         const seat = this.context.auditorium.seats.find(item => item.id === seatId);
         if (!seat) return;
-        this.lastFocusedSeatId = seatId;
+        this.seatMap.rememberFocus(seatId);
 
         if (selected.has(seatId)) {
             selected.delete(seatId);
@@ -383,7 +381,7 @@ class CommercialBookingPage {
         if (!result.ok) return this.notify(result.error.message);
         this.draft = result.value.draft;
         this.hideSeatConflict();
-        this.lastFocusedSeatId = this.draft.selectedSeatIds[0];
+        this.seatMap.rememberFocus(this.draft.selectedSeatIds[0]);
         this.updateQuote();
         this.renderSeatMap({ focusSeat: true });
         this.renderSummary();
@@ -495,116 +493,7 @@ class CommercialBookingPage {
     }
 
     renderSeatMap({ focusSeat = false } = {}) {
-        const map = element('seat-map');
-        const activeSeatId = document.activeElement?.dataset?.seatId || null;
-        const previousFocus = activeSeatId || this.lastFocusedSeatId;
-        const selected = new Set(this.draft.selectedSeatIds);
-        const sold = new Set(this.inventory.soldSeatIds);
-        const held = new Set(Object.keys(this.inventory.holdIdsBySeatId));
-        const rows = new Map();
-        this.context.auditorium.seats.forEach(seat => {
-            if (!rows.has(seat.rowIndex)) rows.set(seat.rowIndex, []);
-            rows.get(seat.rowIndex).push(seat);
-        });
-        map.replaceChildren();
-        let firstAvailableId = null;
-        [...rows.entries()].sort(([left], [right]) => left - right).forEach(([, seats]) => {
-            const row = document.createElement('div');
-            row.className = 'seat-row';
-            const label = appendText(row, 'span', seats[0].rowLabel, 'seat-row-label');
-            label.setAttribute('aria-hidden', 'true');
-            seats.sort((left, right) => left.columnIndex - right.columnIndex).forEach(seat => {
-                const isSold = sold.has(seat.id);
-                const isHeld = held.has(seat.id);
-                const isSelected = selected.has(seat.id);
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'seat-button';
-                if (seat.zoneId === 'preferred') button.classList.add('is-premium');
-                if (['wheelchair', 'companion'].includes(seat.kind)) button.classList.add('is-accessible');
-                if (isSold) button.classList.add('is-sold');
-                if (isHeld) button.classList.add('is-held');
-                if (isSelected) button.classList.add('is-selected');
-                button.dataset.seatId = seat.id;
-                button.dataset.row = String(seat.rowIndex);
-                button.dataset.column = String(seat.columnIndex);
-                button.disabled = isSold || isHeld;
-                button.setAttribute('aria-pressed', String(isSelected));
-                button.setAttribute(
-                    'aria-label',
-                    `${seat.label}，${seat.zoneId === 'preferred' ?
-                        `座位附加费${formatAmount(this.context.pricingPolicy.seatZoneSurcharges[seat.zoneId])}` :
-                        '无座位附加费'}，${seatStatusLabel(seat, isSelected, isSold, isHeld)}`
-                );
-                button.textContent = seat.kind === 'wheelchair' ? '♿' :
-                    (seat.kind === 'companion' ? '陪' : String(seat.seatNumber));
-                if (!button.disabled && firstAvailableId === null) firstAvailableId = seat.id;
-                button.tabIndex = -1;
-                row.append(button);
-            });
-            map.append(row);
-        });
-
-        const focusId = previousFocus && map.querySelector(`[data-seat-id="${previousFocus}"]:not(:disabled)`) ?
-            previousFocus : (this.draft.selectedSeatIds[0] || firstAvailableId);
-        const focusTarget = focusId ? map.querySelector(`[data-seat-id="${focusId}"]`) : null;
-        if (focusTarget) focusTarget.tabIndex = 0;
-        if (activeSeatId && !focusSeat && focusTarget) {
-            focusTarget.focus({ preventScroll: true });
-        } else if (focusSeat && focusTarget) {
-            requestAnimationFrame(() => {
-                const scroller = element('seat-scroll');
-                scroller.scrollLeft = Math.max(0, focusTarget.offsetLeft - scroller.clientWidth / 2);
-                focusTarget.focus({ preventScroll: true });
-            });
-        }
-
-        const accessibleSelected = this.context.auditorium.seats.some(seat =>
-            selected.has(seat.id) && ['wheelchair', 'companion'].includes(seat.kind)
-        );
-        element('accessible-confirm').hidden = !accessibleSelected;
-        element('accessible-acknowledgement').checked = this.draft.accessibilityAcknowledged;
-        element('selected-progress').textContent = `${selected.size} / ${this.draft.ticketCount}`;
-    }
-
-    handleSeatKeydown(event) {
-        const current = event.target.closest('[data-seat-id]');
-        if (!current) return;
-        if ([' ', 'Space', 'Spacebar'].includes(event.key)) {
-            event.preventDefault();
-            current.click();
-            return;
-        }
-        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-        event.preventDefault();
-        const buttons = [...element('seat-map').querySelectorAll('[data-seat-id]:not(:disabled)')];
-        const row = Number(current.dataset.row);
-        const column = Number(current.dataset.column);
-        let candidates;
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-            candidates = buttons.filter(button => Number(button.dataset.row) === row);
-            candidates.sort((left, right) => Number(left.dataset.column) - Number(right.dataset.column));
-            const index = candidates.indexOf(current);
-            const offset = event.key === 'ArrowLeft' ? -1 : 1;
-            candidates = [candidates[index + offset]].filter(Boolean);
-        } else {
-            const direction = event.key === 'ArrowUp' ? -1 : 1;
-            candidates = buttons
-                .filter(button => (Number(button.dataset.row) - row) * direction > 0)
-                .sort((left, right) => {
-                    const leftRowDistance = Math.abs(Number(left.dataset.row) - row);
-                    const rightRowDistance = Math.abs(Number(right.dataset.row) - row);
-                    if (leftRowDistance !== rightRowDistance) return leftRowDistance - rightRowDistance;
-                    return Math.abs(Number(left.dataset.column) - column) -
-                        Math.abs(Number(right.dataset.column) - column);
-                });
-        }
-        const target = candidates[0];
-        if (!target) return;
-        current.tabIndex = -1;
-        target.tabIndex = 0;
-        this.lastFocusedSeatId = target.dataset.seatId;
-        target.focus();
+        this.seatMap.render({ focusSeat });
     }
 
     renderSummary() {
@@ -666,7 +555,7 @@ class CommercialBookingPage {
     }
 
     placeHold(trigger) {
-        if (!this.quote || this.activeHold) return;
+        if (!this.quote || this.checkout.isHolding()) return;
         const ownerId = this.app.getBookingOwnerId();
         const result = this.booking.placeHold({
             draft: this.draft,
@@ -686,13 +575,11 @@ class CommercialBookingPage {
             }
             return this.notify(result.error.message);
         }
-        this.activeHold = result.value.hold;
-        this.holdOwnerId = ownerId;
-        this.confirmedOrder = null;
-        this.renderCheckout();
-        this.checkoutDialog.open({ trigger });
-        this.startHoldTimer();
-        this.announce('座位已保留 10 分钟，请确认订单');
+        this.checkout.openHold({
+            hold: result.value.hold,
+            ownerId,
+            trigger
+        });
     }
 
     recoverFromSeatConflict(conflictingSeatIds) {
@@ -729,186 +616,6 @@ class CommercialBookingPage {
         element('seat-conflict').hidden = true;
     }
 
-    renderCheckout() {
-        if (!this.activeHold && !this.confirmedOrder) return;
-        const content = element('checkout-content');
-        content.replaceChildren();
-        if (this.confirmedOrder) {
-            this.renderOrderSuccess(content, this.confirmedOrder);
-            return;
-        }
-        const hold = this.activeHold;
-        const hero = document.createElement('div');
-        hero.className = 'checkout-hero';
-        appendText(hero, 'p', '订单确认', 'dialog-eyebrow');
-        appendText(hero, 'h2', '座位已为你保留');
-        const timer = appendText(hero, 'div', '剩余 10:00', 'checkout-timer');
-        timer.id = 'hold-countdown';
-        content.append(hero);
-
-        const details = document.createElement('div');
-        details.className = 'checkout-details';
-        this.appendCheckoutRow(details, '影片', this.context.movie.title);
-        this.appendCheckoutRow(
-            details,
-            '场次',
-            `${formatDate(this.context.showtime.startsAt)} ${formatTime(this.context.showtime.startsAt)}`
-        );
-        this.appendCheckoutRow(details, '影厅', this.context.auditorium.name);
-        const seatLabels = hold.seatIds.map(id =>
-            this.context.auditorium.seats.find(seat => seat.id === id)?.label || id
-        );
-        this.appendCheckoutRow(details, '座位', seatLabels.join('、'));
-        const total = document.createElement('div');
-        total.className = 'checkout-detail-row checkout-total';
-        appendText(total, 'span', '应付合计');
-        appendText(total, 'strong', formatMoney(hold.pricingQuote.total));
-        details.append(total);
-        content.append(details);
-
-        const user = this.app.account.getCurrentUser();
-        const note = appendText(
-            content,
-            'p',
-            user ? `订单将保存到 ${user.name} 的账户` : '无需登录即可锁座；确认订单前需要登录或注册。',
-            'checkout-account-note'
-        );
-        note.id = 'checkout-account-note';
-        const confirm = document.createElement('button');
-        confirm.type = 'button';
-        confirm.className = 'primary-action';
-        confirm.id = 'confirm-order';
-        confirm.textContent = user ? `确认订单 · ${formatMoney(hold.pricingQuote.total)}` : '登录后确认订单';
-        confirm.addEventListener('click', event => {
-            if (!this.app.account.isLoggedIn()) {
-                this.authDialog.open('login', event.currentTarget);
-                return;
-            }
-            this.confirmOrder();
-        });
-        content.append(confirm);
-        const back = document.createElement('button');
-        back.type = 'button';
-        back.className = 'text-action checkout-secondary';
-        back.textContent = '返回重新选座';
-        back.addEventListener('click', () => this.checkoutDialog.close());
-        content.append(back);
-        this.updateHoldCountdown();
-    }
-
-    appendCheckoutRow(parent, label, value) {
-        const row = document.createElement('div');
-        row.className = 'checkout-detail-row';
-        appendText(row, 'span', label);
-        appendText(row, 'strong', value);
-        parent.append(row);
-    }
-
-    confirmOrder() {
-        const user = this.app.account.getCurrentUser();
-        if (!user || !this.activeHold) return;
-        const result = this.booking.confirmHold({
-            holdId: this.activeHold.id,
-            actorOwnerId: this.holdOwnerId,
-            userId: user.id
-        });
-        if (!result.ok) return this.notify(result.error.message);
-        this.confirmedOrder = result.value.order;
-        this.activeHold = null;
-        this.app.bookingDrafts.clear();
-        this.stopHoldTimer();
-        this.refreshInventory();
-        this.renderCheckout();
-        this.announce(`订单确认成功，取票码 ${this.confirmedOrder.ticketCode}`);
-    }
-
-    renderOrderSuccess(content, order) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'success-ticket';
-        appendText(wrapper, 'div', '✓', 'success-icon');
-        appendText(wrapper, 'p', '订单已确认', 'dialog-eyebrow');
-        appendText(wrapper, 'h2', '购票成功');
-        appendText(
-            wrapper,
-            'p',
-            `${order.movieSnapshot.title} · ${formatDate(order.showtimeSnapshot.startsAt)} ${formatTime(order.showtimeSnapshot.startsAt)}`
-        );
-        const code = document.createElement('div');
-        code.className = 'ticket-code';
-        appendText(code, 'span', '电子取票码');
-        appendText(code, 'strong', order.ticketCode);
-        wrapper.append(code);
-        const seats = order.seatSnapshots.map(seat => seat.label).join('、');
-        appendText(wrapper, 'p', `${order.auditoriumSnapshot.name} · ${seats}`);
-        const done = document.createElement('button');
-        done.type = 'button';
-        done.className = 'primary-action';
-        done.textContent = '完成';
-        done.addEventListener('click', () => this.checkoutDialog.close());
-        wrapper.append(done);
-        content.append(wrapper);
-    }
-
-    startHoldTimer() {
-        this.stopHoldTimer();
-        this.updateHoldCountdown();
-        this.holdTimer = window.setInterval(() => this.updateHoldCountdown(), 1000);
-    }
-
-    stopHoldTimer() {
-        if (this.holdTimer !== null) window.clearInterval(this.holdTimer);
-        this.holdTimer = null;
-    }
-
-    updateHoldCountdown() {
-        if (!this.activeHold) return;
-        const remaining = Math.max(0, Math.ceil(
-            (Date.parse(this.activeHold.expiresAt) - Date.parse(this.app.clock.now())) / 1000
-        ));
-        const output = element('hold-countdown');
-        if (output) {
-            const minutes = String(Math.floor(remaining / 60)).padStart(2, '0');
-            const seconds = String(remaining % 60).padStart(2, '0');
-            output.textContent = `剩余 ${minutes}:${seconds}`;
-        }
-        if (remaining > 0) return;
-        const expired = this.booking.expireHold(this.activeHold.id);
-        this.activeHold = null;
-        this.stopHoldTimer();
-        if (expired.ok) this.refreshInventory();
-        const content = element('checkout-content');
-        content.replaceChildren();
-        appendText(content, 'p', '锁座已结束', 'dialog-eyebrow');
-        appendText(content, 'h2', '保留时间已到');
-        appendText(content, 'p', '座位已释放，请返回座位图重新选择。', 'dialog-intro');
-        const back = document.createElement('button');
-        back.type = 'button';
-        back.className = 'primary-action';
-        back.textContent = '返回选座';
-        back.addEventListener('click', () => this.checkoutDialog.close());
-        content.append(back);
-        this.announce('座位保留已到期并释放');
-    }
-
-    handleCheckoutClosed() {
-        this.stopHoldTimer();
-        if (this.activeHold) {
-            this.booking.releaseHold({
-                holdId: this.activeHold.id,
-                actorOwnerId: this.holdOwnerId,
-                reason: 'change-seats'
-            });
-            this.activeHold = null;
-            this.refreshInventory();
-        }
-        if (this.confirmedOrder) {
-            this.confirmedOrder = null;
-            this.rebuildDraft({ preserveSeats: false, persist: false });
-            this.app.bookingDrafts.clear();
-        }
-        this.holdOwnerId = null;
-    }
-
     refreshInventory() {
         const inventory = this.booking.getInventory(this.context.showtime.id);
         if (!inventory.ok) return;
@@ -920,10 +627,7 @@ class CommercialBookingPage {
     handleAuthChanged() {
         this.updateAccountHeader();
         this.preferencesController.refresh();
-        this.renderCheckout();
-        if (this.checkoutDialog.isOpen()) {
-            requestAnimationFrame(() => element('confirm-order')?.focus());
-        }
+        this.checkout.refreshForAuth();
         if (this.pendingOrdersOpen) {
             this.pendingOrdersOpen = false;
             this.openOrders(element('btn-orders'));

@@ -2,7 +2,7 @@
 
 SmartCinema 是一个无运行时依赖的原生 JavaScript 商业影院购票演示。生产入口遵循“场次 → 票种/票数 → 座位 → 锁座 → 身份 → 订单”的交易漏斗，使用 Storage v3 保存场次库存、有效锁座和不可变订单快照。
 
-当前重构在 `zcjx/smart_cinema` 分支进行。旧 Canvas 功能台暂时保留在 `legacy.html`，只用于迁移期对照；生产入口是 `index.html`。
+当前重构在 `zcjx/smart_cinema` 分支进行。`legacy.html` 已明确标记为 `noindex` 的迁移期内部操作台，只用于算法、库存、备份和管理能力对照；唯一消费者入口是 `index.html`。
 
 ## 快速开始
 
@@ -42,10 +42,11 @@ npm test
 ```text
 SmartCinema/
 ├── index.html                         # 商业购票生产入口
-├── legacy.html                        # 迁移期旧功能台
+├── legacy.html                        # noindex 迁移期内部操作台
 ├── order.html                         # v2 旧结算入口
 ├── public/styles/
 │   ├── commercial.css                 # 新交易外壳、DOM 座位和响应式
+│   ├── internal-tools.css             # 迁移期内部工具边界
 │   ├── variables.css                  # 共享 tokens
 │   ├── accessibility.css              # 焦点、高对比与 reduced-motion
 │   ├── app.css                        # legacy 功能台
@@ -62,8 +63,8 @@ SmartCinema/
 │   │   ├── catalog/                   # 演示目录与确定性库存
 │   │   ├── storage/                   # Storage v2/v3、迁移和 session owner
 │   │   └── browser/                   # Clock、IdGenerator、营业日
-│   ├── ui/                            # Dialog、适配器和 legacy controllers
-│   ├── commercial.js                  # 新生产页面薄编排
+│   ├── ui/                            # Dialog、商业座位/结算/订单/偏好 controller 与 legacy 适配器
+│   ├── commercial.js                  # 新生产页面交易编排
 │   ├── bootstrapCommercial.js         # v3 生产组合根
 │   ├── app.js                         # legacy 首页
 │   └── bootstrap.js                   # v2 legacy 组合根
@@ -118,14 +119,14 @@ npm test
 
 ```text
 http://127.0.0.1:8080/tests/browser-regressions.html
-# PASS 15 · XFAIL 0 · XPASS 0 · ERROR 0
+# PASS 16 · XFAIL 0 · XPASS 0 · ERROR 0
 ```
 
-测试页会清理 `127.0.0.1` 下的 `smartcinema_` 数据，不影响日常使用的 `localhost` 数据。浏览器契约覆盖商业入口、票座一致、无障碍门控、跨刷新恢复有效锁座、抢座冲突恢复、显式释放、访客确认、重复提交、政策驱动整单退票、账户辅助偏好、320–1440px、Dialog 指针/Escape/焦点、键盘选座、安全文本和运行时错误。详细说明见 [TESTING.md](TESTING.md)。
+测试页会清理 `127.0.0.1` 下的 `smartcinema_` 数据，不影响日常使用的 `localhost` 数据。浏览器契约覆盖商业入口、票座一致、无障碍门控、跨刷新恢复有效锁座、抢座冲突恢复、显式释放、访客确认、重复提交、政策驱动整单退票、账户辅助偏好、320–1440px、Dialog 指针/Escape/焦点、键盘选座、内部工具边界、安全文本和运行时错误。详细说明见 [TESTING.md](TESTING.md)。
 
 ## 当前边界
 
-仍在后续阶段中的能力：多日/多影院目录、真实支付与支付渠道退款回调、二维码、完整账户资料、内部工具最终拆分、真实读屏和完整辅助模式人工验收。不要把 `legacy.html` 中仍存在的热图、评分、模拟或备份入口视为新消费者产品的一部分。
+仍在后续阶段中的能力：多日/多影院目录、真实支付与支付渠道退款回调、二维码、完整账户资料、独立 v3 运维工具取代并删除 legacy 链路、真实读屏和完整辅助模式人工验收。不要把 `legacy.html` 中仍存在的热图、评分、模拟或备份入口视为新消费者产品的一部分。
 
 ## 主要文档
 
@@ -133,6 +134,7 @@ http://127.0.0.1:8080/tests/browser-regressions.html
 - [商业纵向切片 QA](doc/COMMERCIAL_UX_PHASE_2_QA.md)
 - [商业领域 v3 RFC](doc/RFC_COMMERCIAL_DOMAIN_V3.md)
 - [商业基线](doc/COMMERCIAL_UX_BASELINE.md)
+- [内部工具边界](doc/INTERNAL_TOOLS_BOUNDARY.md)
 - [已完成技术重构路线图](doc/REFACTOR_ROADMAP.md)
 - [测试指南](TESTING.md)
 
