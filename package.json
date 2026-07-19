@@ -5,20 +5,14 @@
   "type": "module",
   "main": "index.html",
   "scripts": {
-    "start": "node scripts/server.js",
-    "test": "node tests/runner.js",
-    "lint": "echo 'No linter configured - using native JavaScript'",
-    "build": "echo 'No build tool needed - pure browser JavaScript'"
+    "start": "node scripts/server.js"
   },
   "keywords": [
     "cinema",
     "seat-selection",
-    "canvas",
     "vanilla-js",
     "web"
   ],
   "author": "GrainRain <zcjx24@mails.tsinghua.edu.cn>",
-  "license": "MIT",
-  "devDependencies": {},
-  "dependencies": {}
+  "license": "MIT"
 }
