@@ -37,6 +37,7 @@ class CommercialBookingPage {
         this.popularityBySeat = {};
         this.toastTimer = null;
         this.pendingOrdersOpen = false;
+        this.posterRequestId = 0;
     }
 
     start() {
@@ -512,7 +513,9 @@ class CommercialBookingPage {
         const poster = element('movie-poster');
         poster.dataset.artwork = movie.artwork || 'cosmic-orbit';
         poster.setAttribute('aria-label', `${movie.title}影片封面`);
-        poster.classList.remove('has-poster-image');
+        const posterRequestId = ++this.posterRequestId;
+        poster.classList.remove('has-poster-error');
+        poster.classList.toggle('is-poster-loading', Boolean(movie.posterUrl));
         const previousPosterImage = element('poster-image');
         const posterImage = document.createElement('img');
         posterImage.id = 'poster-image';
@@ -522,15 +525,24 @@ class CommercialBookingPage {
         posterImage.fetchPriority = 'high';
         posterImage.referrerPolicy = 'no-referrer';
         posterImage.setAttribute('aria-hidden', 'true');
-        previousPosterImage.replaceWith(posterImage);
         if (movie.posterUrl) {
             posterImage.addEventListener('load', () => {
+                if (posterRequestId !== this.posterRequestId) return;
+                previousPosterImage.replaceWith(posterImage);
+                poster.classList.remove('is-poster-loading', 'has-poster-error');
                 poster.classList.add('has-poster-image');
             }, { once: true });
             posterImage.addEventListener('error', () => {
-                poster.classList.remove('has-poster-image');
+                if (posterRequestId !== this.posterRequestId) return;
+                previousPosterImage.replaceWith(posterImage);
+                poster.classList.remove('is-poster-loading', 'has-poster-image');
+                poster.classList.add('has-poster-error');
             }, { once: true });
             posterImage.src = movie.posterUrl;
+        } else {
+            previousPosterImage.replaceWith(posterImage);
+            poster.classList.remove('is-poster-loading', 'has-poster-image');
+            poster.classList.add('has-poster-error');
         }
         element('poster-title').textContent = movie.originalTitle || movie.title;
         const meta = element('movie-meta');
