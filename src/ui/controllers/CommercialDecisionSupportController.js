@@ -36,15 +36,29 @@ export class CommercialDecisionSupportController {
         const audienceRules = [];
         if (ticketQuantities.get('child') > 0) audienceRules.push('儿童票推荐避开前三排');
         if (ticketQuantities.get('senior') > 0) audienceRules.push('长者票推荐避开后三排');
-        element('party-type-note').textContent = audienceRules.length > 0 ?
-            audienceRules.join('；') : '同行方式会调整连座位置与排序';
+        const ticketCount = ticketItems.reduce((total, item) => total + item.quantity, 0);
+        const typeGuidance = ticketCount === 1 ?
+            '单人观影将按位置偏好推荐' :
+            (ticketCount <= 4 ?
+                '朋友适合 2–4 人；情侣、家庭可按实际关系切换' :
+                '团体适合 5–20 人，并优先寻找同排连续座位');
+        element('party-type-note').textContent = [...audienceRules, typeGuidance].join('；');
     }
 
-    renderPopularity(showPopularity) {
+    renderPopularity(showPopularity, heatPeriod = 'week') {
         const button = element('toggle-popularity');
         button.setAttribute('aria-pressed', String(showPopularity));
         button.lastChild.textContent = showPopularity ? ' 隐藏热度参考' : ' 显示热度参考';
         element('popularity-legend').hidden = !showPopularity;
+        const labels = {
+            monday: '周一', tuesday: '周二', wednesday: '周三', thursday: '周四',
+            friday: '周五', saturday: '周六', sunday: '周日', week: '一周综合'
+        };
+        element('heat-period-controls').querySelectorAll('[data-heat-period]').forEach(periodButton => {
+            periodButton.setAttribute('aria-pressed', String(periodButton.dataset.heatPeriod === heatPeriod));
+        });
+        element('heat-period-summary').textContent =
+            `当前显示${labels[heatPeriod] || '一周综合'}热度；连续渐变根据座位位置和近期选择生成`;
     }
 
     renderGuide(draft) {

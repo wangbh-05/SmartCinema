@@ -8,12 +8,13 @@ export const RECOMMENDATION_PREFERENCES = Object.freeze([
     'aisle',
     'step-free'
 ]);
-export const PARTY_TYPES = Object.freeze(['solo', 'couple', 'family', 'group']);
+export const PARTY_TYPES = Object.freeze(['solo', 'couple', 'friends', 'family', 'group']);
 export const PARTY_TYPE_LABELS = Object.freeze({
     solo: '单人观影',
     couple: '情侣观影',
+    friends: '朋友同行',
     family: '家庭观影',
-    group: '多人同行'
+    group: '团体观影'
 });
 
 function requireText(value, fieldName) {
@@ -88,14 +89,15 @@ function inferPartyType(ticketItems, ticketCount) {
     if (ticketCount === 1) return 'solo';
     if (ticketCount >= 5) return 'group';
     if (ticketTypeIds.has('child') || ticketTypeIds.has('senior')) return 'family';
-    return ticketCount === 2 ? 'couple' : 'family';
+    return 'friends';
 }
 
 function isPartyTypeAllowed(partyType, ticketCount) {
     if (partyType === 'solo') return ticketCount === 1;
     if (partyType === 'couple') return ticketCount === 2;
+    if (partyType === 'friends') return ticketCount >= 2 && ticketCount <= 4;
     if (partyType === 'family') return ticketCount >= 2 && ticketCount <= 8;
-    if (partyType === 'group') return ticketCount >= 5;
+    if (partyType === 'group') return ticketCount >= 5 && ticketCount <= MAX_TICKETS_PER_ORDER;
     return false;
 }
 
