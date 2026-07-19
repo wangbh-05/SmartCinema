@@ -41,7 +41,7 @@
 
 ```text
 npm test
-85/85 PASS
+86/86 PASS
 
 http://127.0.0.1:8081/tests/browser-regressions.html
 PASS 19 · XFAIL 0 · XPASS 0 · ERROR 0

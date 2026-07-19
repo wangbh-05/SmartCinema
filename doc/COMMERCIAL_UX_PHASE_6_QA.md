@@ -7,7 +7,7 @@
 
 > 后续演进：本文件保留 Phase 6 当时的 180 座/83 项证据；最终三厅、同行推荐与决策辅助结果见 `PROJECT_REQUIREMENTS_CLOSURE_QA.md`。
 
-> 目录演进：本文记录当时 3 部影片、2 家影院、24 场的阶段验收。2026-07-19 起当前目录已扩展为 7 部影片、3 家影院和 36 场三日滚动排期；当前事实见 `README.md` 与 `PROJECT_REQUIREMENTS_RECONCILIATION.md`。
+> 目录演进：本文记录当时 3 部影片、2 家影院、24 场的阶段验收。当前目录已扩展为 7 部影片、五道口/清河/中关村 3 家虚构演示影院和 108 场三日滚动排期；当前事实见 `README.md` 与 `PROJECT_REQUIREMENTS_RECONCILIATION.md`。
 
 ## 1. 结论
 

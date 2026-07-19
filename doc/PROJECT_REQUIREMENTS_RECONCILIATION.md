@@ -34,7 +34,7 @@
 | 实时更新 | WebSocket 模拟为加分项 | 真实系统要求服务端权威库存、连接恢复和冲突解决 | 本地确定性库存与冲突恢复，无 WebSocket | 不伪造网络更诚实，但加分未取得 | 若实现，仅做明确标注的多标签页 `BroadcastChannel` 或本地 WebSocket 演示，不能宣称真实并发 |
 | 单文件提交 | 整理为一个可直接打开的 `index.html` | 工程源码应模块化、可测试、可维护，通常经构建后发布 | ES modules、多 CSS/JS 文件、两个入口，需 HTTP 服务 | 当前工程质量高，但不满足交付包字面要求 | 保留模块化源码；新增可复现的导出脚本，生成单文件 `dist/index.html` 作为提交物 |
 | 三步流程 | 操作流程尽量不超过 3 步并提交流程图 | 商业交易还要显示票种、价格、锁座、身份和政策确认 | 页面标为“场次 → 票座 → 确认”三阶段，但每阶段含多个动作 | 高层符合，实际动作不可能只有三次点击 | 报告中以三阶段而非三次点击解释；补最终流程图和异常分支 |
-| 真实资料 | 作业未要求接入真实影院接口 | 真实名称、地址、排期和价格必须区分来源与实时性 | 影片/影院基础资料为真实条目；排期、价格、影厅为本地演示 | 若不披露会形成误导 | 页面常驻披露，并在报告中列来源；不使用版权海报，采用抽象 CSS 画面 |
+| 真实资料 | 作业未要求接入真实影院接口 | 真实名称、地址、排期和价格必须区分来源与实时性 | 影片为真实条目；影院名称、地址、影厅、排期与价格均为本地虚构演示 | 若把虚构影院写成真实门店会形成误导 | 页面常驻披露；影片与封面列明来源，虚构影院不绑定真实商户 |
 
 ## 3. 当前作业要求实现状态
 
@@ -88,15 +88,15 @@
 ## 5. 本轮目录改造与事实边界
 
 - 影片为 7 部指定经典影片：星际穿越、你的名字、怦然心动、闻香识女人、哈利·波特与魔法石、疯狂动物城、楚门的世界。
-- 影院为清华大学周边 3 家真实影院：嘉华国际影城（学清路店）、CGV 影城（北京清河万象汇店）、金逸影城（中关村店）。
+- 影院名称简化为 3 家采用清华周边地名的虚构演示影院：五道口、清河、中关村。名称仅用于地域语境，道路地址、影厅和商业资料均不对应真实商户。
 - 可售窗口始终为本地北京时间当天及随后两天。三套日排期按绝对日期循环，因此窗口前移后，新加入的第 3 天会复用刚结束日期的排期模板。
-- 影片与影院名称、地址和片长是资料字段；场次、价格、影厅名称、容量和可售状态均为本地演示，不代表影院真实经营信息。
-- 不使用第三方电影海报；当前画面为项目自有 CSS 抽象图形，避免误用版权物料。
+- 每个营业日提供 36 场、三日共 108 场；每部影片每天至少覆盖 4 场。影片名称和片长是资料字段；影院名称、地址、场次、价格、影厅名称、容量和可售状态均为本地虚构演示。每家影院以两间目录影厅并行排期，300 座影厅首次打开时居中展示。
+- 影片封面素材从 TMDB 获取后保存在 `public/images/posters/`，运行时从项目本地加载；本地文件缺失或解码失败时保留项目自有 CSS 抽象图形兜底。封面仅用于课程演示，正式发布前仍需核对图片授权与署名要求。
 
 ### 资料来源
 
 - 影片：[Interstellar / BFI](https://www.bfi.org.uk/sight-and-sound/reviews/review-interstellar)、[Your Name / IMDb technical](https://www.imdb.com/title/tt5311514/technical/)、[Flipped / The Numbers](https://www.the-numbers.com/movie/Flipped)、[Scent of a Woman / IMDb](https://www.imdb.com/title/tt0105323/)、[Harry Potter and the Sorcerer's Stone / BFI](https://www.bfi.org.uk/film/d18fa0be-c74c-5a88-92fe-179d3d69e268/harry-potter-and-the-sorcerers-stone)、[Zootopia / Disney](https://movies.disney.com/zootopia)、[The Truman Show / Paramount](https://www.paramountpictures.com/movies/the-truman-show)。
-- 影院：[嘉华国际影城（学清路店）/ 高德地图](https://ditu.amap.com/place/B000A87EGV)、[CGV 影城（清河万象汇店）/ Apple Maps](https://maps.apple.com/place?auid=1118368648054496&lsp=57879)、[金逸影城（中关村店）/ 北京市地图](https://map.beijing.gov.cn/place?categoryId=yjy&placeId=60cd9dee057f7e6053925756)。
+- 封面：[Interstellar](https://www.themoviedb.org/movie/157336-interstellar/images/posters?language=en-US)、[Your Name](https://www.themoviedb.org/movie/372058/images/posters?language=zh)、[Flipped](https://www.themoviedb.org/movie/43949-flipped/images/posters?language=en-US)、[Scent of a Woman](https://www.themoviedb.org/movie/9475-scent-of-a-woman/images/posters?language=en-US)、[Harry Potter and the Philosopher's Stone](https://www.themoviedb.org/movie/671-harry-potter-and-the-philosopher-s-stone/images/posters?language=en-US)、[Zootopia](https://www.themoviedb.org/movie/269149-zootopia/images/posters?language=en-US)、[The Truman Show](https://www.themoviedb.org/movie/37165-the-truman-show/images/posters?language=en-US) / TMDB。
 
 ## 6. 决策记录
 
