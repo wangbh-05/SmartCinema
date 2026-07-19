@@ -186,15 +186,17 @@ async function run() {
         try {
             const doc = frame.contentDocument;
             assertContract(
-                doc.querySelector('[data-party-type="couple"]').getAttribute('aria-pressed') === 'true',
-                '双人票没有默认使用情侣同行推荐'
+                doc.querySelector('[data-party-type="friends"]').getAttribute('aria-pressed') === 'true',
+                '两名普通观众没有默认使用朋友同行推荐'
             );
             assertContract(
-                doc.querySelector('[data-party-type="couple"]').textContent.trim() === '情侣',
-                '情侣同行选项未明确呈现'
+                doc.querySelector('[data-party-type="friends"]').textContent.trim() === '朋友',
+                '朋友同行选项未明确呈现'
             );
+            assertContract(!doc.querySelector('[data-party-type="couple"]').disabled, '两张票不能主动选择情侣观影');
+            assertContract(!doc.querySelector('[data-party-type="family"]').disabled, '两张票不能主动选择家庭观影');
             assertContract(doc.querySelector('[data-party-type="solo"]').disabled, '两张票仍允许选择单人观影');
-            assertContract(doc.querySelector('[data-party-type="group"]').disabled, '两张票仍允许选择多人同行');
+            assertContract(doc.querySelector('[data-party-type="group"]').disabled, '两张票仍允许选择团体观影');
             recommend(doc);
             await delay();
             assertContract(!doc.getElementById('seat-decision-guide').hidden, '选座后没有显示座位体验说明');

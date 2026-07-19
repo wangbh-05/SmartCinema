@@ -31,7 +31,7 @@ class CommercialBookingPage {
         this.draft = null;
         this.quote = null;
         this.ticketQuantities = new Map([['adult', 2]]);
-        this.partyType = 'couple';
+        this.partyType = 'friends';
         this.preferences = new Set(['center']);
         this.showPopularity = false;
         this.heatPeriod = 'week';
@@ -374,7 +374,7 @@ class CommercialBookingPage {
         const result = this.booking.getPartyTypeOptions(this.ticketItems());
         if (!result.ok) return;
         const preferred = result.value.find(option => option.id === preferredPartyType && option.allowed);
-        this.partyType = preferred?.id || result.value.find(option => option.recommended)?.id || 'family';
+        this.partyType = preferred?.id || result.value.find(option => option.recommended)?.id || 'friends';
     }
 
     changePartyType(partyType) {

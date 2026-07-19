@@ -111,6 +111,15 @@ class TestCommercialApplication {
 
         this.test('同行方式与票种应共同约束可解释的连座推荐', () => {
             const deps = this._deps();
+            const friendOptions = deps.service.getPartyTypeOptions([
+                { ticketTypeId: 'adult', quantity: 2 }
+            ]);
+            this.assertTrue(friendOptions.ok);
+            this.assertTrue(friendOptions.value.find(option => option.id === 'friends').recommended);
+            this.assertTrue(friendOptions.value.find(option => option.id === 'couple').allowed);
+            this.assertTrue(friendOptions.value.find(option => option.id === 'family').allowed);
+            this.assertFalse(friendOptions.value.find(option => option.id === 'group').allowed);
+
             const options = deps.service.getPartyTypeOptions([
                 { ticketTypeId: 'adult', quantity: 5 }
             ]);

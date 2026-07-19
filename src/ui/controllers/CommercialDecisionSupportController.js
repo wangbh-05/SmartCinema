@@ -36,8 +36,13 @@ export class CommercialDecisionSupportController {
         const audienceRules = [];
         if (ticketQuantities.get('child') > 0) audienceRules.push('儿童票推荐避开前三排');
         if (ticketQuantities.get('senior') > 0) audienceRules.push('长者票推荐避开后三排');
-        element('party-type-note').textContent = audienceRules.length > 0 ?
-            audienceRules.join('；') : '同行方式会调整连座位置与排序';
+        const ticketCount = ticketItems.reduce((total, item) => total + item.quantity, 0);
+        const typeGuidance = ticketCount === 1 ?
+            '单人观影将按位置偏好推荐' :
+            (ticketCount <= 4 ?
+                '朋友适合 2–4 人；情侣、家庭可按实际关系切换' :
+                '团体适合 5–20 人，并优先寻找同排连续座位');
+        element('party-type-note').textContent = [...audienceRules, typeGuidance].join('；');
     }
 
     renderPopularity(showPopularity, heatPeriod = 'week') {

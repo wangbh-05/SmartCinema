@@ -187,7 +187,7 @@ class TestCommercialDomain {
             }));
         });
 
-        this.test('BookingDraft 应限制 1–20 张票且 9 张起必须使用多人同行', () => {
+        this.test('BookingDraft 应限制 1–20 张票且 9 张起必须使用团体观影', () => {
             const draft = this._draft();
             this.assertEqual(draft.ticketCount, 2);
             this.assertEqual(draft.partyType, 'family');
@@ -215,6 +215,18 @@ class TestCommercialDomain {
                 partyType: 'group'
             });
             this.assertEqual(group.ticketCount, 20);
+
+            const friends = createBookingDraft({
+                ...draft,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 3 }],
+                partyType: null
+            });
+            this.assertEqual(friends.partyType, 'friends');
+            this.assertThrows(() => createBookingDraft({
+                ...friends,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 5 }],
+                partyType: 'friends'
+            }));
         });
 
         this.test('PricingQuote 应从票种、价格区和服务费重算总价', () => {
