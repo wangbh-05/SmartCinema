@@ -81,12 +81,10 @@ export default class TestArchitectureBoundaries {
             this.assertTrue(violations.length === 0, `浏览器依赖泄漏：${violations.join('、')}`);
         });
 
-        this.test('生产源码不得保留 Canvas、热图、购前评分和模拟器链', () => {
+        this.test('生产座位图必须使用原生 Canvas 且不得恢复旧模拟器链', () => {
             const sourceFiles = listJavaScript('src');
             const retiredFragments = [
-                '/canvas/',
                 'SeatData',
-                'Heatmap',
                 'ScoringController',
                 'AIChatbot',
                 'RealtimeEventSimulator'
@@ -95,6 +93,13 @@ export default class TestArchitectureBoundaries {
                 retiredFragments.some(fragment => relativePath.includes(fragment))
             );
             this.assertTrue(violations.length === 0, `仍存在旧链：${violations.join('、')}`);
+            const consumer = read('index.html');
+            const controller = read('src/ui/controllers/CommercialSeatMapController.js');
+            this.assertTrue(consumer.includes('seat-layout-canvas'), '消费者入口缺少 Canvas 座位图');
+            this.assertTrue(consumer.includes('seat-heat-canvas'), '消费者入口缺少 Canvas 热度层');
+            this.assertTrue(controller.includes("getContext('2d')") ||
+                read('src/ui/canvas/CanvasSeatMapView.js').includes("getContext('2d')"),
+            '座位图没有使用原生 Canvas 2D 上下文');
         });
 
         return this.printSummary();

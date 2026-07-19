@@ -185,12 +185,14 @@
                     </div>
 
                     <div class="seat-stage">
-                        <div class="screen-wrap" aria-hidden="true">
-                            <div class="screen-line"></div>
-                            <span>银幕方向</span>
-                        </div>
-                        <div class="seat-scroll" id="seat-scroll" tabindex="0" aria-label="座位图，可横向滚动">
-                            <div class="seat-map" id="seat-map" role="group" aria-label="影院座位"></div>
+                        <div class="seat-scroll" id="seat-scroll" aria-label="座位图，可横向滚动">
+                            <div class="canvas-seat-surface" id="canvas-seat-surface">
+                                <canvas class="seat-heat-canvas" id="seat-heat-canvas" aria-hidden="true" hidden></canvas>
+                                <canvas class="seat-layout-canvas" id="seat-layout-canvas" tabindex="0"
+                                    role="application" aria-label="影院座位图。使用方向键移动，空格选择；鼠标拖拽可框选座位。"></canvas>
+                                <div class="canvas-seat-tooltip" id="canvas-seat-tooltip" role="tooltip" hidden></div>
+                                <div class="seat-map sr-only" id="seat-map" role="group" aria-label="影院座位无障碍操作层"></div>
+                            </div>
                         </div>
                         <div class="seat-map-edge" aria-hidden="true"></div>
                     </div>
@@ -210,11 +212,22 @@
                         <span><i class="legend-seat is-accessible">♿</i>无障碍</span>
                     </div>
                     <div class="popularity-legend" id="popularity-legend" aria-label="座位热度参考说明" hidden>
-                        <strong>近期选择热度</strong>
-                        <span><i class="popularity-symbol is-hot">●</i>热门</span>
-                        <span><i class="popularity-symbol is-warm">◆</i>一般</span>
-                        <span><i class="popularity-symbol is-cool">○</i>冷门</span>
-                        <small>根据座位位置和当前场次选择情况生成，仅作选座参考</small>
+                        <div class="heat-legend-copy">
+                            <strong>一周选择热度</strong>
+                            <span class="heat-gradient-key" aria-hidden="true"></span>
+                            <span>冷门</span><span>一般</span><span>热门</span>
+                        </div>
+                        <div class="heat-period-controls" id="heat-period-controls" role="group" aria-label="选择热度日期">
+                            <button type="button" data-heat-period="monday">一</button>
+                            <button type="button" data-heat-period="tuesday">二</button>
+                            <button type="button" data-heat-period="wednesday">三</button>
+                            <button type="button" data-heat-period="thursday">四</button>
+                            <button type="button" data-heat-period="friday">五</button>
+                            <button type="button" data-heat-period="saturday">六</button>
+                            <button type="button" data-heat-period="sunday">日</button>
+                            <button type="button" data-heat-period="week" aria-pressed="true">综合</button>
+                        </div>
+                        <small id="heat-period-summary">当前显示一周综合热度；连续渐变根据座位位置和近期选择生成</small>
                     </div>
                     <section class="seat-decision-guide" id="seat-decision-guide" aria-labelledby="seat-decision-title" hidden>
                         <div class="decision-guide-heading">

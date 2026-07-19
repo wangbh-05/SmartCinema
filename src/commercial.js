@@ -34,7 +34,9 @@ class CommercialBookingPage {
         this.partyType = 'couple';
         this.preferences = new Set(['center']);
         this.showPopularity = false;
+        this.heatPeriod = 'week';
         this.popularityBySeat = {};
+        this.recommendedSeatIds = new Set();
         this.toastTimer = null;
         this.pendingOrdersOpen = false;
         this.posterRequestId = 0;
@@ -117,6 +119,10 @@ class CommercialBookingPage {
         this.seatMap = new CommercialSeatMapController({
             map: element('seat-map'),
             scroller: element('seat-scroll'),
+            surface: element('canvas-seat-surface'),
+            canvas: element('seat-layout-canvas'),
+            heatCanvas: element('seat-heat-canvas'),
+            tooltip: element('canvas-seat-tooltip'),
             accessibleConfirm: element('accessible-confirm'),
             accessibleAcknowledgement: element('accessible-acknowledgement'),
             selectedProgress: element('selected-progress'),
@@ -125,9 +131,12 @@ class CommercialBookingPage {
                 draft: this.draft,
                 inventory: this.inventory,
                 popularityBySeat: this.popularityBySeat,
-                showPopularity: this.showPopularity
+                showPopularity: this.showPopularity,
+                heatPeriod: this.heatPeriod,
+                recommendedSeatIds: [...this.recommendedSeatIds]
             }),
-            onToggleSeat: seatId => this.toggleSeat(seatId)
+            onToggleSeat: seatId => this.toggleSeat(seatId),
+            onSelectSeats: seatIds => this.selectSeatBlock(seatIds)
         });
     }
 
@@ -168,6 +177,10 @@ class CommercialBookingPage {
         });
         element('recommend-seats').addEventListener('click', () => this.recommendSeats());
         element('seat-conflict-recommend').addEventListener('click', () => this.recommendSeats());
+        element('heat-period-controls').addEventListener('click', event => {
+            const button = event.target.closest('[data-heat-period]');
+            if (button) this.changeHeatPeriod(button.dataset.heatPeriod);
+        });
         element('accessible-acknowledgement').addEventListener('change', event => {
             this.rebuildDraft({
                 preserveSeats: true,
@@ -302,6 +315,7 @@ class CommercialBookingPage {
             return false;
         }
         this.context = context.value;
+        this.recommendedSeatIds.clear();
         this.showtimes = this.catalogController.list(this.catalogSelection());
         this.inventory = inventory.value;
         this.refreshSeatGuidance();
@@ -348,6 +362,7 @@ class CommercialBookingPage {
         const nextTotal = this.ticketCount - current + next;
         if (next < 0 || nextTotal < 1 || nextTotal > this.ticketLimit) return;
         const hadSeats = this.draft.selectedSeatIds.length > 0;
+        this.recommendedSeatIds.clear();
         this.ticketQuantities.set(ticketTypeId, next);
         this.syncPartyType(this.partyType);
         this.hideSeatConflict();
@@ -365,6 +380,7 @@ class CommercialBookingPage {
     changePartyType(partyType) {
         if (partyType === this.partyType) return;
         this.partyType = partyType;
+        this.recommendedSeatIds.clear();
         const hadSeats = this.draft.selectedSeatIds.length > 0;
         this.rebuildDraft({ preserveSeats: true });
         if (hadSeats) this.notify('同行方式已更新；现有座位保留，可重新请求更合适的连座');
@@ -374,14 +390,27 @@ class CommercialBookingPage {
         if (this.preferences.has(preference)) this.preferences.delete(preference);
         else this.preferences.add(preference);
         button.setAttribute('aria-pressed', String(this.preferences.has(preference)));
+        this.recommendedSeatIds.clear();
         this.rebuildDraft({ preserveSeats: true });
     }
 
     togglePopularity() {
         this.showPopularity = !this.showPopularity;
-        this.decisionSupport.renderPopularity(this.showPopularity);
+        this.decisionSupport.renderPopularity(this.showPopularity, this.heatPeriod);
         this.renderSeatMap();
         this.announce(`座位热度参考已${this.showPopularity ? '显示' : '隐藏'}`);
+    }
+
+    changeHeatPeriod(period) {
+        if (period === this.heatPeriod) return;
+        this.heatPeriod = period;
+        this.decisionSupport.renderPopularity(this.showPopularity, this.heatPeriod);
+        this.renderSeatMap();
+        const labels = {
+            monday: '周一', tuesday: '周二', wednesday: '周三', thursday: '周四',
+            friday: '周五', saturday: '周六', sunday: '周日', week: '一周综合'
+        };
+        this.announce(`已显示${labels[period] || '一周综合'}座位热度`);
     }
 
     refreshSeatGuidance() {
@@ -470,10 +499,42 @@ class CommercialBookingPage {
         this.announce(`${seat.label}${selected.has(seatId) ? '已选择' : '已取消'}`);
     }
 
+    selectSeatBlock(seatIds) {
+        const availableCandidates = seatIds
+            .map(id => this.context.auditorium.seats.find(seat => seat.id === id))
+            .filter(seat => seat && !this.isSeatUnavailable(seat.id));
+        if (availableCandidates.length === 0) return;
+        const selected = new Set(this.draft.selectedSeatIds);
+        const selectedSeats = [...selected].map(id =>
+            this.context.auditorium.seats.find(seat => seat.id === id)
+        ).filter(Boolean);
+        const sectionId = selectedSeats[0]?.sectionId || availableCandidates[0].sectionId;
+        const capacity = this.draft.ticketCount - selected.size;
+        const additions = availableCandidates
+            .filter(seat => seat.sectionId === sectionId && !selected.has(seat.id))
+            .slice(0, Math.max(0, capacity));
+        additions.forEach(seat => selected.add(seat.id));
+        if (additions.length === 0) {
+            this.notify(`本单有 ${this.draft.ticketCount} 张票；请先取消座位再框选`);
+            return;
+        }
+        const replaced = this.booking.replaceSeats(this.draft, [...selected]);
+        if (!replaced.ok) return this.notify(replaced.error.message);
+        this.draft = replaced.value;
+        this.seatMap.rememberFocus(additions[0].id);
+        this.hideSeatConflict();
+        this.updateQuote();
+        this.renderSeatMap();
+        this.renderSummary();
+        this.persistDraft();
+        this.announce(`已框选 ${additions.map(seat => seat.label).join('、')}`);
+    }
+
     recommendSeats() {
         const result = this.booking.recommendSeats(this.draft);
         if (!result.ok) return this.notify(result.error.message);
         this.draft = result.value.draft;
+        this.recommendedSeatIds = new Set(result.value.seats.map(seat => seat.id));
         this.hideSeatConflict();
         this.seatMap.rememberFocus(this.draft.selectedSeatIds[0]);
         this.updateQuote();
@@ -633,7 +694,7 @@ class CommercialBookingPage {
             ticketQuantities: this.ticketQuantities,
             partyType: this.partyType
         });
-        this.decisionSupport.renderPopularity(this.showPopularity);
+        this.decisionSupport.renderPopularity(this.showPopularity, this.heatPeriod);
     }
 
     renderSeatMap({ focusSeat = false } = {}) {

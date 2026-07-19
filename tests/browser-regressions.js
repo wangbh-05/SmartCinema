@@ -169,8 +169,8 @@ async function run() {
                 [100, 200, 300].includes(doc.querySelectorAll('.seat-button').length),
                 '默认场次没有渲染完整的小/中/大厅座位图'
             );
-            assertContract(doc.querySelectorAll('canvas').length === 0, '生产入口仍依赖 Canvas 座位图');
-            assertContract(!doc.getElementById('heatmap-section'), '消费者页面仍暴露热力图');
+            assertContract(Boolean(doc.getElementById('seat-layout-canvas')), '生产入口缺少 Canvas 座位图');
+            assertContract(Boolean(doc.getElementById('seat-heat-canvas')), '生产入口缺少 Canvas 热度层');
             assertContract(!doc.getElementById('experience-score'), '消费者页面仍暴露购前评分');
             assertContract(!doc.querySelector('a[href*="legacy"]'), '消费者导航仍暴露内部工具');
             assertContract(!doc.querySelector('a[href*="internal"]'), '消费者导航暴露了运维入口');
@@ -207,6 +207,13 @@ async function run() {
             );
             assertContract(doc.getElementById('seat-map').classList.contains('shows-popularity'), '座位图未显示热度参考层');
             assertContract(!doc.getElementById('popularity-legend').hidden, '热度参考缺少文字图例');
+            assertContract(!doc.getElementById('seat-heat-canvas').hidden, '连续热度 Canvas 未显示');
+            doc.querySelector('[data-heat-period="saturday"]').click();
+            await delay(220);
+            assertContract(
+                doc.querySelector('[data-heat-period="saturday"]').getAttribute('aria-pressed') === 'true',
+                '一周热度日期没有即时切换'
+            );
             const selected = doc.querySelectorAll('.seat-button.is-selected');
             const total = doc.getElementById('summary-total').textContent;
             assertContract(selected.length === 2, `推荐选择了 ${selected.length} 个座位而非 2 个`);
@@ -462,7 +469,10 @@ async function run() {
             assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 0, '切换日期后保留了旧座位');
 
             doc.querySelector('[data-catalog-value="movie-your-name"]').click();
-            await delay();
+            await waitFor(
+                () => doc.getElementById('poster-image').src.endsWith('/public/images/posters/your-name.jpg'),
+                '切换影片后更新本地封面'
+            );
             assertContract(doc.getElementById('movie-title').textContent === '你的名字', '切换影片后上下文未更新');
             assertContract(
                 doc.getElementById('poster-image').src.endsWith('/public/images/posters/your-name.jpg'),
@@ -475,10 +485,14 @@ async function run() {
 
             doc.querySelector('[data-catalog-value="cinema-riverside"]').click();
             await delay();
-            assertContract(doc.getElementById('cinema-name').textContent === '清河', '切换影院后场次上下文未更新');
+            assertContract(doc.getElementById('cinema-name').textContent.includes('清河'), '切换影院后场次上下文未更新');
             assertContract(doc.querySelectorAll('.seat-button').length === 300, '大厅没有渲染 300 个座位');
             assertContract(doc.querySelectorAll('.showtime-option').length === 4, '影片排期没有提供四场可选时间');
             const seatScroller = doc.getElementById('seat-scroll');
+            await waitFor(() => {
+                const centered = (seatScroller.scrollWidth - seatScroller.clientWidth) / 2;
+                return Math.abs(seatScroller.scrollLeft - centered) <= 2;
+            }, '300 座影厅首次打开后居中');
             const centeredScrollLeft = (seatScroller.scrollWidth - seatScroller.clientWidth) / 2;
             assertContract(
                 Math.abs(seatScroller.scrollLeft - centeredScrollLeft) <= 2,

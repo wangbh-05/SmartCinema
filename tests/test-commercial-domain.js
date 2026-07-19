@@ -36,6 +36,13 @@ import {
     createDemoCatalog,
     DemoCatalogRepository
 } from '../src/infrastructure/catalog/DemoCatalogRepository.js';
+import {
+    centerTextMetricsInRectangle,
+    createCurvedSeatLayout,
+    heatScoreForPeriod,
+    hitTestSeat,
+    seatsInsideRectangle
+} from '../src/ui/canvas/CanvasSeatMapView.js';
 
 const NOW = '2026-07-18T10:00:00.000Z';
 const LATER = '2026-07-18T10:10:00.000Z';
@@ -88,6 +95,66 @@ class TestCommercialDomain {
             this.assertTrue(Object.isFrozen(money));
             this.assertThrows(() => createMoney(68.5, 'CNY'));
             this.assertThrows(() => createMoney(-1, 'CNY'));
+        });
+
+        this.test('Canvas 布局应生成弧形座位、命中区域与一周热度变化', () => {
+            const catalog = createDemoCatalog('2026-07-18');
+            const auditorium = Object.values(catalog.auditoriums)
+                .find(item => item.seats.length === 300);
+            const layout = createCurvedSeatLayout(auditorium);
+            this.assertEqual(layout.seats.length, 300);
+            this.assertEqual(layout.rowCount, 10);
+            this.assertEqual(layout.columnCount, 30);
+            const firstRow = layout.seats.filter(seat => seat.rowIndex === 0);
+            const edge = firstRow[0];
+            const center = firstRow[Math.floor(firstRow.length / 2)];
+            this.assertTrue(center.y > edge.y, '同排座位没有形成中央下沉的弧形');
+            this.assertEqual(layout.aisleAfterColumns.length, 2);
+            layout.aisleAfterColumns.forEach(boundary => {
+                const before = firstRow.find(seat => seat.columnIndex === boundary);
+                const after = firstRow.find(seat => seat.columnIndex === boundary + 1);
+                this.assertEqual(
+                    after.x - before.x,
+                    layout.columnStep + layout.aisleGap,
+                    `第 ${boundary + 1} 与 ${boundary + 2} 座之间没有绘制过道间隔`
+                );
+            });
+            this.assertEqual(hitTestSeat(layout, center.centerX, center.centerY).id, center.id);
+            const selected = seatsInsideRectangle(layout, {
+                startX: center.x - 2,
+                startY: center.y - 2,
+                endX: center.x + center.width + 2,
+                endY: center.y + center.height + 2
+            });
+            this.assertTrue(selected.some(seat => seat.id === center.id));
+            const popularity = { score: 78 };
+            this.assertTrue(
+                heatScoreForPeriod(center, popularity, 'monday') !==
+                heatScoreForPeriod(center, popularity, 'saturday'),
+                '工作日与周末热度没有动态变化'
+            );
+        });
+
+        this.test('Canvas 座位数字应按实际字形边界严格对齐靠背几何中心', () => {
+            const rectangle = { x: -12.5, y: -10, width: 25, height: 17 };
+            const metrics = {
+                width: 8,
+                actualBoundingBoxLeft: 1,
+                actualBoundingBoxRight: 7,
+                actualBoundingBoxAscent: 6,
+                actualBoundingBoxDescent: 2
+            };
+            const placement = centerTextMetricsInRectangle(metrics, rectangle);
+            const inkCenterX = (
+                placement.x - metrics.actualBoundingBoxLeft +
+                placement.x + metrics.actualBoundingBoxRight
+            ) / 2;
+            const inkCenterY = (
+                placement.baselineY - metrics.actualBoundingBoxAscent +
+                placement.baselineY + metrics.actualBoundingBoxDescent
+            ) / 2;
+            this.assertTrue(Math.abs(inkCenterX) < 0.0001, '字形水平中心未与靠背中心重合');
+            this.assertTrue(Math.abs(inkCenterY + 1.5) < 0.0001, '字形垂直中心未与靠背中心重合');
         });
 
         this.test('Movie 海报应接受本地相对地址并拒绝非 HTTP(S) 协议', () => {

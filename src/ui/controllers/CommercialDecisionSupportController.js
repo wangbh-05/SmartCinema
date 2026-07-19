@@ -40,11 +40,20 @@ export class CommercialDecisionSupportController {
             audienceRules.join('；') : '同行方式会调整连座位置与排序';
     }
 
-    renderPopularity(showPopularity) {
+    renderPopularity(showPopularity, heatPeriod = 'week') {
         const button = element('toggle-popularity');
         button.setAttribute('aria-pressed', String(showPopularity));
         button.lastChild.textContent = showPopularity ? ' 隐藏热度参考' : ' 显示热度参考';
         element('popularity-legend').hidden = !showPopularity;
+        const labels = {
+            monday: '周一', tuesday: '周二', wednesday: '周三', thursday: '周四',
+            friday: '周五', saturday: '周六', sunday: '周日', week: '一周综合'
+        };
+        element('heat-period-controls').querySelectorAll('[data-heat-period]').forEach(periodButton => {
+            periodButton.setAttribute('aria-pressed', String(periodButton.dataset.heatPeriod === heatPeriod));
+        });
+        element('heat-period-summary').textContent =
+            `当前显示${labels[heatPeriod] || '一周综合'}热度；连续渐变根据座位位置和近期选择生成`;
     }
 
     renderGuide(draft) {
