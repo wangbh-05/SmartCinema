@@ -38,7 +38,7 @@ npm test
 - 确认操作幂等，成功后生成紧凑取票码并进入“我的订单”；
 - 登录 Dialog 有显式关闭键、焦点陷阱、焦点归还和弹窗栈；背景点击或内容拖出不会误关闭。
 
-本地演示目录使用 7 部指定经典影片、五道口/清河/中关村 3 家自行编设的虚构影院和 108 个三日场次；每个营业日 36 场，每部影片每天至少覆盖 4 场。来源于 TMDB 的影片封面已保存到 `public/images/posters/`，运行时不依赖图片服务；本地图片缺失或解码失败时自动保留项目自有的 CSS 抽象封面。影院名称、道路地址、影厅、排期、价格及库存均为演示数据，不代表任何真实影院。库存按场次与座位稳定生成，不依赖网络或随机运行时状态。300 座影厅首次打开时自动居中展示。资料来源与事实边界见 [商业产品要求与课程作业要求调和清单](doc/PROJECT_REQUIREMENTS_RECONCILIATION.md)。
+本地演示目录使用 7 部指定经典影片、五道口/清河/中关村 3 家自行编设的虚构影院和 108 个三日场次；每个营业日 36 场，每部影片每天至少覆盖 4 场。来源于 TMDB 的影片封面已保存到 `public/images/posters/`，运行时不依赖图片服务；本地图片缺失或解码失败时自动保留项目自有的 CSS 抽象封面。影院名称、道路地址、影厅、排期、价格及库存均为演示数据，不代表任何真实影院。库存按场次与座位稳定生成，不依赖网络或随机运行时状态。300 座影厅首次打开时自动居中展示。
 
 ## 代码结构
 
@@ -69,7 +69,6 @@ SmartCinema/
 │   ├── bootstrapCommercial.js         # v3 生产组合根
 │   └── bootstrapInternal.js           # v3 运维组合根
 ├── tests/                             # Node 契约与真实浏览器流程
-└── doc/                               # RFC、路线图、迁移与 QA
 ```
 
 依赖方向：
@@ -92,7 +91,7 @@ Infrastructure ───────────┘
 - `settingsByUser`；
 - revision、更新时间和 migration 报告。
 
-启动会先保证 v2 存在，再幂等执行 v2→v3 迁移。原 v2 key 不删除，并在 `smartcinema_state_v2_before_v3` 保存迁移前备份；旧订单缺少的电影、影院和具体时间使用显式 `legacy-*`/`unknown`，不会编造事实。完整契约见 [RFC Commercial Domain v3](doc/RFC_COMMERCIAL_DOMAIN_V3.md)。
+启动会先保证 v2 存在，再幂等执行 v2→v3 迁移。原 v2 key 不删除，并在 `smartcinema_state_v2_before_v3` 保存迁移前备份；旧订单缺少的电影、影院和具体时间使用显式 `legacy-*`/`unknown`，不会编造事实。
 
 > 这是本地演示，不是生产认证或支付系统。演示密码仍以明文凭据保存在本机浏览器，请勿录入真实密码或个人数据。
 
@@ -123,26 +122,11 @@ http://127.0.0.1:8080/tests/browser-regressions.html
 # PASS 19 · XFAIL 0 · XPASS 0 · ERROR 0
 ```
 
-测试页会清理 `127.0.0.1` 下的 `smartcinema_` 数据，不影响日常使用的 `localhost` 数据。浏览器契约覆盖三种影厅、同行推荐、热度/体验辅助、票座一致、无障碍门控、跨刷新恢复有效锁座、抢座冲突恢复、显式释放、访客确认、重复提交、政策驱动整单退票、四项账户辅助偏好、320–1440px、Dialog 指针/Escape/焦点、键盘选座、运维权限与人工释放锁座、安全文本和运行时错误。详细说明见 [TESTING.md](TESTING.md)。
+测试页会清理 `127.0.0.1` 下的 `smartcinema_` 数据，不影响日常使用的 `localhost` 数据。浏览器契约覆盖三种影厅、同行推荐、热度/体验辅助、票座一致、无障碍门控、跨刷新恢复有效锁座、抢座冲突恢复、显式释放、访客确认、重复提交、政策驱动整单退票、四项账户辅助偏好、320–1440px、Dialog 指针/Escape/焦点、键盘选座、运维权限与人工释放锁座、安全文本和运行时错误。
 
 ## 当前边界
 
 真实支付、支付渠道退款回调、二维码验票、完整账户资料、卖品和会员营销不属于本地项目范围；“确认订单”是明确标注的本地演示确认。真实读屏仍需在目标设备上进行人工验收。v2 validator、迁移 fixture 与旧订单模型只承担历史数据兼容，不构成第二套产品 UI。
-
-## 主要文档
-
-- [商业产品与体验路线图](doc/COMMERCIAL_UX_ROADMAP.md)
-- [商业产品要求与课程作业要求调和清单](doc/PROJECT_REQUIREMENTS_RECONCILIATION.md)
-- [本地需求闭环基线](doc/PROJECT_REQUIREMENTS_CLOSURE.md)
-- [本地需求闭环 QA](doc/PROJECT_REQUIREMENTS_CLOSURE_QA.md)
-- [v3 运维与旧链退出 QA](doc/COMMERCIAL_UX_PHASE_5_QA.md)
-- [多电影/影院/日期目录 QA](doc/COMMERCIAL_UX_PHASE_6_QA.md)
-- [商业纵向切片 QA](doc/COMMERCIAL_UX_PHASE_2_QA.md)
-- [商业领域 v3 RFC](doc/RFC_COMMERCIAL_DOMAIN_V3.md)
-- [商业基线](doc/COMMERCIAL_UX_BASELINE.md)
-- [内部工具边界](doc/INTERNAL_TOOLS_BOUNDARY.md)
-- [已完成技术重构路线图](doc/REFACTOR_ROADMAP.md)
-- [测试指南](TESTING.md)
 
 ## 许可证
 
