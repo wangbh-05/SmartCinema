@@ -222,9 +222,9 @@ export function createDemoCatalog(businessDate) {
     const cinemas = [
         createCinema({
             id: 'cinema-lumen-center',
-            name: '五道口',
+            name: 'SmartCinema 五道口',
             city: '北京',
-            address: '海淀区五道口清影路 18 号 6 层',
+            address: '海淀区成府路 28 号 B1 层',
             serviceFeatures: [
                 'mobile-ticket',
                 'step-free-access',
@@ -233,9 +233,9 @@ export function createDemoCatalog(businessDate) {
         }),
         createCinema({
             id: 'cinema-riverside',
-            name: '清河',
+            name: 'SmartCinema 清河',
             city: '北京',
-            address: '海淀区清河映川路 16 号 4 层',
+            address: '海淀区清河中街 68 号 7-8 层',
             serviceFeatures: [
                 'mobile-ticket',
                 'step-free-access',
@@ -244,9 +244,9 @@ export function createDemoCatalog(businessDate) {
         }),
         createCinema({
             id: 'cinema-starlight-plaza',
-            name: '中关村',
+            name: 'SmartCinema 中关村',
             city: '北京',
-            address: '海淀区中关村星河路 36 号 5 层',
+            address: '海淀区中关村大街 19 号 B1 层',
             serviceFeatures: [
                 'mobile-ticket',
                 'step-free-access',
@@ -345,7 +345,7 @@ export function createDemoCatalog(businessDate) {
         }),
         createTicketType({
             id: 'senior',
-            label: '长者票',
+            label: '银发票',
             description: '60 周岁及以上',
             eligibilityNote: '入场时可能需要年龄证明',
             priceAdjustment: -1200

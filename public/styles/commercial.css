@@ -59,8 +59,8 @@ button:disabled {
     z-index: var(--z-header);
     height: 68px;
     border-bottom: 1px solid rgba(229, 225, 218, 0.82);
-    background: rgba(247, 245, 242, 0.9);
-    backdrop-filter: blur(18px) saturate(140%);
+    background: rgba(247, 245, 242, 0.78);
+    backdrop-filter: blur(12px) saturate(140%);
 }
 
 .header-inner {
