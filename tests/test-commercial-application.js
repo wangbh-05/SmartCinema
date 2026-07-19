@@ -86,7 +86,7 @@ class TestCommercialApplication {
             const context = deps.service.getBookingContext(deps.showtimeId);
             this.assertTrue(context.ok);
             this.assertEqual(context.value.movie.title, '你的名字');
-            this.assertEqual(context.value.cinema.name, '五道口');
+            this.assertEqual(context.value.cinema.name, 'SmartCinema 五道口');
             this.assertEqual(context.value.ticketTypes.length, 4);
             this.assertTrue(context.value.priceFrom > 0);
         });
@@ -106,7 +106,7 @@ class TestCommercialApplication {
             this.assertTrue(filtered.ok);
             this.assertEqual(filtered.value.length, 2);
             this.assertEqual(filtered.value[0].movie.title, '疯狂动物城');
-            this.assertEqual(filtered.value[0].cinema.name, '清河');
+            this.assertEqual(filtered.value[0].cinema.name, 'SmartCinema 清河');
         });
 
         this.test('同行方式与票种应共同约束可解释的连座推荐', () => {
