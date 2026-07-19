@@ -7,7 +7,8 @@ import { createShowtime } from '../../domain/catalog/Showtime.js';
 import { createTicketType } from '../../domain/catalog/TicketType.js';
 
 const ROW_LABELS = Object.freeze(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K']);
-const SHOWTIME_SLOTS = Object.freeze(['10:30', '13:30', '16:40', '20:00']);
+const SHOWTIME_SLOTS = Object.freeze(['08:00', '11:00', '14:00', '17:00', '20:00', '23:00']);
+const AUDITORIUMS_PER_CINEMA = 2;
 const CINEMA_FORMATS = Object.freeze(['激光 2D', 'IMAX 2D', '2D']);
 const MOVIE_PRESENTATIONS = Object.freeze([
     Object.freeze({ language: '英语', subtitle: '中文字幕' }),
@@ -20,19 +21,19 @@ const MOVIE_PRESENTATIONS = Object.freeze([
 ]);
 const DAILY_MOVIE_ROTATIONS = Object.freeze([
     Object.freeze([
-        Object.freeze([0, 1, 2, 3]),
-        Object.freeze([4, 5, 6, 0]),
-        Object.freeze([1, 2, 3, 4])
+        Object.freeze([0, 1, 0, 2, 3, 2]),
+        Object.freeze([1, 5, 1, 4, 6, 4]),
+        Object.freeze([3, 5, 3, 6, 5, 6])
     ]),
     Object.freeze([
-        Object.freeze([5, 6, 0, 1]),
-        Object.freeze([2, 3, 4, 5]),
-        Object.freeze([6, 0, 1, 2])
+        Object.freeze([2, 3, 2, 4, 5, 4]),
+        Object.freeze([1, 5, 1, 0, 2, 0]),
+        Object.freeze([3, 6, 3, 6, 0, 5])
     ]),
     Object.freeze([
-        Object.freeze([3, 4, 5, 6]),
-        Object.freeze([0, 1, 2, 3]),
-        Object.freeze([4, 5, 6, 0])
+        Object.freeze([4, 5, 4, 6, 0, 6]),
+        Object.freeze([1, 2, 1, 3, 4, 3]),
+        Object.freeze([0, 2, 0, 5, 2, 5])
     ])
 ]);
 
@@ -60,16 +61,23 @@ function scheduleCycleIndex(businessDate) {
 function dailyShowtimeDefinitions(businessDate) {
     const rotation = DAILY_MOVIE_ROTATIONS[scheduleCycleIndex(businessDate)];
     return rotation.flatMap((movieIndices, cinemaIndex) =>
-        movieIndices.map((movieIndex, slotIndex) => ({
-            key: `c${cinemaIndex}-s${slotIndex}-m${movieIndex}`,
-            movie: movieIndex,
-            cinema: cinemaIndex,
-            auditorium: cinemaIndex,
-            time: SHOWTIME_SLOTS[slotIndex],
-            pricing: slotIndex === 0 ? 'pricing-matinee' : 'pricing-prime',
-            format: CINEMA_FORMATS[cinemaIndex],
-            ...MOVIE_PRESENTATIONS[movieIndex]
-        }))
+        [0, 1].flatMap(auditoriumLane =>
+            movieIndices.map((_, slotIndex) => {
+                const movieIndex = movieIndices[(slotIndex + auditoriumLane * 3) % movieIndices.length];
+                return {
+                    key: `c${cinemaIndex}-a${auditoriumLane}-s${slotIndex}-m${movieIndex}`,
+                    movie: movieIndex,
+                    cinema: cinemaIndex,
+                    auditorium: cinemaIndex * AUDITORIUMS_PER_CINEMA + auditoriumLane,
+                    time: SHOWTIME_SLOTS[slotIndex],
+                    pricing: slotIndex === 0
+                        ? 'pricing-matinee'
+                        : slotIndex === SHOWTIME_SLOTS.length - 1 ? 'pricing-late' : 'pricing-prime',
+                    format: CINEMA_FORMATS[cinemaIndex],
+                    ...MOVIE_PRESENTATIONS[movieIndex]
+                };
+            })
+        )
     );
 }
 
@@ -141,7 +149,8 @@ export function createDemoCatalog(businessDate) {
             audienceRating: '建议 12+',
             genres: ['科幻', '冒险'],
             synopsis: '地球生存环境持续恶化，一组宇航员穿越虫洞，为人类寻找新的家园。',
-            artwork: 'cosmic-orbit'
+            artwork: 'cosmic-orbit',
+            posterUrl: './public/images/posters/interstellar.jpg'
         }),
         createMovie({
             id: 'movie-your-name',
@@ -151,7 +160,8 @@ export function createDemoCatalog(businessDate) {
             audienceRating: '建议 12+',
             genres: ['动画', '爱情'],
             synopsis: '生活在东京与山间小镇的两名高中生意外交换身体，并试图跨越时空找到彼此。',
-            artwork: 'twilight-comet'
+            artwork: 'twilight-comet',
+            posterUrl: './public/images/posters/your-name.jpg'
         }),
         createMovie({
             id: 'movie-flipped',
@@ -161,7 +171,8 @@ export function createDemoCatalog(businessDate) {
             audienceRating: '全年龄',
             genres: ['剧情', '爱情'],
             synopsis: '一对青梅竹马从各自视角重新认识彼此，也在成长中理解真诚与勇气。',
-            artwork: 'sycamore-sun'
+            artwork: 'sycamore-sun',
+            posterUrl: './public/images/posters/flipped.jpg'
         }),
         createMovie({
             id: 'movie-scent-of-a-woman',
@@ -171,7 +182,8 @@ export function createDemoCatalog(businessDate) {
             audienceRating: '建议 16+',
             genres: ['剧情'],
             synopsis: '一名学生陪伴失明的退役军官度过周末，两人在冲突与理解中改变彼此的人生。',
-            artwork: 'tango-amber'
+            artwork: 'tango-amber',
+            posterUrl: './public/images/posters/scent-of-a-woman.jpg'
         }),
         createMovie({
             id: 'movie-harry-potter-philosophers-stone',
@@ -181,7 +193,8 @@ export function createDemoCatalog(businessDate) {
             audienceRating: '建议 12+',
             genres: ['奇幻', '冒险'],
             synopsis: '寄人篱下的男孩得知自己是巫师，并在魔法学校展开一段改变命运的冒险。',
-            artwork: 'magic-castle'
+            artwork: 'magic-castle',
+            posterUrl: './public/images/posters/harry-potter-philosophers-stone.jpg'
         }),
         createMovie({
             id: 'movie-zootopia',
@@ -191,7 +204,8 @@ export function createDemoCatalog(businessDate) {
             audienceRating: '全年龄',
             genres: ['动画', '喜剧'],
             synopsis: '初任警官的兔子与善于周旋的狐狸结成搭档，共同调查城市中的离奇案件。',
-            artwork: 'city-neon'
+            artwork: 'city-neon',
+            posterUrl: './public/images/posters/zootopia.jpg'
         }),
         createMovie({
             id: 'movie-truman-show',
@@ -201,15 +215,16 @@ export function createDemoCatalog(businessDate) {
             audienceRating: '建议 12+',
             genres: ['剧情', '喜剧'],
             synopsis: '一名普通人逐渐发现自己的生活可能是一场全天候直播，并开始追寻真实世界。',
-            artwork: 'studio-sky'
+            artwork: 'studio-sky',
+            posterUrl: './public/images/posters/the-truman-show.jpg'
         })
     ];
     const cinemas = [
         createCinema({
-            id: 'cinema-jiahua-xueqing',
-            name: '嘉华国际影城（学清路店）',
+            id: 'cinema-lumen-center',
+            name: '五道口',
             city: '北京',
-            address: '海淀区学清路甲 8 号新辰里购物中心 5 层',
+            address: '海淀区五道口清影路 18 号 6 层',
             serviceFeatures: [
                 'mobile-ticket',
                 'step-free-access',
@@ -217,10 +232,10 @@ export function createDemoCatalog(businessDate) {
             ]
         }),
         createCinema({
-            id: 'cinema-cgv-qinghe',
-            name: 'CGV 影城（北京清河万象汇店）',
+            id: 'cinema-riverside',
+            name: '清河',
             city: '北京',
-            address: '海淀区清河中街 68 号清河万象汇东区 7–8 层',
+            address: '海淀区清河映川路 16 号 4 层',
             serviceFeatures: [
                 'mobile-ticket',
                 'step-free-access',
@@ -228,10 +243,10 @@ export function createDemoCatalog(businessDate) {
             ]
         }),
         createCinema({
-            id: 'cinema-jinyi-zhongguancun',
-            name: '金逸影城（中关村店）',
+            id: 'cinema-starlight-plaza',
+            name: '中关村',
             city: '北京',
-            address: '海淀区中关村大街 19 号新中关购物中心 B1 层',
+            address: '海淀区中关村星河路 36 号 5 层',
             serviceFeatures: [
                 'mobile-ticket',
                 'step-free-access',
@@ -241,9 +256,9 @@ export function createDemoCatalog(businessDate) {
     ];
     const auditoriums = [
         createAuditorium({
-            id: 'auditorium-jiahua-5',
+            id: 'auditorium-lumen-5',
             cinemaId: cinemas[0].id,
-            name: '5 号激光厅（演示）',
+            name: '5 号激光厅',
             seats: createSeatPlan(20),
             accessibilityFeatures: [
                 'wheelchair-spaces',
@@ -252,9 +267,20 @@ export function createDemoCatalog(businessDate) {
             ]
         }),
         createAuditorium({
-            id: 'auditorium-cgv-imax',
+            id: 'auditorium-lumen-6',
+            cinemaId: cinemas[0].id,
+            name: '6 号激光厅',
+            seats: createSeatPlan(20),
+            accessibilityFeatures: [
+                'wheelchair-spaces',
+                'step-free-access',
+                'hearing-assistance'
+            ]
+        }),
+        createAuditorium({
+            id: 'auditorium-riverside-imax',
             cinemaId: cinemas[1].id,
-            name: 'IMAX 厅（演示）',
+            name: 'IMAX 厅',
             seats: createSeatPlan(30),
             accessibilityFeatures: [
                 'wheelchair-spaces',
@@ -263,9 +289,31 @@ export function createDemoCatalog(businessDate) {
             ]
         }),
         createAuditorium({
-            id: 'auditorium-jinyi-2',
+            id: 'auditorium-riverside-3',
+            cinemaId: cinemas[1].id,
+            name: '3 号巨幕厅',
+            seats: createSeatPlan(30),
+            accessibilityFeatures: [
+                'wheelchair-spaces',
+                'step-free-access',
+                'hearing-assistance'
+            ]
+        }),
+        createAuditorium({
+            id: 'auditorium-starlight-2',
             cinemaId: cinemas[2].id,
-            name: '2 号厅（演示）',
+            name: '2 号厅',
+            seats: createSeatPlan(10),
+            accessibilityFeatures: [
+                'wheelchair-spaces',
+                'step-free-access',
+                'hearing-assistance'
+            ]
+        }),
+        createAuditorium({
+            id: 'auditorium-starlight-3',
+            cinemaId: cinemas[2].id,
+            name: '3 号厅',
             seats: createSeatPlan(10),
             accessibilityFeatures: [
                 'wheelchair-spaces',

@@ -28,6 +28,7 @@ export class CommercialSeatMapController {
         this.getState = getState;
         this.onToggleSeat = onToggleSeat;
         this.lastFocusedSeatId = null;
+        this.lastCenteredAuditoriumId = null;
         this._bind();
     }
 
@@ -61,6 +62,9 @@ export class CommercialSeatMapController {
         });
 
         const columnCount = Math.max(...context.auditorium.seats.map(seat => seat.columnIndex)) + 1;
+        const shouldCenterLargeAuditorium = columnCount > 20 &&
+            this.lastCenteredAuditoriumId !== context.auditorium.id;
+        this.lastCenteredAuditoriumId = context.auditorium.id;
         this.map.style.setProperty('--seat-column-count', String(columnCount));
         this.map.dataset.auditoriumSize = columnCount <= 10 ? 'small' : (columnCount <= 20 ? 'medium' : 'large');
         this.map.classList.toggle('shows-popularity', showPopularity);
@@ -96,7 +100,7 @@ export class CommercialSeatMapController {
         const focusId = canRestoreFocus ? previousFocus : (draft.selectedSeatIds[0] || firstAvailableId);
         const focusTarget = focusId ? this.map.querySelector(`[data-seat-id="${focusId}"]`) : null;
         if (focusTarget) focusTarget.tabIndex = 0;
-        this._restoreFocus({ activeSeatId, focusSeat, focusTarget });
+        this._restoreFocus({ activeSeatId, focusSeat, focusTarget, shouldCenterLargeAuditorium });
 
         const accessibleSelected = context.auditorium.seats.some(seat =>
             selected.has(seat.id) && ['wheelchair', 'companion'].includes(seat.kind)
@@ -135,7 +139,7 @@ export class CommercialSeatMapController {
         return button;
     }
 
-    _restoreFocus({ activeSeatId, focusSeat, focusTarget }) {
+    _restoreFocus({ activeSeatId, focusSeat, focusTarget, shouldCenterLargeAuditorium }) {
         if (activeSeatId && !focusSeat && focusTarget) {
             focusTarget.focus({ preventScroll: true });
         } else if (focusSeat && focusTarget) {
@@ -145,6 +149,13 @@ export class CommercialSeatMapController {
                     focusTarget.offsetLeft - this.scroller.clientWidth / 2
                 );
                 focusTarget.focus({ preventScroll: true });
+            });
+        } else if (shouldCenterLargeAuditorium) {
+            requestAnimationFrame(() => {
+                this.scroller.scrollLeft = Math.max(
+                    0,
+                    (this.scroller.scrollWidth - this.scroller.clientWidth) / 2
+                );
             });
         }
     }

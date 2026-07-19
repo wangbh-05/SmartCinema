@@ -511,7 +511,27 @@ class CommercialBookingPage {
         element('movie-synopsis').textContent = movie.synopsis;
         const poster = element('movie-poster');
         poster.dataset.artwork = movie.artwork || 'cosmic-orbit';
-        poster.setAttribute('aria-label', `${movie.title}电影海报图形`);
+        poster.setAttribute('aria-label', `${movie.title}影片封面`);
+        poster.classList.remove('has-poster-image');
+        const previousPosterImage = element('poster-image');
+        const posterImage = document.createElement('img');
+        posterImage.id = 'poster-image';
+        posterImage.className = 'poster-image';
+        posterImage.alt = '';
+        posterImage.decoding = 'async';
+        posterImage.fetchPriority = 'high';
+        posterImage.referrerPolicy = 'no-referrer';
+        posterImage.setAttribute('aria-hidden', 'true');
+        previousPosterImage.replaceWith(posterImage);
+        if (movie.posterUrl) {
+            posterImage.addEventListener('load', () => {
+                poster.classList.add('has-poster-image');
+            }, { once: true });
+            posterImage.addEventListener('error', () => {
+                poster.classList.remove('has-poster-image');
+            }, { once: true });
+            posterImage.src = movie.posterUrl;
+        }
         element('poster-title').textContent = movie.originalTitle || movie.title;
         const meta = element('movie-meta');
         meta.replaceChildren();

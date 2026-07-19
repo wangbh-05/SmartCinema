@@ -14,6 +14,24 @@ function normalizeTextList(value, fieldName) {
     return Object.freeze([...new Set(value.map(item => item.trim()))]);
 }
 
+function normalizeOptionalImageUrl(value, fieldName) {
+    if (value === null) return null;
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new ValidationError(`${fieldName} 必须是非空图片 URL 或 null`);
+    }
+
+    let url;
+    try {
+        url = new URL(value.trim(), 'https://smartcinema.local/');
+    } catch {
+        throw new ValidationError(`${fieldName} 必须是有效 URL`, { [fieldName]: value });
+    }
+    if (!['http:', 'https:'].includes(url.protocol)) {
+        throw new ValidationError(`${fieldName} 只支持 HTTP(S) URL`, { [fieldName]: value });
+    }
+    return value.trim();
+}
+
 export function createMovie({
     id,
     title,
@@ -22,7 +40,8 @@ export function createMovie({
     audienceRating = '未分级',
     genres = [],
     synopsis = '',
-    artwork = null
+    artwork = null,
+    posterUrl = null
 }) {
     if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
         throw new ValidationError('电影时长必须是正整数分钟', { durationMinutes });
@@ -39,6 +58,7 @@ export function createMovie({
         audienceRating: requireText(audienceRating, 'Movie.audienceRating'),
         genres: normalizeTextList(genres, 'Movie.genres'),
         synopsis: typeof synopsis === 'string' ? synopsis.trim() : '',
-        artwork: artwork === null ? null : artwork.trim()
+        artwork: artwork === null ? null : artwork.trim(),
+        posterUrl: normalizeOptionalImageUrl(posterUrl, 'Movie.posterUrl')
     });
 }
