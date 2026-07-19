@@ -55,13 +55,27 @@ function satisfiesAudienceConstraints(seats, constraints) {
     );
 }
 
-function scoreCandidate(seats, auditorium, preferences, partyType) {
+function nearbyUnavailableCount(seats, auditorium, unavailable) {
+    const selectedSeatIds = new Set(seats.map(seat => seat.id));
+    const firstColumn = seats[0].columnIndex;
+    const lastColumn = seats[seats.length - 1].columnIndex;
+    const rowIndex = seats[0].rowIndex;
+    return auditorium.seats.filter(seat =>
+        unavailable.has(seat.id) &&
+        !selectedSeatIds.has(seat.id) &&
+        Math.abs(seat.rowIndex - rowIndex) <= 1 &&
+        seat.columnIndex >= firstColumn - 2 &&
+        seat.columnIndex <= lastColumn + 2
+    ).length;
+}
+
+function scoreCandidate(seats, auditorium, preferences, partyType, unavailable) {
     const maxRowIndex = Math.max(...auditorium.seats.map(seat => seat.rowIndex), 1);
     const maxColumnIndex = Math.max(...auditorium.seats.map(seat => seat.columnIndex), 1);
     const averageRow = seats.reduce((sum, seat) => sum + seat.rowIndex, 0) / seats.length;
     const averageColumn = seats.reduce((sum, seat) => sum + seat.columnIndex, 0) / seats.length;
     const horizontalCenter = maxColumnIndex / 2;
-    const sweetSpotRow = maxRowIndex * 0.58;
+    const sweetSpotRow = maxRowIndex * (partyType === 'couple' ? 0.68 : 0.58);
     let score = 100;
 
     score -= Math.abs(averageColumn - horizontalCenter) * 3.2;
@@ -90,7 +104,9 @@ function scoreCandidate(seats, auditorium, preferences, partyType) {
         score += seats.every(seat => seat.stepFree) ? 36 : -36;
     }
     if (partyType === 'couple') {
-        score -= Math.abs(averageColumn - horizontalCenter) * 2.5;
+        score -= Math.abs(averageColumn - horizontalCenter) * 4.5;
+        score -= Math.abs(averageRow - sweetSpotRow) * 2.5;
+        score -= nearbyUnavailableCount(seats, auditorium, unavailable) * 7;
     } else if (partyType === 'family') {
         score -= Math.abs(averageRow - maxRowIndex * 0.62) * 3;
     } else if (partyType === 'group') {
@@ -101,7 +117,9 @@ function scoreCandidate(seats, auditorium, preferences, partyType) {
 }
 
 function recommendationReason(draft, constraints) {
-    const parts = [`${PARTY_TYPE_LABELS[draft.partyType]}已安排同排连续座位`];
+    const parts = draft.partyType === 'couple' ?
+        ['情侣观影已优先安排中后排中央连座，并兼顾周边空位'] :
+        [`${PARTY_TYPE_LABELS[draft.partyType]}已安排同排连续座位`];
     if (constraints.avoidFrontRows) parts.push('儿童票已避开前三排');
     if (constraints.avoidBackRows) parts.push('长者票已避开后三排');
     if (draft.preferences.length > 0) {
@@ -123,7 +141,13 @@ export function recommendSeatBlock({ draft, auditorium, inventory, updatedAt = d
         .filter(seats => satisfiesAudienceConstraints(seats, constraints))
         .map(seats => ({
             seats,
-            score: scoreCandidate(seats, auditorium, draft.preferences, draft.partyType)
+            score: scoreCandidate(
+                seats,
+                auditorium,
+                draft.preferences,
+                draft.partyType,
+                unavailable
+            )
         }))
         .sort((left, right) => {
             if (right.score !== left.score) return right.score - left.score;

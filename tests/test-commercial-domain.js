@@ -152,7 +152,7 @@ class TestCommercialDomain {
         this.test('座位决策辅助应给出四维体验并生成文字可解释的热度层', () => {
             const catalog = createDemoCatalog('2026-07-18');
             const repository = new DemoCatalogRepository(catalog);
-            const showtime = repository.getShowtime('showtime:echo-lumen-day:2026-07-18');
+            const showtime = repository.getShowtime('showtime:c0-s1-m1:2026-07-18');
             const auditorium = repository.getAuditorium(showtime.auditoriumId);
             const inventory = createShowtimeInventory({
                 showtimeId: showtime.id,
@@ -405,14 +405,14 @@ class TestCommercialDomain {
             const catalog = createDemoCatalog('2026-07-18');
             const repository = new DemoCatalogRepository(catalog);
             const showtimes = repository.listShowtimes({ businessDate: '2026-07-18' });
-            this.assertEqual(repository.listMovies().length, 3);
-            this.assertEqual(repository.listCinemas().length, 2);
+            this.assertEqual(repository.listMovies().length, 7);
+            this.assertEqual(repository.listCinemas().length, 3);
             this.assertEqual(repository.listBusinessDates().length, 3);
-            this.assertEqual(repository.listShowtimes().length, 24);
-            this.assertEqual(showtimes.length, 8);
+            this.assertEqual(repository.listShowtimes().length, 36);
+            this.assertEqual(showtimes.length, 12);
             this.assertTrue(repository.listShowtimes({
-                movieId: 'movie-letters-in-rain',
-                cinemaId: 'cinema-riverside',
+                movieId: 'movie-zootopia',
+                cinemaId: 'cinema-cgv-qinghe',
                 businessDate: '2026-07-19'
             }).length > 0);
             const auditoriums = Object.values(catalog.auditoriums);
@@ -432,6 +432,21 @@ class TestCommercialDomain {
                 this.assertTrue(Boolean(repository.getPricingPolicy(showtime.pricingPolicyId)));
                 this.assertTrue(Boolean(repository.getRefundPolicy(showtime.refundPolicyId)));
             });
+
+            const shiftedRepository = new DemoCatalogRepository(createDemoCatalog('2026-07-19'));
+            const normalizedSchedule = items => items.map(showtime => ({
+                movieId: showtime.movieId,
+                cinemaId: showtime.cinemaId,
+                auditoriumId: showtime.auditoriumId,
+                time: showtime.startsAt.slice(11, 16),
+                format: showtime.format,
+                pricingPolicyId: showtime.pricingPolicyId
+            }));
+            this.assertEqual(
+                JSON.stringify(normalizedSchedule(repository.listShowtimes({ businessDate: '2026-07-18' }))),
+                JSON.stringify(normalizedSchedule(shiftedRepository.listShowtimes({ businessDate: '2026-07-21' }))),
+                '新增营业日没有复用刚结束营业日的排期模板'
+            );
         });
 
         return this.printSummary();

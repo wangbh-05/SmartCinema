@@ -187,7 +187,11 @@ async function run() {
             const doc = frame.contentDocument;
             assertContract(
                 doc.querySelector('[data-party-type="couple"]').getAttribute('aria-pressed') === 'true',
-                '双人票没有默认使用双人同行推荐'
+                '双人票没有默认使用情侣同行推荐'
+            );
+            assertContract(
+                doc.querySelector('[data-party-type="couple"]').textContent.trim() === '情侣',
+                '情侣同行选项未明确呈现'
             );
             assertContract(doc.querySelector('[data-party-type="solo"]').disabled, '两张票仍允许选择单人观影');
             assertContract(doc.querySelector('[data-party-type="group"]').disabled, '两张票仍允许选择多人同行');
@@ -343,7 +347,10 @@ async function run() {
         try {
             const doc = frame.contentDocument;
             const win = frame.contentWindow;
-            doc.querySelectorAll('[data-catalog-type="date"]')[1].click();
+            const alternateDate = [...doc.querySelectorAll('[data-catalog-type="date"]')]
+                .find(button => !button.disabled && button.getAttribute('aria-pressed') !== 'true');
+            assertContract(Boolean(alternateDate), '没有可切换的其他营业日');
+            alternateDate.click();
             await delay();
             openHold(doc);
             doc.getElementById('confirm-order').click();
@@ -433,29 +440,38 @@ async function run() {
         const frame = await createAppFrame();
         try {
             const doc = frame.contentDocument;
-            assertContract(doc.querySelectorAll('[data-catalog-type="movie"]').length === 3, '影片目录不是 3 部');
-            assertContract(doc.querySelectorAll('[data-catalog-type="cinema"]').length === 2, '影院目录不是 2 家');
+            assertContract(doc.querySelectorAll('[data-catalog-type="movie"]').length === 7, '影片目录不是 7 部');
+            assertContract(doc.querySelectorAll('[data-catalog-type="cinema"]').length === 3, '影院目录不是 3 家');
             assertContract(doc.querySelectorAll('[data-catalog-type="date"]').length === 3, '营业日目录不是 3 天');
+            await waitFor(
+                () => doc.getElementById('movie-carousel-status').textContent.includes('/ 7'),
+                '影片滑窗报告范围'
+            );
+            doc.querySelector('[data-carousel-target="movie-list"][data-carousel-direction="next"]').click();
+            await delay(220);
+            assertContract(doc.getElementById('movie-list').scrollLeft > 0, '影片滑窗右移无效');
             recommend(doc);
             await delay();
             assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 2, '切换前未形成座位选择');
 
-            doc.querySelectorAll('[data-catalog-type="date"]')[1].click();
+            const alternateCatalogDate = [...doc.querySelectorAll('[data-catalog-type="date"]')]
+                .find(button => !button.disabled && button.getAttribute('aria-pressed') !== 'true');
+            assertContract(Boolean(alternateCatalogDate), '没有可切换的其他营业日');
+            alternateCatalogDate.click();
             await delay();
             assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 0, '切换日期后保留了旧座位');
 
-            doc.querySelector('[data-catalog-value="movie-letters-in-rain"]').click();
+            doc.querySelector('[data-catalog-value="movie-your-name"]').click();
             await delay();
-            assertContract(doc.getElementById('movie-title').textContent === '雨夜来信', '切换影片后上下文未更新');
-            assertContract(doc.querySelectorAll('.seat-button').length === 100, '小厅没有渲染 100 个座位');
+            assertContract(doc.getElementById('movie-title').textContent === '你的名字', '切换影片后上下文未更新');
 
-            doc.querySelector('[data-catalog-value="cinema-riverside"]').click();
+            doc.querySelector('[data-catalog-value="cinema-cgv-qinghe"]').click();
             await delay();
-            assertContract(doc.getElementById('cinema-name').textContent.includes('滨江里'), '切换影院后场次上下文未更新');
+            assertContract(doc.getElementById('cinema-name').textContent.includes('CGV'), '切换影院后场次上下文未更新');
             assertContract(doc.querySelectorAll('.seat-button').length === 300, '大厅没有渲染 300 个座位');
             assertContract(doc.querySelectorAll('.showtime-option').length === 1, '组合筛选没有收敛到对应场次');
             await waitFor(
-                () => doc.activeElement?.dataset.catalogValue === 'cinema-riverside',
+                () => doc.activeElement?.dataset.catalogValue === 'cinema-cgv-qinghe',
                 '目录重绘后归还触发按钮焦点'
             );
         } finally {

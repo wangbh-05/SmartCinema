@@ -36,6 +36,7 @@ export class CommercialCatalogController {
         this._bind('movie-list');
         this._bind('cinema-list');
         this._bind('date-list');
+        this.carousels = ['movie-list', 'cinema-list'].map(id => this._bindCarousel(id));
     }
 
     list(selection, { bookableOnly = false } = {}) {
@@ -78,13 +79,20 @@ export class CommercialCatalogController {
         this._renderMovies(selection);
         this._renderCinemas(selection);
         this._renderDates(selection);
+        requestAnimationFrame(() => {
+            this._ensureVisible('movie', selection.movieId);
+            this._ensureVisible('cinema', selection.cinemaId);
+            this.carousels.forEach(carousel => this._updateCarousel(carousel));
+        });
     }
 
     focus(type, value) {
         requestAnimationFrame(() => {
-            document.querySelector(
+            const target = document.querySelector(
                 `[data-catalog-type="${type}"][data-catalog-value="${value}"]`
-            )?.focus();
+            );
+            this._ensureVisible(type, value);
+            target?.focus();
         });
     }
 
@@ -98,6 +106,71 @@ export class CommercialCatalogController {
                 trigger: button
             });
         });
+    }
+
+    _bindCarousel(id) {
+        const list = element(id);
+        const carousel = {
+            id,
+            list,
+            status: element(id.replace('-list', '-carousel-status')),
+            previous: document.querySelector(
+                `[data-carousel-target="${id}"][data-carousel-direction="previous"]`
+            ),
+            next: document.querySelector(
+                `[data-carousel-target="${id}"][data-carousel-direction="next"]`
+            ),
+            frame: null
+        };
+        const scheduleUpdate = () => {
+            if (carousel.frame !== null) return;
+            carousel.frame = requestAnimationFrame(() => {
+                carousel.frame = null;
+                this._updateCarousel(carousel);
+            });
+        };
+        list.addEventListener('scroll', scheduleUpdate, { passive: true });
+        window.addEventListener('resize', scheduleUpdate);
+        [carousel.previous, carousel.next].forEach(button => {
+            button.addEventListener('click', event => {
+                const direction = button.dataset.carouselDirection === 'previous' ? -1 : 1;
+                const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                list.scrollBy({
+                    left: direction * list.clientWidth,
+                    behavior: reducedMotion || event.detail === 0 ? 'auto' : 'smooth'
+                });
+            });
+        });
+        return carousel;
+    }
+
+    _updateCarousel(carousel) {
+        const options = [...carousel.list.querySelectorAll('.catalog-option')];
+        if (options.length === 0) {
+            carousel.status.textContent = '';
+            carousel.previous.disabled = true;
+            carousel.next.disabled = true;
+            return;
+        }
+        const styles = getComputedStyle(carousel.list);
+        const gap = Number.parseFloat(styles.columnGap || styles.gap) || 0;
+        const itemWidth = options[0].getBoundingClientRect().width + gap;
+        const firstIndex = Math.min(
+            options.length - 1,
+            Math.max(0, Math.round(carousel.list.scrollLeft / itemWidth))
+        );
+        const visibleCount = Math.max(1, Math.round((carousel.list.clientWidth + gap) / itemWidth));
+        carousel.status.textContent = `${firstIndex + 1}–${Math.min(options.length, firstIndex + visibleCount)} / ${options.length}`;
+        carousel.previous.disabled = carousel.list.scrollLeft <= 1;
+        carousel.next.disabled = carousel.list.scrollLeft + carousel.list.clientWidth >=
+            carousel.list.scrollWidth - 1;
+    }
+
+    _ensureVisible(type, value) {
+        const target = document.querySelector(
+            `[data-catalog-type="${type}"][data-catalog-value="${value}"]`
+        );
+        target?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
     }
 
     _renderMovies(selection) {

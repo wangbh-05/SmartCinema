@@ -3,7 +3,7 @@ import { CommercialApplication } from './application/commercial/CommercialApplic
 import { CommercialBookingService } from './application/commercial/CommercialBookingService.js';
 import { CommercialPreferencesService } from './application/commercial/CommercialPreferencesService.js';
 import { BrowserClock } from './infrastructure/browser/BrowserClock.js';
-import { bookableBusinessDateInTimeZone } from './infrastructure/browser/BusinessDate.js';
+import { businessDateInTimeZone } from './infrastructure/browser/BusinessDate.js';
 import { BrowserIdGenerator } from './infrastructure/browser/BrowserIdGenerator.js';
 import {
     createDemoCatalog,
@@ -20,7 +20,7 @@ export function createBrowserCommercialApplication({
     sessionStorage = globalThis.sessionStorage,
     clock = new BrowserClock(),
     idGenerator = new BrowserIdGenerator(),
-    businessDate = bookableBusinessDateInTimeZone(clock.now())
+    businessDate = businessDateInTimeZone(clock.now())
 } = {}) {
     const catalogRepository = new DemoCatalogRepository(createDemoCatalog(businessDate));
     const stateRepository = new LocalStateRepositoryV3({ storage: localStorage, clock });

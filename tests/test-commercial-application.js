@@ -85,8 +85,8 @@ class TestCommercialApplication {
             const deps = this._deps();
             const context = deps.service.getBookingContext(deps.showtimeId);
             this.assertTrue(context.ok);
-            this.assertEqual(context.value.movie.title, '星际回响');
-            this.assertEqual(context.value.cinema.name, 'SmartCinema 光影中心');
+            this.assertEqual(context.value.movie.title, '你的名字');
+            this.assertEqual(context.value.cinema.name, '嘉华国际影城（学清路店）');
             this.assertEqual(context.value.ticketTypes.length, 4);
             this.assertTrue(context.value.priceFrom > 0);
         });
@@ -95,18 +95,18 @@ class TestCommercialApplication {
             const deps = this._deps();
             const navigation = deps.service.getCatalogNavigation();
             this.assertTrue(navigation.ok);
-            this.assertEqual(navigation.value.movies.length, 3);
-            this.assertEqual(navigation.value.cinemas.length, 2);
+            this.assertEqual(navigation.value.movies.length, 7);
+            this.assertEqual(navigation.value.cinemas.length, 3);
             this.assertEqual(navigation.value.businessDates.length, 3);
             const filtered = deps.service.listShowtimes({
-                movieId: 'movie-little-planet',
-                cinemaId: 'cinema-riverside',
+                movieId: 'movie-zootopia',
+                cinemaId: 'cinema-cgv-qinghe',
                 businessDate: '2026-07-19'
             });
             this.assertTrue(filtered.ok);
             this.assertEqual(filtered.value.length, 1);
-            this.assertEqual(filtered.value[0].movie.title, '小小星球');
-            this.assertEqual(filtered.value[0].cinema.name, 'SmartCinema 滨江里');
+            this.assertEqual(filtered.value[0].movie.title, '疯狂动物城');
+            this.assertEqual(filtered.value[0].cinema.name, 'CGV 影城（北京清河万象汇店）');
         });
 
         this.test('同行方式与票种应共同约束可解释的连座推荐', () => {
@@ -155,8 +155,25 @@ class TestCommercialApplication {
             this.assertTrue(grouped.ok, grouped.error?.message);
             this.assertTrue(grouped.value.seats.every(seat => seat.rowIndex === grouped.value.seats[0].rowIndex));
 
+            const couple = deps.service.createDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+                partyType: 'couple',
+                preferences: []
+            });
+            const coupleRecommended = deps.service.recommendSeats(couple.value);
+            this.assertTrue(coupleRecommended.ok, coupleRecommended.error?.message);
+            const coupleSeats = coupleRecommended.value.seats;
+            this.assertEqual(coupleSeats.length, 2);
+            this.assertEqual(coupleSeats[0].rowIndex, coupleSeats[1].rowIndex);
+            this.assertEqual(coupleSeats[1].columnIndex, coupleSeats[0].columnIndex + 1);
+            this.assertTrue(coupleSeats[0].rowIndex >= 5 && coupleSeats[0].rowIndex <= 7);
+            this.assertTrue(coupleSeats.every(seat => seat.sectionId === 'center'));
+            this.assertTrue(coupleRecommended.value.reason.includes('中后排中央连座'));
+            this.assertTrue(coupleRecommended.value.reason.includes('周边空位'));
+
             const largeHallGroup = deps.service.createDraft({
-                showtimeId: 'showtime:echo-riverside:2026-07-18',
+                showtimeId: 'showtime:c1-s1-m5:2026-07-18',
                 ticketItems: [{ ticketTypeId: 'adult', quantity: 20 }],
                 partyType: 'group',
                 preferences: ['center']
@@ -293,7 +310,7 @@ class TestCommercialApplication {
             });
             this.assertTrue(confirmed.ok);
             this.assertEqual(confirmed.value.order.userId, 'user-1');
-            this.assertEqual(confirmed.value.order.movieSnapshot.title, '星际回响');
+            this.assertEqual(confirmed.value.order.movieSnapshot.title, '你的名字');
             this.assertEqual(confirmed.value.order.seatSnapshots.length, 2);
             this.assertEqual(confirmed.value.state.holdsById[placed.hold.id].status, 'consumed');
             this.assertEqual(
@@ -364,7 +381,7 @@ class TestCommercialApplication {
         this.test('超过政策截止时间应拒绝退款且库存继续保持已售', () => {
             const deps = this._deps();
             const confirmed = this._confirmOrder(deps);
-            deps.clock.value = '2026-07-18T03:41:00.000Z';
+            deps.clock.value = '2026-07-18T04:31:00.000Z';
             const eligibility = deps.service.getOrderCancellationEligibility({
                 orderId: confirmed.id,
                 actorUserId: 'user-1'
@@ -443,7 +460,7 @@ class TestCommercialApplication {
         this.assertTrue(initialized.ok);
         const catalog = createDemoCatalog('2026-07-18');
         const catalogRepository = new DemoCatalogRepository(catalog);
-        const showtimeId = 'showtime:echo-lumen-day:2026-07-18';
+        const showtimeId = 'showtime:c0-s1-m1:2026-07-18';
         const service = new CommercialBookingService({
             catalogRepository,
             stateRepository: repository,

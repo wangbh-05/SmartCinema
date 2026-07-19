@@ -81,16 +81,24 @@ export default class TestCommercialComposition {
             const deps = this._deps();
             const initialized = deps.app.initialize();
             this.assertTrue(initialized.ok);
-            this.assertEqual(initialized.value.createdInventories, 24);
-            this.assertEqual(Object.keys(initialized.value.state.inventoriesByShowtime).length, 24);
+            this.assertEqual(initialized.value.createdInventories, 36);
+            this.assertEqual(Object.keys(initialized.value.state.inventoriesByShowtime).length, 36);
             this.assertTrue(deps.localStorage.getItem('smartcinema_state_v2') !== null);
             this.assertTrue(deps.localStorage.getItem('smartcinema_state_v3') !== null);
         });
 
-        this.test('营业日应使用上海日期并在末场停售后切到次日', () => {
+        this.test('日期工具应使用北京时间，应用目录始终从本地当天开始', () => {
             this.assertEqual(businessDateInTimeZone('2026-07-18T13:59:00.000Z'), '2026-07-18');
             this.assertEqual(bookableBusinessDateInTimeZone('2026-07-18T13:59:00.000Z'), '2026-07-18');
             this.assertEqual(bookableBusinessDateInTimeZone('2026-07-18T14:00:00.000Z'), '2026-07-19');
+            const app = createBrowserCommercialApplication({
+                localStorage: new MemoryWebStorage(),
+                sessionStorage: new MemoryWebStorage(),
+                clock: new FakeClock('2026-07-18T14:00:00.000Z'),
+                idGenerator: new SequenceIdGenerator()
+            });
+            this.assertTrue(app.initialize().ok);
+            this.assertEqual(app.booking.getCatalogNavigation().value.businessDates[0], '2026-07-18');
         });
 
         this.test('v3 账户服务应完成注册、退出与登录且保持单一状态源', () => {

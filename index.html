@@ -59,18 +59,33 @@
             </div>
             <div class="catalog-selector-grid">
                 <div class="catalog-control">
-                    <span class="catalog-label" id="movie-picker-label">影片</span>
-                    <div class="catalog-options movie-options" id="movie-list" role="group" aria-labelledby="movie-picker-label"></div>
+                    <div class="catalog-control-heading">
+                        <span class="catalog-label" id="movie-picker-label">影片</span>
+                        <span class="catalog-carousel-status" id="movie-carousel-status" aria-live="polite"></span>
+                    </div>
+                    <div class="catalog-carousel">
+                        <button class="catalog-carousel-button" type="button" data-carousel-target="movie-list" data-carousel-direction="previous" aria-label="向左浏览影片">←</button>
+                        <div class="catalog-options movie-options" id="movie-list" role="group" aria-labelledby="movie-picker-label"></div>
+                        <button class="catalog-carousel-button" type="button" data-carousel-target="movie-list" data-carousel-direction="next" aria-label="向右浏览影片">→</button>
+                    </div>
                 </div>
                 <div class="catalog-control">
-                    <span class="catalog-label" id="cinema-picker-label">影院</span>
-                    <div class="catalog-options cinema-options" id="cinema-list" role="group" aria-labelledby="cinema-picker-label"></div>
+                    <div class="catalog-control-heading">
+                        <span class="catalog-label" id="cinema-picker-label">影院</span>
+                        <span class="catalog-carousel-status" id="cinema-carousel-status" aria-live="polite"></span>
+                    </div>
+                    <div class="catalog-carousel">
+                        <button class="catalog-carousel-button" type="button" data-carousel-target="cinema-list" data-carousel-direction="previous" aria-label="向左浏览影院">←</button>
+                        <div class="catalog-options cinema-options" id="cinema-list" role="group" aria-labelledby="cinema-picker-label"></div>
+                        <button class="catalog-carousel-button" type="button" data-carousel-target="cinema-list" data-carousel-direction="next" aria-label="向右浏览影院">→</button>
+                    </div>
                 </div>
                 <div class="catalog-control">
                     <span class="catalog-label" id="date-picker-label">日期</span>
                     <div class="catalog-options date-options" id="date-list" role="group" aria-labelledby="date-picker-label"></div>
                 </div>
             </div>
+            <p class="catalog-disclosure">影片与影院基础资料采用真实条目；排期、价格和影厅配置为本地演示数据。</p>
         </section>
 
         <section class="movie-context" aria-labelledby="movie-title">
@@ -125,7 +140,7 @@
                         </div>
                         <div class="party-type-options" id="party-type-options" role="group" aria-labelledby="party-type-label">
                             <button type="button" data-party-type="solo">单人</button>
-                            <button type="button" data-party-type="couple">双人</button>
+                            <button type="button" data-party-type="couple">情侣</button>
                             <button type="button" data-party-type="family">家庭</button>
                             <button type="button" data-party-type="group">多人</button>
                         </div>

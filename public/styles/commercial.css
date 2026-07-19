@@ -244,6 +244,14 @@ button:disabled {
     min-width: 0;
 }
 
+.catalog-control-heading {
+    min-height: 18px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
 .catalog-label {
     display: block;
     margin-bottom: 7px;
@@ -252,10 +260,65 @@ button:disabled {
     font-weight: 720;
 }
 
+.catalog-carousel-status {
+    color: var(--commerce-muted);
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+}
+
+.catalog-carousel {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) 28px;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.catalog-carousel-button {
+    min-width: 0;
+    padding: 0;
+    border: 1px solid var(--commerce-border);
+    border-radius: 10px;
+    background: var(--commerce-panel);
+    color: var(--commerce-ink);
+    font-size: 15px;
+    transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.catalog-carousel-button:disabled {
+    opacity: 0.34;
+}
+
+.catalog-carousel-button:active:not(:disabled) {
+    transform: scale(0.94);
+}
+
 .catalog-options {
     display: flex;
     gap: 7px;
     min-width: 0;
+}
+
+.catalog-carousel .catalog-options {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+}
+
+.catalog-carousel .catalog-options::-webkit-scrollbar {
+    display: none;
+}
+
+.catalog-carousel .catalog-option {
+    scroll-snap-align: start;
+}
+
+.movie-options .catalog-option {
+    flex: 0 0 calc((100% - 14px) / 3);
+}
+
+.cinema-options .catalog-option {
+    flex: 0 0 calc((100% - 7px) / 2);
 }
 
 .catalog-option {
@@ -307,6 +370,12 @@ button:disabled {
 
 .catalog-option:active {
     transform: scale(0.97);
+}
+
+.catalog-disclosure {
+    margin: 12px 0 0;
+    color: var(--commerce-muted);
+    font-size: 9px;
 }
 
 .movie-context {
@@ -382,6 +451,46 @@ button:disabled {
     width: 102px;
     height: 54px;
     transform: rotate(12deg);
+}
+
+.movie-poster[data-artwork="twilight-comet"] {
+    background:
+        linear-gradient(145deg, transparent 0 44%, rgba(255, 226, 164, 0.78) 45% 46%, transparent 47%),
+        radial-gradient(circle at 70% 22%, rgba(255, 218, 151, 0.72), transparent 14%),
+        linear-gradient(165deg, #394e88 0%, #7c4269 56%, #e28b68 100%);
+}
+
+.movie-poster[data-artwork="sycamore-sun"] {
+    background:
+        radial-gradient(circle at 68% 21%, rgba(255, 230, 154, 0.9), transparent 18%),
+        linear-gradient(155deg, #8ab4a4 0%, #496e5f 52%, #d7a45b 100%);
+}
+
+.movie-poster[data-artwork="tango-amber"] {
+    background:
+        linear-gradient(115deg, transparent 0 48%, rgba(247, 211, 153, 0.22) 49% 51%, transparent 52%),
+        radial-gradient(circle at 35% 32%, rgba(216, 155, 89, 0.72), transparent 22%),
+        linear-gradient(165deg, #36211f 0%, #171719 58%, #6f3328 100%);
+}
+
+.movie-poster[data-artwork="magic-castle"] {
+    background:
+        linear-gradient(90deg, transparent 0 37%, rgba(203, 184, 120, 0.35) 38% 42%, transparent 43%),
+        radial-gradient(circle at 64% 23%, rgba(223, 207, 154, 0.85), transparent 14%),
+        linear-gradient(165deg, #263545 0%, #111820 61%, #66512c 100%);
+}
+
+.movie-poster[data-artwork="city-neon"] {
+    background:
+        linear-gradient(90deg, transparent 0 18%, rgba(94, 203, 211, 0.38) 19% 23%, transparent 24% 67%, rgba(225, 113, 156, 0.32) 68% 74%, transparent 75%),
+        linear-gradient(165deg, #31586d 0%, #172935 58%, #785274 100%);
+}
+
+.movie-poster[data-artwork="studio-sky"] {
+    background:
+        repeating-linear-gradient(90deg, transparent 0 21px, rgba(255, 255, 255, 0.12) 22px 23px),
+        radial-gradient(circle at 50% 30%, rgba(240, 224, 175, 0.72), transparent 16%),
+        linear-gradient(165deg, #6a9db3 0%, #2f6579 55%, #182d38 100%);
 }
 
 .poster-orbit {
@@ -2043,7 +2152,7 @@ button:disabled {
         grid-column: auto;
     }
 
-    .catalog-options {
+    .date-options {
         max-width: 100%;
         overflow-x: auto;
         padding: 1px 1px 4px;
@@ -2051,12 +2160,17 @@ button:disabled {
         scrollbar-width: thin;
     }
 
+    .catalog-carousel {
+        grid-template-columns: 26px minmax(0, 1fr) 26px;
+        gap: 5px;
+    }
+
     .movie-options .catalog-option {
-        flex: 0 0 142px;
+        flex-basis: calc((100% - 7px) / 2);
     }
 
     .cinema-options .catalog-option {
-        flex: 0 0 174px;
+        flex-basis: 78%;
     }
 
     .date-options .catalog-option {

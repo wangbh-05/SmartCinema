@@ -11,7 +11,7 @@ export const RECOMMENDATION_PREFERENCES = Object.freeze([
 export const PARTY_TYPES = Object.freeze(['solo', 'couple', 'family', 'group']);
 export const PARTY_TYPE_LABELS = Object.freeze({
     solo: '单人观影',
-    couple: '双人观影',
+    couple: '情侣观影',
     family: '家庭观影',
     group: '多人同行'
 });
