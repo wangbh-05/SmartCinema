@@ -345,7 +345,7 @@ export function createDemoCatalog(businessDate) {
         }),
         createTicketType({
             id: 'senior',
-            label: '长者票',
+            label: '银发票',
             description: '60 周岁及以上',
             eligibilityNote: '入场时可能需要年龄证明',
             priceAdjustment: -1200

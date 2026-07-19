@@ -499,6 +499,18 @@ button:disabled {
         linear-gradient(165deg, #6a9db3 0%, #2f6579 55%, #182d38 100%);
 }
 
+/* 首屏等待真实海报时不显示任何占位图；切换影片时则保留上一张。 */
+.movie-poster.is-poster-loading:not(.has-poster-image) {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+}
+
+.movie-poster.is-poster-loading .poster-orbit,
+.movie-poster.is-poster-loading .poster-title {
+    visibility: hidden;
+}
+
 .poster-image {
     position: absolute;
     z-index: 1;
@@ -507,10 +519,17 @@ button:disabled {
     height: 100%;
     object-fit: cover;
     opacity: 0;
+    transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .movie-poster.has-poster-image .poster-image {
     opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poster-image {
+        transition: none;
+    }
 }
 
 .poster-orbit {
