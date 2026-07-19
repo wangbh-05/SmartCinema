@@ -86,7 +86,7 @@ class TestCommercialApplication {
             const context = deps.service.getBookingContext(deps.showtimeId);
             this.assertTrue(context.ok);
             this.assertEqual(context.value.movie.title, '你的名字');
-            this.assertEqual(context.value.cinema.name, '嘉华国际影城（学清路店）');
+            this.assertEqual(context.value.cinema.name, '五道口');
             this.assertEqual(context.value.ticketTypes.length, 4);
             this.assertTrue(context.value.priceFrom > 0);
         });
@@ -100,13 +100,13 @@ class TestCommercialApplication {
             this.assertEqual(navigation.value.businessDates.length, 3);
             const filtered = deps.service.listShowtimes({
                 movieId: 'movie-zootopia',
-                cinemaId: 'cinema-cgv-qinghe',
+                cinemaId: 'cinema-riverside',
                 businessDate: '2026-07-19'
             });
             this.assertTrue(filtered.ok);
-            this.assertEqual(filtered.value.length, 1);
+            this.assertEqual(filtered.value.length, 2);
             this.assertEqual(filtered.value[0].movie.title, '疯狂动物城');
-            this.assertEqual(filtered.value[0].cinema.name, 'CGV 影城（北京清河万象汇店）');
+            this.assertEqual(filtered.value[0].cinema.name, '清河');
         });
 
         this.test('同行方式与票种应共同约束可解释的连座推荐', () => {
@@ -173,7 +173,7 @@ class TestCommercialApplication {
             this.assertTrue(coupleRecommended.value.reason.includes('周边空位'));
 
             const largeHallGroup = deps.service.createDraft({
-                showtimeId: 'showtime:c1-s1-m5:2026-07-18',
+                showtimeId: 'showtime:c1-a0-s1-m5:2026-07-18',
                 ticketItems: [{ ticketTypeId: 'adult', quantity: 20 }],
                 partyType: 'group',
                 preferences: ['center']
@@ -218,7 +218,8 @@ class TestCommercialApplication {
 
         this.test('已成功的幂等锁座在场次停止售票后仍应返回原结果', () => {
             const deps = this._deps();
-            deps.clock.value = '2026-07-18T04:29:00.000Z';
+            const showtime = deps.catalogRepository.getShowtime(deps.showtimeId);
+            deps.clock.value = new Date(Date.parse(showtime.bookingClosesAt) - 60 * 1000).toISOString();
             const draft = this._completeDraft(deps);
             const first = deps.service.placeHold({
                 draft,
@@ -227,7 +228,7 @@ class TestCommercialApplication {
                 holdDurationSeconds: 600
             });
             this.assertTrue(first.ok);
-            deps.clock.value = '2026-07-18T04:31:00.000Z';
+            deps.clock.value = new Date(Date.parse(showtime.bookingClosesAt) + 60 * 1000).toISOString();
             const second = deps.service.placeHold({
                 draft,
                 ownerId: 'user-1',
@@ -460,7 +461,7 @@ class TestCommercialApplication {
         this.assertTrue(initialized.ok);
         const catalog = createDemoCatalog('2026-07-18');
         const catalogRepository = new DemoCatalogRepository(catalog);
-        const showtimeId = 'showtime:c0-s1-m1:2026-07-18';
+        const showtimeId = 'showtime:c0-a0-s1-m1:2026-07-18';
         const service = new CommercialBookingService({
             catalogRepository,
             stateRepository: repository,

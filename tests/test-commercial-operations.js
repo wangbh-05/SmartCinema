@@ -104,8 +104,8 @@ export default class TestCommercialOperations {
             const deps = this._adminDeps();
             const result = deps.operations.getDashboard();
             this.assertTrue(result.ok, result.error?.message);
-            this.assertEqual(result.value.summary.showtimeCount, 36);
-            this.assertEqual(result.value.showtimes.length, 36);
+            this.assertEqual(result.value.summary.showtimeCount, 108);
+            this.assertEqual(result.value.showtimes.length, 108);
             this.assertEqual(result.value.summary.userCount, 1);
             this.assertEqual(result.value.operator.role, 'admin');
             this.assertTrue(result.value.users.every(user => user.credential === undefined));
@@ -220,7 +220,8 @@ export default class TestCommercialOperations {
     }
 
     _placeHold(deps) {
-        const showtimeId = deps.app.booking.listShowtimes().value[0].showtime.id;
+        const showtimeId = deps.app.booking.listShowtimes().value
+            .find(item => item.availability.bookable).showtime.id;
         const draft = deps.app.booking.createDraft({
             showtimeId,
             ticketItems: [{ ticketTypeId: 'adult', quantity: 1 }],

@@ -90,6 +90,24 @@ class TestCommercialDomain {
             this.assertThrows(() => createMoney(-1, 'CNY'));
         });
 
+        this.test('Movie 海报应接受本地相对地址并拒绝非 HTTP(S) 协议', () => {
+            const movie = createMovie({
+                id: 'movie-poster-contract',
+                title: '海报契约',
+                durationMinutes: 90,
+                posterUrl: ' ./public/images/posters/example.jpg '
+            });
+            this.assertEqual(movie.posterUrl, './public/images/posters/example.jpg');
+            this.assertThrows(() => createMovie({
+                ...movie,
+                posterUrl: 'javascript:alert(1)'
+            }));
+            this.assertThrows(() => createMovie({
+                ...movie,
+                posterUrl: '   '
+            }));
+        });
+
         this.test('Catalog 场次应包含完整购买上下文并校验时间', () => {
             const fixture = this._fixture();
             this.assertEqual(fixture.showtime.movieId, fixture.movie.id);
@@ -152,7 +170,7 @@ class TestCommercialDomain {
         this.test('座位决策辅助应给出四维体验并生成文字可解释的热度层', () => {
             const catalog = createDemoCatalog('2026-07-18');
             const repository = new DemoCatalogRepository(catalog);
-            const showtime = repository.getShowtime('showtime:c0-s1-m1:2026-07-18');
+            const showtime = repository.getShowtime('showtime:c0-a0-s1-m1:2026-07-18');
             const auditorium = repository.getAuditorium(showtime.auditoriumId);
             const inventory = createShowtimeInventory({
                 showtimeId: showtime.id,
@@ -406,19 +424,33 @@ class TestCommercialDomain {
             const repository = new DemoCatalogRepository(catalog);
             const showtimes = repository.listShowtimes({ businessDate: '2026-07-18' });
             this.assertEqual(repository.listMovies().length, 7);
+            repository.listMovies().forEach(movie => {
+                this.assertTrue(
+                    movie.posterUrl.startsWith('./public/images/posters/'),
+                    `${movie.title} 缺少项目本地封面`
+                );
+            });
             this.assertEqual(repository.listCinemas().length, 3);
             this.assertEqual(repository.listBusinessDates().length, 3);
-            this.assertEqual(repository.listShowtimes().length, 36);
-            this.assertEqual(showtimes.length, 12);
+            this.assertEqual(repository.listShowtimes().length, 108);
+            this.assertEqual(showtimes.length, 36);
             this.assertTrue(repository.listShowtimes({
                 movieId: 'movie-zootopia',
-                cinemaId: 'cinema-cgv-qinghe',
+                cinemaId: 'cinema-riverside',
                 businessDate: '2026-07-19'
             }).length > 0);
+            repository.listBusinessDates().forEach(date => {
+                repository.listMovies().forEach(movie => {
+                    this.assertTrue(
+                        repository.listShowtimes({ movieId: movie.id, businessDate: date }).length >= 4,
+                        `${date} 的 ${movie.title} 少于 4 场`
+                    );
+                });
+            });
             const auditoriums = Object.values(catalog.auditoriums);
             this.assertEqual(
                 auditoriums.map(auditorium => auditorium.seats.length).sort((left, right) => left - right).join(','),
-                '100,200,300'
+                '100,100,200,200,300,300'
             );
             auditoriums.forEach(auditorium => {
                 this.assertEqual(auditorium.seats.filter(seat => seat.kind === 'wheelchair').length, 2);

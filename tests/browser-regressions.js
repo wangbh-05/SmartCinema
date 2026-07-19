@@ -464,14 +464,28 @@ async function run() {
             doc.querySelector('[data-catalog-value="movie-your-name"]').click();
             await delay();
             assertContract(doc.getElementById('movie-title').textContent === '你的名字', '切换影片后上下文未更新');
+            assertContract(
+                doc.getElementById('poster-image').src.endsWith('/public/images/posters/your-name.jpg'),
+                '切换影片后没有更新本地封面'
+            );
+            assertContract(
+                doc.getElementById('movie-poster').getAttribute('aria-label') === '你的名字影片封面',
+                '影片封面缺少当前影片的无障碍名称'
+            );
 
-            doc.querySelector('[data-catalog-value="cinema-cgv-qinghe"]').click();
+            doc.querySelector('[data-catalog-value="cinema-riverside"]').click();
             await delay();
-            assertContract(doc.getElementById('cinema-name').textContent.includes('CGV'), '切换影院后场次上下文未更新');
+            assertContract(doc.getElementById('cinema-name').textContent === '清河', '切换影院后场次上下文未更新');
             assertContract(doc.querySelectorAll('.seat-button').length === 300, '大厅没有渲染 300 个座位');
-            assertContract(doc.querySelectorAll('.showtime-option').length === 1, '组合筛选没有收敛到对应场次');
+            assertContract(doc.querySelectorAll('.showtime-option').length === 4, '影片排期没有提供四场可选时间');
+            const seatScroller = doc.getElementById('seat-scroll');
+            const centeredScrollLeft = (seatScroller.scrollWidth - seatScroller.clientWidth) / 2;
+            assertContract(
+                Math.abs(seatScroller.scrollLeft - centeredScrollLeft) <= 2,
+                '300 座影厅首次打开时没有居中显示'
+            );
             await waitFor(
-                () => doc.activeElement?.dataset.catalogValue === 'cinema-cgv-qinghe',
+                () => doc.activeElement?.dataset.catalogValue === 'cinema-riverside',
                 '目录重绘后归还触发按钮焦点'
             );
         } finally {

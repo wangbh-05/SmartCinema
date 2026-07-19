@@ -81,8 +81,8 @@ export default class TestCommercialComposition {
             const deps = this._deps();
             const initialized = deps.app.initialize();
             this.assertTrue(initialized.ok);
-            this.assertEqual(initialized.value.createdInventories, 36);
-            this.assertEqual(Object.keys(initialized.value.state.inventoriesByShowtime).length, 36);
+            this.assertEqual(initialized.value.createdInventories, 108);
+            this.assertEqual(Object.keys(initialized.value.state.inventoriesByShowtime).length, 108);
             this.assertTrue(deps.localStorage.getItem('smartcinema_state_v2') !== null);
             this.assertTrue(deps.localStorage.getItem('smartcinema_state_v3') !== null);
         });
@@ -159,7 +159,8 @@ export default class TestCommercialComposition {
         this.test('推荐应返回合法连座并可由同一应用服务报价', () => {
             const deps = this._deps();
             this.assertTrue(deps.app.initialize().ok);
-            const showtimeId = deps.app.booking.listShowtimes().value[0].showtime.id;
+            const showtimeId = deps.app.booking.listShowtimes().value
+                .find(item => item.availability.bookable).showtime.id;
             const draft = deps.app.booking.createDraft({
                 showtimeId,
                 ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
@@ -177,7 +178,8 @@ export default class TestCommercialComposition {
         this.test('session 草稿仓储应验证、保存、恢复并清除 BookingDraft', () => {
             const deps = this._deps();
             this.assertTrue(deps.app.initialize().ok);
-            const showtimeId = deps.app.booking.listShowtimes().value[0].showtime.id;
+            const showtimeId = deps.app.booking.listShowtimes().value
+                .find(item => item.availability.bookable).showtime.id;
             const draft = deps.app.booking.createDraft({
                 showtimeId,
                 ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
@@ -237,7 +239,8 @@ export default class TestCommercialComposition {
     }
 
     _placeRecommendedHold(app) {
-        const showtimeId = app.booking.listShowtimes().value[0].showtime.id;
+        const showtimeId = app.booking.listShowtimes().value
+            .find(item => item.availability.bookable).showtime.id;
         const draft = app.booking.createDraft({
             showtimeId,
             ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
