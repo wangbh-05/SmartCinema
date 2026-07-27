@@ -309,6 +309,35 @@ class TestCommercialDomain {
             this.assertEqual(crossSection.error.code, 'CROSS_SECTION_SELECTION');
         });
 
+        this.test('SeatSelectionPolicy 应允许同排连续座位跨越过道', () => {
+            const catalog = createDemoCatalog('2026-07-18');
+            const auditorium = Object.values(catalog.auditoriums)[0];
+            const rowSeats = auditorium.seats
+                .filter(seat => seat.rowIndex === 0)
+                .sort((left, right) => left.columnIndex - right.columnIndex);
+            const boundaryIndex = rowSeats.findIndex((seat, index) =>
+                index > 0 && seat.sectionId !== rowSeats[index - 1].sectionId
+            );
+            const selected = rowSeats.slice(boundaryIndex - 1, boundaryIndex + 1);
+            const draft = createBookingDraft({
+                showtimeId: 'showtime-cross-aisle',
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+                selectedSeatIds: selected.map(seat => seat.id),
+                partyType: 'friends',
+                updatedAt: NOW
+            });
+            const inventory = createShowtimeInventory({
+                showtimeId: draft.showtimeId,
+                updatedAt: NOW
+            });
+
+            const result = validateSeatSelection({ draft, auditorium, inventory });
+
+            this.assertTrue(result.ok, result.error?.message);
+            this.assertTrue(selected[0].sectionId !== selected[1].sectionId);
+            this.assertEqual(selected[1].columnIndex, selected[0].columnIndex + 1);
+        });
+
         this.test('SeatSelectionPolicy 应识别本次选择制造的有界孤座', () => {
             const fixture = this._fixture();
             const inventory = createShowtimeInventory({

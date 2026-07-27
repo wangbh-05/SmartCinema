@@ -19,6 +19,15 @@ function element(id) {
     return document.getElementById(id);
 }
 
+function canSelectSeatGroup(seats) {
+    if (new Set(seats.map(seat => seat.sectionId)).size <= 1) return true;
+    const sorted = [...seats].sort((left, right) => left.columnIndex - right.columnIndex);
+    return sorted.every((seat, index) =>
+        seat.rowIndex === sorted[0].rowIndex &&
+        (index === 0 || seat.columnIndex === sorted[index - 1].columnIndex + 1)
+    );
+}
+
 class CommercialBookingPage {
     constructor(app) {
         this.app = app;
@@ -470,8 +479,8 @@ class CommercialBookingPage {
             const selectedSeats = [...selected].map(id =>
                 this.context.auditorium.seats.find(item => item.id === id)
             );
-            if (selectedSeats.length > 0 && selectedSeats.some(item => item.sectionId !== seat.sectionId)) {
-                this.notify('同一订单请选择同一区块的座位，避免跨过道分散');
+            if (!canSelectSeatGroup([...selectedSeats, seat])) {
+                this.notify('跨过道选座必须保持同排连续');
                 return;
             }
             if (seat.kind === 'companion' && !selected.has(seat.companionForSeatId)) {
@@ -508,11 +517,15 @@ class CommercialBookingPage {
         const selectedSeats = [...selected].map(id =>
             this.context.auditorium.seats.find(seat => seat.id === id)
         ).filter(Boolean);
-        const sectionId = selectedSeats[0]?.sectionId || availableCandidates[0].sectionId;
         const capacity = this.draft.ticketCount - selected.size;
-        const additions = availableCandidates
-            .filter(seat => seat.sectionId === sectionId && !selected.has(seat.id))
-            .slice(0, Math.max(0, capacity));
+        const additions = [];
+        const candidates = [...availableCandidates]
+            .sort((left, right) => left.rowIndex - right.rowIndex || left.columnIndex - right.columnIndex);
+        for (const seat of candidates) {
+            if (selected.has(seat.id) || additions.length >= Math.max(0, capacity)) continue;
+            if (!canSelectSeatGroup([...selectedSeats, ...additions, seat])) continue;
+            additions.push(seat);
+        }
         additions.forEach(seat => selected.add(seat.id));
         if (additions.length === 0) {
             this.notify(`本单有 ${this.draft.ticketCount} 张票；请先取消座位再框选`);

@@ -6,6 +6,7 @@ import { err, ok } from '../../shared/Result.js';
 export const DEFAULT_SEAT_SELECTION_POLICY = Object.freeze({
     maxTicketsPerOrder: MAX_TICKETS_PER_ORDER,
     requireSameSection: true,
+    allowContiguousCrossSection: true,
     preventOrphanSeat: true,
     companionRequiresWheelchairSpace: true
 });
@@ -15,10 +16,23 @@ function normalizePolicy(input = {}) {
     if (!Number.isInteger(policy.maxTicketsPerOrder) || policy.maxTicketsPerOrder <= 0) {
         throw new TypeError('maxTicketsPerOrder 必须是正整数');
     }
-    ['requireSameSection', 'preventOrphanSeat', 'companionRequiresWheelchairSpace'].forEach(key => {
+    [
+        'requireSameSection',
+        'allowContiguousCrossSection',
+        'preventOrphanSeat',
+        'companionRequiresWheelchairSpace'
+    ].forEach(key => {
         if (typeof policy[key] !== 'boolean') throw new TypeError(`${key} 必须是 boolean`);
     });
     return policy;
+}
+
+function isContiguousSeatBlock(seats) {
+    const sorted = [...seats].sort((left, right) => left.columnIndex - right.columnIndex);
+    return sorted.every((seat, index) =>
+        seat.rowIndex === sorted[0].rowIndex &&
+        (index === 0 || seat.columnIndex === sorted[index - 1].columnIndex + 1)
+    );
 }
 
 function findOrphanSeats(auditorium, unavailable) {
@@ -83,7 +97,9 @@ export function validateSeatSelection({ draft, auditorium, inventory, policy: in
         return err('SEAT_UNAVAILABLE', '部分座位已不可用', { seatIds: conflicts });
     }
 
-    if (policy.requireSameSection && new Set(selectedSeats.map(seat => seat.sectionId)).size > 1) {
+    const crossesSection = new Set(selectedSeats.map(seat => seat.sectionId)).size > 1;
+    const allowedCrossSection = policy.allowContiguousCrossSection && isContiguousSeatBlock(selectedSeats);
+    if (policy.requireSameSection && crossesSection && !allowedCrossSection) {
         return err('CROSS_SECTION_SELECTION', '一次订单的座位必须位于同一影厅区块', {
             sectionIds: [...new Set(selectedSeats.map(seat => seat.sectionId))]
         });

@@ -16,7 +16,7 @@ function groupAvailableSeats(auditorium, unavailable, allowAccessibleSeats) {
     auditorium.seats.forEach(seat => {
         if (unavailable.has(seat.id)) return;
         if (!allowAccessibleSeats && ['wheelchair', 'companion'].includes(seat.kind)) return;
-        const key = `${seat.rowIndex}:${seat.sectionId}`;
+        const key = String(seat.rowIndex);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(seat);
     });
@@ -89,15 +89,18 @@ function scoreCandidate(seats, auditorium, preferences, partyType, unavailable) 
         score += (averageRow / maxRowIndex) * 18;
     }
     if (preferences.includes('aisle')) {
-        const groupColumns = auditorium.seats
-            .filter(seat => seat.rowIndex === seats[0].rowIndex && seat.sectionId === seats[0].sectionId)
-            .map(seat => seat.columnIndex);
-        const leftEdge = Math.min(...groupColumns);
-        const rightEdge = Math.max(...groupColumns);
-        const edgeDistance = Math.min(
-            seats[0].columnIndex - leftEdge,
-            rightEdge - seats[seats.length - 1].columnIndex
-        );
+        const edgeDistance = Math.min(...seats.map(selectedSeat => {
+            const sectionColumns = auditorium.seats
+                .filter(seat => seat.rowIndex === selectedSeat.rowIndex &&
+                    seat.sectionId === selectedSeat.sectionId)
+                .map(seat => seat.columnIndex);
+            const leftEdge = Math.min(...sectionColumns);
+            const rightEdge = Math.max(...sectionColumns);
+            return Math.min(
+                selectedSeat.columnIndex - leftEdge,
+                rightEdge - selectedSeat.columnIndex
+            );
+        }));
         score += Math.max(0, 16 - edgeDistance * 5);
     }
     if (preferences.includes('step-free')) {

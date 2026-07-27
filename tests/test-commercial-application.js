@@ -1,4 +1,7 @@
 import { CommercialBookingService } from '../src/application/commercial/CommercialBookingService.js';
+import { recommendSeatBlock } from '../src/application/commercial/RecommendSeatBlock.js';
+import { createBookingDraft } from '../src/domain/booking/BookingDraft.js';
+import { createShowtimeInventory } from '../src/domain/booking/ShowtimeInventory.js';
 import { createSettings } from '../src/domain/user/Settings.js';
 import { createUser } from '../src/domain/user/User.js';
 import {
@@ -194,6 +197,49 @@ class TestCommercialApplication {
             this.assertTrue(largeHallRecommended.value.seats.every(seat =>
                 seat.rowIndex === largeHallRecommended.value.seats[0].rowIndex
             ));
+        });
+
+        this.test('智能推荐应允许连续座位跨越过道', () => {
+            const deps = this._deps();
+            const context = deps.service.getBookingContext(deps.showtimeId).value;
+            const rowSeats = context.auditorium.seats
+                .filter(seat => seat.rowIndex === 4)
+                .sort((left, right) => left.columnIndex - right.columnIndex);
+            const boundaryIndex = rowSeats.findIndex((seat, index) =>
+                index > 0 && seat.sectionId !== rowSeats[index - 1].sectionId
+            );
+            const crossAisleSeats = rowSeats.slice(boundaryIndex - 1, boundaryIndex + 1);
+            const availableIds = new Set(crossAisleSeats.map(seat => seat.id));
+            const inventory = createShowtimeInventory({
+                showtimeId: deps.showtimeId,
+                soldSeatIds: context.auditorium.seats
+                    .filter(seat => !availableIds.has(seat.id))
+                    .map(seat => seat.id),
+                updatedAt: NOW
+            });
+            const draft = createBookingDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+                partyType: 'friends',
+                preferences: ['aisle'],
+                updatedAt: NOW
+            });
+
+            const recommended = recommendSeatBlock({
+                draft,
+                auditorium: context.auditorium,
+                inventory
+            });
+
+            this.assertTrue(recommended.ok, recommended.error?.message);
+            this.assertEqual(recommended.value.seats.length, 2);
+            this.assertTrue(
+                recommended.value.seats[0].sectionId !== recommended.value.seats[1].sectionId
+            );
+            this.assertEqual(
+                recommended.value.seats[1].columnIndex,
+                recommended.value.seats[0].columnIndex + 1
+            );
         });
 
         this.test('应用层应创建票种草稿并原子持久化 hold 与库存', () => {
