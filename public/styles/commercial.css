@@ -925,6 +925,7 @@ button:disabled {
 
 .seat-heading,
 .seat-tools,
+.ai-seat-advisor,
 .seat-legend,
 .accessible-confirm {
     margin-right: 24px;
@@ -1010,6 +1011,143 @@ button:disabled {
     background: var(--commerce-panel-muted);
     color: var(--commerce-ink);
     font-weight: 700;
+}
+
+.ai-seat-advisor {
+    margin-bottom: 18px;
+    padding: 15px;
+    border: 1px solid var(--commerce-border);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.ai-advisor-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.ai-advisor-heading h3 {
+    margin: 1px 0 0;
+    font-size: 15px;
+}
+
+.ai-advisor-heading > span {
+    color: var(--commerce-muted);
+    font-size: 10px;
+    text-align: right;
+}
+
+.ai-advisor-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px;
+}
+
+.ai-advisor-form textarea {
+    width: 100%;
+    min-height: 48px;
+    resize: vertical;
+    padding: 10px 11px;
+    border: 1px solid var(--commerce-border);
+    border-radius: 10px;
+    background: var(--commerce-panel-muted);
+    color: var(--commerce-ink);
+    font: inherit;
+    font-size: 12px;
+}
+
+.ai-advisor-form textarea:disabled {
+    opacity: 0.62;
+}
+
+.ai-advisor-submit,
+.ai-advisor-apply {
+    min-height: 38px;
+    padding: 0 13px;
+    border-radius: 9px;
+    background: var(--commerce-ink);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.ai-advisor-submit:disabled,
+.ai-advisor-apply:disabled {
+    opacity: 0.48;
+}
+
+.ai-advisor-status {
+    min-height: 16px;
+    margin: 9px 0 0;
+    color: var(--commerce-muted);
+    font-size: 10px;
+}
+
+.ai-advisor-result {
+    margin-top: 13px;
+    padding-top: 13px;
+    border-top: 1px solid var(--commerce-border);
+}
+
+.ai-advisor-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 9px;
+}
+
+.ai-advisor-tags span {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: var(--commerce-panel-muted);
+    color: var(--commerce-muted);
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.ai-advisor-result p {
+    margin: 0 0 10px;
+    color: var(--commerce-ink);
+    font-size: 11px;
+    line-height: 1.55;
+}
+
+.ai-advisor-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.ai-advisor-metrics div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--commerce-border);
+    border-radius: 9px;
+    color: var(--commerce-muted);
+    font-size: 10px;
+}
+
+.ai-advisor-metrics strong {
+    color: var(--commerce-ink);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ai-advisor-metrics small {
+    color: var(--commerce-muted);
+    font-size: 9px;
+}
+
+.ai-advisor-metrics meter {
+    width: 100%;
+    height: 5px;
+    accent-color: var(--commerce-accent);
 }
 
 .seat-conflict {
@@ -2439,6 +2577,7 @@ button:disabled {
 
     .seat-heading,
     .seat-tools,
+    .ai-seat-advisor,
     .seat-conflict,
     .seat-legend,
     .popularity-legend,
@@ -2455,6 +2594,28 @@ button:disabled {
     .seat-tools {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .ai-advisor-heading,
+    .ai-advisor-form {
+        grid-template-columns: 1fr;
+    }
+
+    .ai-advisor-heading {
+        display: grid;
+    }
+
+    .ai-advisor-heading > span {
+        text-align: left;
+    }
+
+    .ai-advisor-submit,
+    .ai-advisor-apply {
+        width: 100%;
+    }
+
+    .ai-advisor-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .seat-conflict {

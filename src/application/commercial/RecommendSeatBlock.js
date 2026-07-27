@@ -2,7 +2,17 @@ import { replaceDraftSeats } from '../../domain/booking/BookingDraft.js';
 import { PARTY_TYPE_LABELS } from '../../domain/booking/BookingDraft.js';
 import { validateSeatSelection } from '../../domain/booking/SeatSelectionPolicy.js';
 import { getUnavailableSeatIds } from '../../domain/booking/ShowtimeInventory.js';
+import {
+    aiSeatVectorRows,
+    evaluateAiSeatVector,
+    weightedEuclideanMatch
+} from '../../domain/booking/AiSeatVectorScoring.js';
 import { err, ok } from '../../shared/Result.js';
+import {
+    dominantSeatAdvisorTargets,
+    normalizeSeatAdvisorIntent,
+    seatAdvisorPreferenceLabels
+} from './AiSeatAdvisor.js';
 
 const PREFERENCE_LABELS = Object.freeze({
     center: '靠中间',
@@ -116,6 +126,44 @@ function scoreCandidate(seats, auditorium, preferences, partyType, unavailable) 
     return score;
 }
 
+function advisorDistancePenalty(seats, intent) {
+    const constraints = intent.constraints || {};
+    let penalty = 0;
+    if (constraints.preferStepFree) {
+        penalty += seats.every(seat => seat.stepFree) ? 0 : 0.12;
+    }
+    return penalty;
+}
+
+function scoreAdvisorCandidate({ seats, auditorium, inventory, pricingPolicy, intent }) {
+    const vector = evaluateAiSeatVector({
+        auditorium,
+        seats,
+        inventory,
+        pricingPolicy
+    });
+    const match = weightedEuclideanMatch({
+        vector,
+        targets: intent.targets,
+        weights: intent.weights
+    });
+    const distance = Math.min(1, match.distance + advisorDistancePenalty(seats, intent));
+    const score = Math.round(Math.max(0, 100 - distance * 100));
+    const rows = aiSeatVectorRows({
+        vector,
+        targets: match.targets,
+        weights: match.weights
+    });
+    return Object.freeze({
+        score,
+        distance,
+        vector,
+        targets: match.targets,
+        weights: match.weights,
+        vectorRows: rows
+    });
+}
+
 function recommendationReason(draft, constraints) {
     const parts = draft.partyType === 'couple' ?
         ['情侣观影已优先安排中后排中央连座，并兼顾周边空位'] :
@@ -128,9 +176,35 @@ function recommendationReason(draft, constraints) {
     return parts.join('；');
 }
 
-export function recommendSeatBlock({ draft, auditorium, inventory, updatedAt = draft.updatedAt, policy = {} }) {
+function advisorRecommendationReason({ seats, intent, vectorRows, score }) {
+    const labels = seats.map(seat => seat.label).join('、');
+    const preferences = seatAdvisorPreferenceLabels(intent);
+    const dominant = dominantSeatAdvisorTargets(vectorRows)
+        .map(item => `${item.label}${item.value}/目标${item.target}`)
+        .join('、');
+    const parts = [
+        `推荐 ${labels}`,
+        preferences.length > 0 ? `偏好重点：${preferences.join('、')}` : intent.summary,
+        dominant ? `关键匹配：${dominant}` : null,
+        `匹配分 ${score}`
+    ].filter(Boolean);
+    if (intent.tradeoffs?.length > 0) parts.push(intent.tradeoffs[0]);
+    parts.push('安静程度参考过往座位使用率与当前邻域占用，不代表真实分贝。');
+    return parts.join('；');
+}
+
+export function recommendSeatBlock({
+    draft,
+    auditorium,
+    inventory,
+    pricingPolicy = null,
+    updatedAt = draft.updatedAt,
+    policy = {},
+    advisorIntent = null
+}) {
     const unavailable = getUnavailableSeatIds(inventory);
     const constraints = audienceConstraints(draft, auditorium);
+    const normalizedAdvisorIntent = advisorIntent ? normalizeSeatAdvisorIntent(advisorIntent) : null;
     const groups = groupAvailableSeats(
         auditorium,
         unavailable,
@@ -139,16 +213,36 @@ export function recommendSeatBlock({ draft, auditorium, inventory, updatedAt = d
     const candidates = groups
         .flatMap(seats => contiguousWindows(seats, draft.ticketCount))
         .filter(seats => satisfiesAudienceConstraints(seats, constraints))
-        .map(seats => ({
-            seats,
-            score: scoreCandidate(
+        .map(seats => {
+            if (normalizedAdvisorIntent) {
+                const advisorScore = scoreAdvisorCandidate({
+                    seats,
+                    auditorium,
+                    inventory,
+                    pricingPolicy,
+                    intent: normalizedAdvisorIntent
+                });
+                return {
+                    seats,
+                    score: advisorScore.score,
+                    distance: advisorScore.distance,
+                    vector: advisorScore.vector,
+                    targets: advisorScore.targets,
+                    weights: advisorScore.weights,
+                    vectorRows: advisorScore.vectorRows
+                };
+            }
+            return {
                 seats,
-                auditorium,
-                draft.preferences,
-                draft.partyType,
-                unavailable
-            )
-        }))
+                score: scoreCandidate(
+                    seats,
+                    auditorium,
+                    draft.preferences,
+                    draft.partyType,
+                    unavailable
+                )
+            };
+        })
         .sort((left, right) => {
             if (right.score !== left.score) return right.score - left.score;
             return left.seats[0].id.localeCompare(right.seats[0].id);
@@ -171,7 +265,22 @@ export function recommendSeatBlock({ draft, auditorium, inventory, updatedAt = d
             return ok(Object.freeze({
                 draft: selected.value,
                 seats: Object.freeze([...candidate.seats]),
-                reason: recommendationReason(draft, constraints)
+                reason: normalizedAdvisorIntent ?
+                    advisorRecommendationReason({
+                        seats: candidate.seats,
+                        intent: normalizedAdvisorIntent,
+                        vectorRows: candidate.vectorRows,
+                        score: candidate.score
+                    }) :
+                    recommendationReason(draft, constraints),
+                dimensions: Object.freeze([]),
+                vector: candidate.vector || null,
+                targets: candidate.targets || null,
+                weights: candidate.weights || null,
+                vectorRows: candidate.vectorRows ? Object.freeze([...candidate.vectorRows]) : Object.freeze([]),
+                matchScore: normalizedAdvisorIntent ? candidate.score : null,
+                matchDistance: normalizedAdvisorIntent ? candidate.distance : null,
+                advisorIntent: normalizedAdvisorIntent
             }));
         }
     }

@@ -8,6 +8,10 @@ import { CommercialOrdersController } from './ui/controllers/CommercialOrdersCon
 import { CommercialPreferencesController } from './ui/controllers/CommercialPreferencesController.js';
 import { CommercialSeatMapController } from './ui/controllers/CommercialSeatMapController.js';
 import {
+    parseSeatAdvisorIntentFallback,
+    seatAdvisorPreferenceLabels
+} from './application/commercial/AiSeatAdvisor.js';
+import {
     appendText,
     formatAmount,
     formatDate,
@@ -37,6 +41,10 @@ class CommercialBookingPage {
         this.heatPeriod = 'week';
         this.popularityBySeat = {};
         this.recommendedSeatIds = new Set();
+        this.aiRecommendation = null;
+        this.aiAdvisorBusy = false;
+        this.aiAdvisorStatus = '推荐会预览高亮，采用后才写入本单座位。';
+        this.aiAdvisorRequestId = 0;
         this.toastTimer = null;
         this.pendingOrdersOpen = false;
         this.posterRequestId = 0;
@@ -177,6 +185,13 @@ class CommercialBookingPage {
         });
         element('recommend-seats').addEventListener('click', () => this.recommendSeats());
         element('seat-conflict-recommend').addEventListener('click', () => this.recommendSeats());
+        element('ai-seat-recommend').addEventListener('click', () => this.recommendSeatsWithAiAdvisor());
+        element('ai-seat-apply').addEventListener('click', () => this.applyAiRecommendation());
+        element('ai-seat-preference').addEventListener('input', () => {
+            if (this.aiRecommendation) {
+                this.clearAiRecommendation({ status: '偏好已修改，请重新询问顾问。' });
+            }
+        });
         element('heat-period-controls').addEventListener('click', event => {
             const button = event.target.closest('[data-heat-period]');
             if (button) this.changeHeatPeriod(button.dataset.heatPeriod);
@@ -315,7 +330,7 @@ class CommercialBookingPage {
             return false;
         }
         this.context = context.value;
-        this.recommendedSeatIds.clear();
+        this.clearAiRecommendation({ status: '观影安排已变化，请重新询问顾问。', render: false });
         this.showtimes = this.catalogController.list(this.catalogSelection());
         this.inventory = inventory.value;
         this.refreshSeatGuidance();
@@ -362,7 +377,7 @@ class CommercialBookingPage {
         const nextTotal = this.ticketCount - current + next;
         if (next < 0 || nextTotal < 1 || nextTotal > this.ticketLimit) return;
         const hadSeats = this.draft.selectedSeatIds.length > 0;
-        this.recommendedSeatIds.clear();
+        this.clearAiRecommendation({ status: '票数或票种已变化，请重新询问顾问。', render: false });
         this.ticketQuantities.set(ticketTypeId, next);
         this.syncPartyType(this.partyType);
         this.hideSeatConflict();
@@ -380,7 +395,7 @@ class CommercialBookingPage {
     changePartyType(partyType) {
         if (partyType === this.partyType) return;
         this.partyType = partyType;
-        this.recommendedSeatIds.clear();
+        this.clearAiRecommendation({ status: '同行方式已变化，请重新询问顾问。', render: false });
         const hadSeats = this.draft.selectedSeatIds.length > 0;
         this.rebuildDraft({ preserveSeats: true });
         if (hadSeats) this.notify('同行方式已更新；现有座位保留，可重新请求更合适的连座');
@@ -390,7 +405,7 @@ class CommercialBookingPage {
         if (this.preferences.has(preference)) this.preferences.delete(preference);
         else this.preferences.add(preference);
         button.setAttribute('aria-pressed', String(this.preferences.has(preference)));
-        this.recommendedSeatIds.clear();
+        this.clearAiRecommendation({ status: '推荐偏好已变化，请重新询问顾问。', render: false });
         this.rebuildDraft({ preserveSeats: true });
     }
 
@@ -441,6 +456,7 @@ class CommercialBookingPage {
         this.updateQuote();
         this.renderTickets();
         this.renderDecisionSupport();
+        this.renderAiAdvisor();
         this.renderSeatMap();
         this.renderSummary();
         if (persist) this.persistDraft();
@@ -453,6 +469,9 @@ class CommercialBookingPage {
     }
 
     toggleSeat(seatId) {
+        if (this.aiRecommendation) {
+            this.clearAiRecommendation({ status: '你已手动调整座位，AI 预览已清除。', render: false });
+        }
         const selected = new Set(this.draft.selectedSeatIds);
         const seat = this.context.auditorium.seats.find(item => item.id === seatId);
         if (!seat) return;
@@ -493,6 +512,7 @@ class CommercialBookingPage {
         this.draft = replaced.value;
         this.hideSeatConflict();
         this.updateQuote();
+        this.renderAiAdvisor();
         this.renderSeatMap();
         this.renderSummary();
         this.persistDraft();
@@ -500,6 +520,9 @@ class CommercialBookingPage {
     }
 
     selectSeatBlock(seatIds) {
+        if (this.aiRecommendation) {
+            this.clearAiRecommendation({ status: '你已框选座位，AI 预览已清除。', render: false });
+        }
         const availableCandidates = seatIds
             .map(id => this.context.auditorium.seats.find(seat => seat.id === id))
             .filter(seat => seat && !this.isSeatUnavailable(seat.id));
@@ -524,6 +547,7 @@ class CommercialBookingPage {
         this.seatMap.rememberFocus(additions[0].id);
         this.hideSeatConflict();
         this.updateQuote();
+        this.renderAiAdvisor();
         this.renderSeatMap();
         this.renderSummary();
         this.persistDraft();
@@ -531,6 +555,7 @@ class CommercialBookingPage {
     }
 
     recommendSeats() {
+        this.clearAiRecommendation({ status: '推荐会预览高亮，采用后才写入本单座位。', render: false });
         const result = this.booking.recommendSeats(this.draft);
         if (!result.ok) return this.notify(result.error.message);
         this.draft = result.value.draft;
@@ -538,11 +563,138 @@ class CommercialBookingPage {
         this.hideSeatConflict();
         this.seatMap.rememberFocus(this.draft.selectedSeatIds[0]);
         this.updateQuote();
+        this.renderAiAdvisor();
         this.renderSeatMap({ focusSeat: true });
         this.renderSummary();
         this.persistDraft();
         this.notify(result.value.reason);
         this.announce(`已推荐 ${result.value.seats.map(seat => seat.label).join('、')}`);
+    }
+
+    aiAdvisorReady() {
+        return Boolean(this.context && this.draft && this.draft.ticketCount > 0 && this.draft.ticketItems.length > 0);
+    }
+
+    aiAdvisorContext() {
+        return {
+            showtimeId: this.context?.showtime.id,
+            ticketCount: this.draft?.ticketCount || 0,
+            ticketItems: this.draft?.ticketItems || [],
+            partyType: this.partyType,
+            preferences: [...this.preferences],
+            selectedSeatIds: this.draft?.selectedSeatIds || []
+        };
+    }
+
+    async requestAiAdvisorIntent(preferenceText) {
+        const context = this.aiAdvisorContext();
+        try {
+            const response = await fetch('/api/ai-seat-advisor/intent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ preferenceText, context })
+            });
+            if (!response.ok) throw new Error(`HTTP_${response.status}`);
+            const payload = await response.json();
+            if (!payload?.ok || !payload.intent) throw new Error(payload?.error || 'INVALID_AI_RESPONSE');
+            return {
+                intent: payload.intent,
+                source: payload.source === 'deepseek' ? 'deepseek' : 'fallback'
+            };
+        } catch {
+            return {
+                intent: parseSeatAdvisorIntentFallback(preferenceText, context),
+                source: 'local-fallback'
+            };
+        }
+    }
+
+    async recommendSeatsWithAiAdvisor() {
+        if (!this.aiAdvisorReady()) {
+            this.aiAdvisorStatus = '请先完成第 1 步，确定票种、人数和同行方式后再询问顾问。';
+            this.renderAiAdvisor();
+            this.notify(this.aiAdvisorStatus);
+            return;
+        }
+        const preferenceText = element('ai-seat-preference').value.trim();
+        if (!preferenceText) {
+            this.aiAdvisorStatus = '先告诉顾问你的观影偏好。';
+            this.renderAiAdvisor();
+            element('ai-seat-preference').focus();
+            return;
+        }
+
+        const requestId = ++this.aiAdvisorRequestId;
+        this.aiAdvisorBusy = true;
+        this.aiAdvisorStatus = '正在理解偏好并寻找符合规则的连座…';
+        this.aiRecommendation = null;
+        this.recommendedSeatIds.clear();
+        this.renderAiAdvisor();
+        this.renderSeatMap();
+
+        const { intent, source } = await this.requestAiAdvisorIntent(preferenceText);
+        if (requestId !== this.aiAdvisorRequestId) return;
+        const result = this.booking.recommendAiSeats(this.draft, intent);
+        this.aiAdvisorBusy = false;
+        if (!result.ok) {
+            this.aiAdvisorStatus = result.error.message;
+            this.aiRecommendation = null;
+            this.recommendedSeatIds.clear();
+            this.renderAiAdvisor();
+            this.renderSeatMap();
+            this.notify(result.error.message);
+            return;
+        }
+
+        this.aiRecommendation = { ...result.value, source };
+        this.recommendedSeatIds = new Set(result.value.seats.map(seat => seat.id));
+        this.aiAdvisorStatus = source === 'deepseek' ?
+            '已由 DeepSeek 解析偏好，本地规则完成座位预览。' :
+            'AI 服务不可用或未配置 Key，已使用本地 fallback 完成演示推荐。';
+        this.seatMap.rememberFocus(result.value.seats[0].id);
+        this.renderAiAdvisor();
+        this.renderSeatMap({ focusSeat: true });
+        this.announce(`AI 顾问预览 ${result.value.seats.map(seat => seat.label).join('、')}`);
+    }
+
+    applyAiRecommendation() {
+        if (!this.aiRecommendation) return;
+        const result = this.booking.recommendAiSeats(this.draft, this.aiRecommendation.advisorIntent);
+        if (!result.ok) {
+            this.aiAdvisorStatus = `${result.error.message}，请重新询问顾问。`;
+            this.aiRecommendation = null;
+            this.recommendedSeatIds.clear();
+            this.renderAiAdvisor();
+            this.renderSeatMap();
+            return this.notify(result.error.message);
+        }
+        this.draft = result.value.draft;
+        this.aiRecommendation = { ...result.value, source: this.aiRecommendation.source };
+        this.recommendedSeatIds = new Set(result.value.seats.map(seat => seat.id));
+        this.aiAdvisorStatus = '已采用 AI 顾问推荐结果。';
+        this.hideSeatConflict();
+        this.seatMap.rememberFocus(this.draft.selectedSeatIds[0]);
+        this.updateQuote();
+        this.renderAiAdvisor();
+        this.renderSeatMap({ focusSeat: true });
+        this.renderSummary();
+        this.persistDraft();
+        this.notify(result.value.reason);
+        this.announce(`已采用 ${result.value.seats.map(seat => seat.label).join('、')}`);
+    }
+
+    clearAiRecommendation({
+        status = '推荐会预览高亮，采用后才写入本单座位。',
+        render = true
+    } = {}) {
+        this.aiRecommendation = null;
+        this.aiAdvisorStatus = status;
+        this.recommendedSeatIds.clear();
+        this.aiAdvisorRequestId += 1;
+        if (render && element('ai-seat-result')) {
+            this.renderAiAdvisor();
+            this.renderSeatMap();
+        }
     }
 
     updateQuote() {
@@ -562,6 +714,7 @@ class CommercialBookingPage {
         this.renderShowtimes();
         this.renderTickets();
         this.renderDecisionSupport();
+        this.renderAiAdvisor();
         this.renderSeatMap();
         this.renderSummary();
     }
@@ -695,6 +848,49 @@ class CommercialBookingPage {
             partyType: this.partyType
         });
         this.decisionSupport.renderPopularity(this.showPopularity, this.heatPeriod);
+    }
+
+    renderAiAdvisor() {
+        const ready = this.aiAdvisorReady();
+        const textarea = element('ai-seat-preference');
+        const recommendButton = element('ai-seat-recommend');
+        const applyButton = element('ai-seat-apply');
+        const result = element('ai-seat-result');
+        textarea.disabled = !ready || this.aiAdvisorBusy;
+        recommendButton.disabled = !ready || this.aiAdvisorBusy;
+        applyButton.disabled = !this.aiRecommendation || this.aiAdvisorBusy;
+        recommendButton.textContent = this.aiAdvisorBusy ? '推荐中…' : '询问顾问';
+        element('ai-seat-advisor-readiness').textContent = ready ?
+            `当前 ${this.draft.ticketCount} 张票 · ${this.partyType}` :
+            '请先完成第 1 步';
+        element('ai-seat-status').textContent = ready ?
+            this.aiAdvisorStatus :
+            '请先完成第 1 步，确定票种、人数和同行方式后再启用 AI 推荐。';
+        result.hidden = !this.aiRecommendation;
+        if (!this.aiRecommendation) return;
+
+        const tags = element('ai-seat-tags');
+        tags.replaceChildren();
+        seatAdvisorPreferenceLabels(this.aiRecommendation.advisorIntent)
+            .forEach(label => appendText(tags, 'span', label));
+        element('ai-seat-reason').textContent = this.aiRecommendation.reason;
+        const metrics = element('ai-seat-metrics');
+        metrics.replaceChildren();
+        [...(this.aiRecommendation.vectorRows || [])]
+            .sort((left, right) => right.weight - left.weight)
+            .forEach(item => {
+                const metric = document.createElement('div');
+                appendText(metric, 'span', item.label);
+                appendText(metric, 'strong', `${item.value} / 目标 ${item.target}`);
+                appendText(metric, 'small', `权重 ${Math.round(item.weight * 100)}%`);
+                const meter = document.createElement('meter');
+                meter.min = 0;
+                meter.max = 100;
+                meter.value = item.value;
+                meter.setAttribute('aria-label', `${item.label} 当前 ${item.value}，目标 ${item.target}`);
+                metric.append(meter);
+                metrics.append(metric);
+            });
     }
 
     renderSeatMap({ focusSeat = false } = {}) {

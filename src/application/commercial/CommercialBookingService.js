@@ -102,8 +102,25 @@ export class CommercialBookingService {
             draft,
             auditorium: context.value.auditorium,
             inventory: inventory.value,
+            pricingPolicy: context.value.pricingPolicy,
             updatedAt: this.clock.now(),
             policy: selectionPolicy
+        });
+    }
+
+    recommendAiSeats(draft, advisorIntent, selectionPolicy = {}) {
+        const context = this.getBookingContext(draft.showtimeId);
+        if (!context.ok) return context;
+        const inventory = this.getInventory(draft.showtimeId);
+        if (!inventory.ok) return inventory;
+        return recommendSeatBlock({
+            draft,
+            auditorium: context.value.auditorium,
+            inventory: inventory.value,
+            pricingPolicy: context.value.pricingPolicy,
+            updatedAt: this.clock.now(),
+            policy: selectionPolicy,
+            advisorIntent
         });
     }
 

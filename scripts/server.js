@@ -7,6 +7,11 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+    AI_SEAT_ADVISOR_SYSTEM_PROMPT,
+    normalizeSeatAdvisorIntent,
+    parseSeatAdvisorIntentFallback
+} from '../src/application/commercial/AiSeatAdvisor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +19,6 @@ const __rootdir = path.resolve(__dirname, '..');  // 项目根目录
 
 const parsedPort = Number.parseInt(process.env.SMARTCINEMA_PORT || '8080', 10);
 const PORT = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort <= 65535 ? parsedPort : 8080;
-
 // MIME 类型映射
 const mimeTypes = {
     '.html': 'text/html; charset=utf-8',
@@ -27,6 +31,155 @@ const mimeTypes = {
     '.svg': 'image/svg+xml; charset=utf-8'
 };
 
+function loadDotEnv() {
+    const envPath = path.join(__rootdir, '.env');
+    if (!fs.existsSync(envPath)) return;
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const separatorIndex = trimmed.indexOf('=');
+        if (separatorIndex <= 0) return;
+        const key = trimmed.slice(0, separatorIndex).trim();
+        const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+        if (!process.env[key]) process.env[key] = value;
+    });
+}
+
+function sendJson(res, status, payload) {
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(payload));
+}
+
+function readJsonBody(req, limitBytes = 32768) {
+    return new Promise((resolve, reject) => {
+        let raw = '';
+        req.setEncoding('utf8');
+        req.on('data', chunk => {
+            raw += chunk;
+            if (Buffer.byteLength(raw, 'utf8') > limitBytes) {
+                reject(new Error('REQUEST_TOO_LARGE'));
+                req.destroy();
+            }
+        });
+        req.on('end', () => {
+            try {
+                resolve(raw ? JSON.parse(raw) : {});
+            } catch {
+                reject(new Error('INVALID_JSON'));
+            }
+        });
+        req.on('error', reject);
+    });
+}
+
+function extractJsonObject(text) {
+    if (typeof text !== 'string') return null;
+    try {
+        return JSON.parse(text);
+    } catch {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (!match) return null;
+        try {
+            return JSON.parse(match[0]);
+        } catch {
+            return null;
+        }
+    }
+}
+
+function deepSeekTimeoutMs() {
+    const parsed = Number.parseInt(process.env.DEEPSEEK_TIMEOUT_MS || '20000', 10);
+    return Number.isInteger(parsed) && parsed >= 3000 && parsed <= 60000 ? parsed : 20000;
+}
+
+async function requestDeepSeekIntent({ preferenceText, context }) {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) return null;
+    const apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions';
+    const model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+    const timeoutMs = deepSeekTimeoutMs();
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model,
+                response_format: { type: 'json_object' },
+                messages: [
+                    { role: 'system', content: AI_SEAT_ADVISOR_SYSTEM_PROMPT },
+                    {
+                        role: 'user',
+                        content: JSON.stringify({
+                            preferenceText,
+                            context
+                        })
+                    }
+                ],
+                temperature: 0.2
+            })
+        });
+        if (!response.ok) throw new Error(`DEEPSEEK_HTTP_${response.status}`);
+        const payload = await response.json();
+        const content = payload?.choices?.[0]?.message?.content;
+        const parsed = extractJsonObject(content);
+        if (!parsed) throw new Error('DEEPSEEK_INVALID_JSON');
+        console.info(`[AI Seat Advisor] DeepSeek intent parsed in ${Date.now() - startedAt}ms (${model})`);
+        return normalizeSeatAdvisorIntent(parsed);
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw new Error(`DEEPSEEK_TIMEOUT_${timeoutMs}MS`);
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function handleSeatAdvisorIntent(req, res) {
+    let body;
+    try {
+        body = await readJsonBody(req);
+    } catch (error) {
+        const status = error.message === 'REQUEST_TOO_LARGE' ? 413 : 400;
+        sendJson(res, status, { ok: false, error: error.message });
+        return;
+    }
+
+    const preferenceText = typeof body.preferenceText === 'string' ? body.preferenceText.trim() : '';
+    const context = body.context && typeof body.context === 'object' && !Array.isArray(body.context) ?
+        body.context : {};
+    if (!preferenceText) {
+        sendJson(res, 400, { ok: false, error: 'PREFERENCE_REQUIRED' });
+        return;
+    }
+
+    try {
+        const intent = await requestDeepSeekIntent({ preferenceText, context });
+        if (intent) {
+            sendJson(res, 200, { ok: true, source: 'deepseek', intent });
+            return;
+        }
+    } catch (error) {
+        console.warn(`[AI Seat Advisor] DeepSeek unavailable, using fallback: ${error.message}`);
+    }
+
+    sendJson(res, 200, {
+        ok: true,
+        source: 'fallback',
+        intent: parseSeatAdvisorIntentFallback(preferenceText, context)
+    });
+}
+
+loadDotEnv();
+
 const server = http.createServer((req, res) => {
     // 设置 CORS 头
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -37,6 +190,11 @@ const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
+        return;
+    }
+
+    if (req.method === 'POST' && req.url === '/api/ai-seat-advisor/intent') {
+        handleSeatAdvisorIntent(req, res);
         return;
     }
 

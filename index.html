@@ -177,6 +177,28 @@
                         </div>
                     </div>
 
+                    <section class="ai-seat-advisor" id="ai-seat-advisor" aria-labelledby="ai-seat-advisor-title">
+                        <div class="ai-advisor-heading">
+                            <div>
+                                <span class="step-kicker">AI 顾问</span>
+                                <h3 id="ai-seat-advisor-title">说说你想怎么坐</h3>
+                            </div>
+                            <span id="ai-seat-advisor-readiness">已按当前票数推荐</span>
+                        </div>
+                        <div class="ai-advisor-form">
+                            <label class="sr-only" for="ai-seat-preference">观影偏好</label>
+                            <textarea id="ai-seat-preference" rows="2" maxlength="180" placeholder="例如：想安静一点，不要太靠前，最好方便出去"></textarea>
+                            <button class="ai-advisor-submit" id="ai-seat-recommend" type="button">询问顾问</button>
+                        </div>
+                        <p class="ai-advisor-status" id="ai-seat-status" role="status">推荐会预览高亮，采用后才写入本单座位。</p>
+                        <div class="ai-advisor-result" id="ai-seat-result" hidden>
+                            <div class="ai-advisor-tags" id="ai-seat-tags" aria-label="识别出的偏好重点"></div>
+                            <p id="ai-seat-reason"></p>
+                            <div class="ai-advisor-metrics" id="ai-seat-metrics"></div>
+                            <button class="ai-advisor-apply" id="ai-seat-apply" type="button">采用推荐结果</button>
+                        </div>
+                    </section>
+
                     <div class="seat-conflict" id="seat-conflict" role="status" hidden>
                         <div>
                             <strong>刚刚有人抢先选择了部分座位</strong>
