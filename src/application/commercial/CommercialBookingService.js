@@ -5,7 +5,7 @@ import {
     replaceDraftSeats
 } from '../../domain/booking/BookingDraft.js';
 import { quoteBooking } from '../../domain/booking/PricingQuote.js';
-import { recommendSeatBlock } from './RecommendSeatBlock.js';
+import { recommendSeatBlocks } from './RecommendSeatBlock.js';
 import {
     consumeBookingHold,
     expireBookingHold,
@@ -93,18 +93,57 @@ export class CommercialBookingService {
         return replaceDraftSeats(draft, seatIds, this.clock.now());
     }
 
-    recommendSeats(draft, selectionPolicy = {}) {
+    recommendSeats(draft, {
+        selectionPolicy = {},
+        preserveSeatIds = [],
+        limit = 5,
+        includeAlternate = true
+    } = {}) {
         const context = this.getBookingContext(draft.showtimeId);
         if (!context.ok) return context;
         const inventory = this.getInventory(draft.showtimeId);
         if (!inventory.ok) return inventory;
-        return recommendSeatBlock({
+        const candidates = this._recommendationCandidates({
             draft,
-            auditorium: context.value.auditorium,
+            context: context.value,
             inventory: inventory.value,
-            updatedAt: this.clock.now(),
-            policy: selectionPolicy
+            selectionPolicy,
+            preserveSeatIds,
+            limit
         });
+        if (!candidates.ok) return candidates;
+        if (candidates.value.length > 0) {
+            const primary = candidates.value[0];
+            return ok(Object.freeze({
+                status: 'recommended',
+                candidates: candidates.value,
+                alternateShowtime: null,
+                inventoryRevision: inventory.value.revision,
+                // Compatibility aliases for application consumers that only need the first result.
+                draft: primary.draft,
+                seats: primary.seats,
+                reason: primary.reason
+            }));
+        }
+        if (!includeAlternate) {
+            return ok(Object.freeze({
+                status: 'unavailable',
+                candidates: Object.freeze([]),
+                alternateShowtime: null,
+                inventoryRevision: inventory.value.revision
+            }));
+        }
+        const alternate = this._findAlternateShowtimeRecommendation(draft, {
+            selectionPolicy,
+            limit
+        });
+        if (!alternate.ok) return alternate;
+        return ok(Object.freeze({
+            status: alternate.value ? 'alternate-showtime' : 'unavailable',
+            candidates: Object.freeze([]),
+            alternateShowtime: alternate.value,
+            inventoryRevision: inventory.value.revision
+        }));
     }
 
     getSeatDecisionGuide(draft) {
@@ -419,6 +458,97 @@ export class CommercialBookingService {
         });
         if (!persisted.ok) return persisted;
         return ok({ order: persisted.value.ordersById[order.id], state: persisted.value, idempotent: false });
+    }
+
+    _recommendationCandidates({
+        draft,
+        context,
+        inventory,
+        selectionPolicy,
+        preserveSeatIds,
+        limit
+    }) {
+        const candidates = recommendSeatBlocks({
+            draft,
+            auditorium: context.auditorium,
+            inventory,
+            pricingPolicy: context.pricingPolicy,
+            updatedAt: this.clock.now(),
+            policy: selectionPolicy,
+            preserveSeatIds,
+            limit
+        });
+        const enriched = [];
+        for (const candidate of candidates) {
+            const pricingQuote = quoteBooking({
+                draft: candidate.draft,
+                auditorium: context.auditorium,
+                ticketTypesById: this.catalogRepository.getTicketTypesById(),
+                pricingPolicy: context.pricingPolicy,
+                quotedAt: this.clock.now()
+            });
+            if (!pricingQuote.ok) return pricingQuote;
+            enriched.push(Object.freeze({
+                ...candidate,
+                pricingQuote: pricingQuote.value
+            }));
+        }
+        return ok(Object.freeze(enriched));
+    }
+
+    _findAlternateShowtimeRecommendation(draft, { selectionPolicy, limit }) {
+        const current = this.catalogRepository.getShowtime(draft.showtimeId);
+        if (!current) return err('SHOWTIME_NOT_FOUND', '场次不存在或已下架', {
+            showtimeId: draft.showtimeId
+        });
+        const businessDate = current.startsAt.slice(0, 10);
+        const showtimes = this.catalogRepository.listShowtimes({
+            movieId: current.movieId,
+            cinemaId: current.cinemaId,
+            businessDate
+        }).filter(showtime =>
+            showtime.id !== current.id &&
+            this._availabilityForShowtime(showtime, this.clock.now()).bookable
+        ).sort((left, right) => {
+            const leftDistance = Math.abs(Date.parse(left.startsAt) - Date.parse(current.startsAt));
+            const rightDistance = Math.abs(Date.parse(right.startsAt) - Date.parse(current.startsAt));
+            if (leftDistance !== rightDistance) return leftDistance - rightDistance;
+            return Date.parse(left.startsAt) - Date.parse(right.startsAt);
+        });
+
+        for (const showtime of showtimes) {
+            let alternateDraft;
+            try {
+                alternateDraft = createBookingDraft({
+                    ...draft,
+                    showtimeId: showtime.id,
+                    selectedSeatIds: [],
+                    updatedAt: this.clock.now()
+                });
+            } catch (error) {
+                return err('VALIDATION_ERROR', error.message, error.details || {});
+            }
+            const inventory = this.getInventory(showtime.id);
+            if (!inventory.ok) return inventory;
+            const context = this._contextForShowtime(showtime);
+            const candidates = this._recommendationCandidates({
+                draft: alternateDraft,
+                context,
+                inventory: inventory.value,
+                selectionPolicy,
+                preserveSeatIds: [],
+                limit
+            });
+            if (!candidates.ok) return candidates;
+            if (candidates.value.length > 0) {
+                return ok(Object.freeze({
+                    context,
+                    candidates: candidates.value,
+                    inventoryRevision: inventory.value.revision
+                }));
+            }
+        }
+        return ok(null);
     }
 
     _contextForShowtime(showtime) {

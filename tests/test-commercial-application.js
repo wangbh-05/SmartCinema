@@ -1,5 +1,8 @@
 import { CommercialBookingService } from '../src/application/commercial/CommercialBookingService.js';
-import { recommendSeatBlock } from '../src/application/commercial/RecommendSeatBlock.js';
+import {
+    recommendSeatBlock,
+    recommendSeatBlocks
+} from '../src/application/commercial/RecommendSeatBlock.js';
 import { createBookingDraft } from '../src/domain/booking/BookingDraft.js';
 import { createShowtimeInventory } from '../src/domain/booking/ShowtimeInventory.js';
 import { createSettings } from '../src/domain/user/Settings.js';
@@ -143,8 +146,8 @@ class TestCommercialApplication {
             const recommended = deps.service.recommendSeats(protectedAudience.value);
             this.assertTrue(recommended.ok, recommended.error?.message);
             this.assertTrue(recommended.value.seats.every(seat => seat.rowIndex >= 3 && seat.rowIndex <= 6));
-            this.assertTrue(recommended.value.reason.includes('儿童票已避开前三排'));
-            this.assertTrue(recommended.value.reason.includes('长者票已避开后三排'));
+            this.assertTrue(recommended.value.reason.includes('已避开前三排'));
+            this.assertTrue(recommended.value.reason.includes('已避开后三排'));
             const guide = deps.service.getSeatDecisionGuide(recommended.value.draft);
             this.assertTrue(guide.ok);
             this.assertEqual(guide.value.dimensions.length, 4);
@@ -181,8 +184,7 @@ class TestCommercialApplication {
             this.assertEqual(coupleSeats[1].columnIndex, coupleSeats[0].columnIndex + 1);
             this.assertTrue(coupleSeats[0].rowIndex >= 5 && coupleSeats[0].rowIndex <= 7);
             this.assertTrue(coupleSeats.every(seat => seat.sectionId === 'center'));
-            this.assertTrue(coupleRecommended.value.reason.includes('中后排中央连座'));
-            this.assertTrue(coupleRecommended.value.reason.includes('周边空位'));
+            this.assertTrue(coupleRecommended.value.reason.includes('同排连座'));
 
             const largeHallGroup = deps.service.createDraft({
                 showtimeId: 'showtime:c1-a0-s1-m5:2026-07-18',
@@ -197,6 +199,236 @@ class TestCommercialApplication {
             this.assertTrue(largeHallRecommended.value.seats.every(seat =>
                 seat.rowIndex === largeHallRecommended.value.seats[0].rowIndex
             ));
+        });
+
+        this.test('推荐应返回差异化候选、如实解释偏好并分级放宽年龄限制', () => {
+            const deps = this._deps();
+            const context = deps.service.getBookingContext(deps.showtimeId).value;
+            const draft = createBookingDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'child', quantity: 2 }],
+                partyType: 'family',
+                preferences: ['center', 'aisle'],
+                updatedAt: NOW
+            });
+            const inventory = createShowtimeInventory({
+                showtimeId: deps.showtimeId,
+                updatedAt: NOW
+            });
+            const candidates = recommendSeatBlocks({
+                draft,
+                auditorium: context.auditorium,
+                inventory,
+                pricingPolicy: context.pricingPolicy
+            });
+            this.assertTrue(candidates.length > 1);
+            this.assertTrue(candidates.length <= 5);
+            this.assertEqual(
+                new Set(candidates.map(candidate => candidate.seats.map(seat => seat.id).join('|'))).size,
+                candidates.length
+            );
+            this.assertTrue(candidates[0].reason.includes('已推荐'));
+            this.assertEqual(
+                candidates[0].satisfiedPreferences.length + candidates[0].unmetPreferences.length,
+                2
+            );
+
+            const frontOnlyIds = new Set(
+                context.auditorium.seats
+                    .filter(seat => seat.rowIndex === 1 && ['standard', 'premium'].includes(seat.kind))
+                    .map(seat => seat.id)
+            );
+            const frontOnlyInventory = createShowtimeInventory({
+                showtimeId: deps.showtimeId,
+                soldSeatIds: context.auditorium.seats
+                    .filter(seat => !frontOnlyIds.has(seat.id))
+                    .map(seat => seat.id),
+                updatedAt: NOW
+            });
+            const frontRecommendation = recommendSeatBlock({
+                draft: createBookingDraft({
+                    ...draft,
+                    preferences: [],
+                    updatedAt: NOW
+                }),
+                auditorium: context.auditorium,
+                inventory: frontOnlyInventory
+            });
+            this.assertTrue(frontRecommendation.ok, frontRecommendation.error?.message);
+            this.assertTrue(frontRecommendation.value.seats.every(seat => seat.rowIndex === 1));
+            this.assertEqual(frontRecommendation.value.constraints.ageStatus, 'relaxed');
+            this.assertTrue(frontRecommendation.value.reason.includes('当前没有符合年龄建议'));
+        });
+
+        this.test('年龄合规的相邻排应优先于年龄不合规的同排连座', () => {
+            const deps = this._deps();
+            const context = deps.service.getBookingContext(deps.showtimeId).value;
+            const auditorium = context.auditorium;
+            const childDraft = createBookingDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'child', quantity: 5 }],
+                partyType: 'family',
+                preferences: ['center'],
+                updatedAt: NOW
+            });
+            const childAvailable = new Set(
+                auditorium.seats.filter(seat =>
+                    (seat.rowIndex === 1 && seat.columnIndex >= 2 && seat.columnIndex <= 6) ||
+                    (seat.rowIndex === 4 && seat.columnIndex >= 3 && seat.columnIndex <= 5) ||
+                    (seat.rowIndex === 5 && seat.columnIndex >= 3 && seat.columnIndex <= 4)
+                ).map(seat => seat.id)
+            );
+            const childInventory = createShowtimeInventory({
+                showtimeId: deps.showtimeId,
+                soldSeatIds: auditorium.seats
+                    .filter(seat => !childAvailable.has(seat.id))
+                    .map(seat => seat.id),
+                updatedAt: NOW
+            });
+            const childCandidates = recommendSeatBlocks({
+                draft: childDraft,
+                auditorium,
+                inventory: childInventory
+            });
+            this.assertTrue(childCandidates.length > 0);
+            this.assertTrue(childCandidates.every(candidate =>
+                candidate.constraints.ageStatus === 'satisfied'
+            ));
+            this.assertEqual(childCandidates[0].arrangement.type, 'adjacent-rows');
+            this.assertTrue(childCandidates[0].seats.every(seat => seat.rowIndex >= 3));
+            this.assertEqual(childCandidates[0].arrangement.blocks.length, 2);
+            this.assertTrue(childCandidates[0].arrangement.centerOffset <= 1);
+
+            const seniorDraft = createBookingDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'senior', quantity: 5 }],
+                partyType: 'family',
+                preferences: ['center'],
+                updatedAt: NOW
+            });
+            const seniorAvailable = new Set(
+                auditorium.seats.filter(seat =>
+                    (seat.rowIndex === 8 && seat.columnIndex >= 2 && seat.columnIndex <= 6) ||
+                    (seat.rowIndex === 3 && seat.columnIndex >= 3 && seat.columnIndex <= 5) ||
+                    (seat.rowIndex === 4 && seat.columnIndex >= 3 && seat.columnIndex <= 4)
+                ).map(seat => seat.id)
+            );
+            const seniorInventory = createShowtimeInventory({
+                showtimeId: deps.showtimeId,
+                soldSeatIds: auditorium.seats
+                    .filter(seat => !seniorAvailable.has(seat.id))
+                    .map(seat => seat.id),
+                updatedAt: NOW
+            });
+            const seniorCandidates = recommendSeatBlocks({
+                draft: seniorDraft,
+                auditorium,
+                inventory: seniorInventory
+            });
+            this.assertTrue(seniorCandidates.length > 0);
+            this.assertTrue(seniorCandidates.every(candidate =>
+                candidate.constraints.ageStatus === 'satisfied'
+            ));
+            this.assertEqual(seniorCandidates[0].arrangement.type, 'adjacent-rows');
+            this.assertTrue(seniorCandidates[0].seats.every(seat => seat.rowIndex <= 6));
+        });
+
+        this.test('相邻排只接受紧凑且人数分配合理的两块座位', () => {
+            const deps = this._deps();
+            const context = deps.service.getBookingContext(deps.showtimeId).value;
+            const auditorium = context.auditorium;
+            const draft = createBookingDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 4 }],
+                partyType: 'family',
+                preferences: [],
+                updatedAt: NOW
+            });
+            const candidatesFor = availableSeats => recommendSeatBlocks({
+                draft,
+                auditorium,
+                inventory: createShowtimeInventory({
+                    showtimeId: deps.showtimeId,
+                    soldSeatIds: auditorium.seats
+                        .filter(seat => !availableSeats.has(seat.id))
+                        .map(seat => seat.id),
+                    updatedAt: NOW
+                })
+            });
+
+            const onePlusThree = new Set(
+                auditorium.seats.filter(seat =>
+                    (seat.rowIndex === 4 && seat.columnIndex === 3) ||
+                    (seat.rowIndex === 5 && seat.columnIndex >= 2 && seat.columnIndex <= 4)
+                ).map(seat => seat.id)
+            );
+            this.assertEqual(candidatesFor(onePlusThree).length, 0);
+
+            const misaligned = new Set(
+                auditorium.seats.filter(seat =>
+                    (seat.rowIndex === 4 && seat.columnIndex >= 2 && seat.columnIndex <= 3) ||
+                    (seat.rowIndex === 5 && seat.columnIndex >= 6 && seat.columnIndex <= 7)
+                ).map(seat => seat.id)
+            );
+            this.assertEqual(candidatesFor(misaligned).length, 0);
+
+            const compact = new Set(
+                auditorium.seats.filter(seat =>
+                    (seat.rowIndex === 4 && seat.columnIndex >= 3 && seat.columnIndex <= 4) ||
+                    (seat.rowIndex === 5 && seat.columnIndex >= 3 && seat.columnIndex <= 4)
+                ).map(seat => seat.id)
+            );
+            const compactCandidates = candidatesFor(compact);
+            this.assertTrue(compactCandidates.length > 0);
+            this.assertEqual(compactCandidates[0].arrangement.type, 'adjacent-rows');
+            this.assertEqual(compactCandidates[0].arrangement.blockSizeDifference, 0);
+            this.assertEqual(compactCandidates[0].arrangement.centerOffset, 0);
+        });
+
+        this.test('无台阶偏好应作为硬约束且应用接口返回报价候选', () => {
+            const deps = this._deps();
+            const draft = deps.service.createDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+                preferences: ['step-free']
+            });
+            const result = deps.service.recommendSeats(draft.value);
+            this.assertTrue(result.ok, result.error?.message);
+            this.assertEqual(result.value.status, 'recommended');
+            this.assertTrue(result.value.candidates.length > 0);
+            this.assertTrue(result.value.candidates.every(candidate =>
+                candidate.seats.every(seat => seat.stepFree)
+            ));
+            this.assertTrue(result.value.candidates[0].pricingQuote.total.amount > 0);
+        });
+
+        this.test('当前场次没有连座时应推荐时间最近的同日场次', () => {
+            const deps = this._deps();
+            const context = deps.service.getBookingContext(deps.showtimeId).value;
+            const current = deps.repository.read().value;
+            const updated = deps.repository.update(current.revision, state => {
+                state.inventoriesByShowtime[deps.showtimeId] = createShowtimeInventory({
+                    showtimeId: deps.showtimeId,
+                    revision: 1,
+                    soldSeatIds: context.auditorium.seats.map(seat => seat.id),
+                    updatedAt: NOW
+                });
+            });
+            this.assertTrue(updated.ok, updated.error?.message);
+            const draft = deps.service.createDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+                preferences: ['center']
+            });
+            const result = deps.service.recommendSeats(draft.value);
+            this.assertTrue(result.ok, result.error?.message);
+            this.assertEqual(result.value.status, 'alternate-showtime');
+            this.assertTrue(Boolean(result.value.alternateShowtime));
+            this.assertTrue(result.value.alternateShowtime.candidates[0].draft.showtimeId !== deps.showtimeId);
+            this.assertEqual(
+                result.value.alternateShowtime.context.showtime.startsAt.slice(0, 10),
+                context.showtime.startsAt.slice(0, 10)
+            );
         });
 
         this.test('智能推荐应允许连续座位跨越过道', () => {

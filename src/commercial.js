@@ -28,6 +28,21 @@ function canSelectSeatGroup(seats) {
     );
 }
 
+function audienceSeatWarning(draft, seats, auditorium) {
+    if (seats.length !== draft.ticketCount) return '';
+    const ticketTypeIds = new Set(draft.ticketItems.map(item => item.ticketTypeId));
+    const maxRowIndex = Math.max(...auditorium.seats.map(seat => seat.rowIndex), 0);
+    const warnings = [];
+    if (ticketTypeIds.has('child') && seats.some(seat => seat.rowIndex < Math.min(3, maxRowIndex))) {
+        warnings.push('当前选择包含儿童不建议的前三排座位');
+    }
+    if (ticketTypeIds.has('senior') &&
+        seats.some(seat => seat.rowIndex > Math.max(0, maxRowIndex - 3))) {
+        warnings.push('当前选择包含长者不建议的后三排座位');
+    }
+    return warnings.length > 0 ? `${warnings.join('；')}，你仍可继续购票。` : '';
+}
+
 class CommercialBookingPage {
     constructor(app) {
         this.app = app;
@@ -46,9 +61,21 @@ class CommercialBookingPage {
         this.heatPeriod = 'week';
         this.popularityBySeat = {};
         this.recommendedSeatIds = new Set();
+        this.recommendationSession = this.emptyRecommendationSession();
+        this.alternateRecommendation = null;
+        this.recommendationUndoTimer = null;
         this.toastTimer = null;
         this.pendingOrdersOpen = false;
         this.posterRequestId = 0;
+    }
+
+    emptyRecommendationSession(origin = 'none') {
+        return {
+            origin,
+            signature: null,
+            candidates: [],
+            currentIndex: -1
+        };
     }
 
     start() {
@@ -185,12 +212,14 @@ class CommercialBookingPage {
             if (button) this.togglePreference(button.dataset.preference, button);
         });
         element('recommend-seats').addEventListener('click', () => this.recommendSeats());
-        element('seat-conflict-recommend').addEventListener('click', () => this.recommendSeats());
+        element('recommendation-alternate').addEventListener('click', () => this.applyAlternateShowtime());
+        element('recommendation-dismiss').addEventListener('click', () => this.hideRecommendationFeedback());
         element('heat-period-controls').addEventListener('click', event => {
             const button = event.target.closest('[data-heat-period]');
             if (button) this.changeHeatPeriod(button.dataset.heatPeriod);
         });
         element('accessible-acknowledgement').addEventListener('change', event => {
+            this.resetRecommendationSession('manual');
             this.rebuildDraft({
                 preserveSeats: true,
                 accessibilityAcknowledged: event.currentTarget.checked
@@ -325,6 +354,7 @@ class CommercialBookingPage {
         }
         this.context = context.value;
         this.recommendedSeatIds.clear();
+        this.resetRecommendationSession(restoredDraft?.selectedSeatIds?.length > 0 ? 'manual' : 'none');
         this.showtimes = this.catalogController.list(this.catalogSelection());
         this.inventory = inventory.value;
         this.refreshSeatGuidance();
@@ -340,6 +370,7 @@ class CommercialBookingPage {
         this.quote = null;
         this.seatMap.resetFocus();
         this.hideSeatConflict();
+        this.hideRecommendationFeedback();
         this.updateQuote();
         this.renderAll();
         if (persist) this.persistDraft();
@@ -372,6 +403,7 @@ class CommercialBookingPage {
         if (next < 0 || nextTotal < 1 || nextTotal > this.ticketLimit) return;
         const hadSeats = this.draft.selectedSeatIds.length > 0;
         this.recommendedSeatIds.clear();
+        this.resetRecommendationSession();
         this.ticketQuantities.set(ticketTypeId, next);
         this.syncPartyType(this.partyType);
         this.hideSeatConflict();
@@ -390,17 +422,24 @@ class CommercialBookingPage {
         if (partyType === this.partyType) return;
         this.partyType = partyType;
         this.recommendedSeatIds.clear();
+        this.resetRecommendationSession(this.draft.selectedSeatIds.length > 0 ? 'manual' : 'none');
         const hadSeats = this.draft.selectedSeatIds.length > 0;
         this.rebuildDraft({ preserveSeats: true });
         if (hadSeats) this.notify('同行方式已更新；现有座位保留，可重新请求更合适的连座');
     }
 
     togglePreference(preference, button) {
+        const shouldRecompute = this.recommendationSession.origin === 'recommendation';
+        const undoSnapshot = shouldRecompute ? this.captureRecommendationSnapshot() : null;
         if (this.preferences.has(preference)) this.preferences.delete(preference);
         else this.preferences.add(preference);
         button.setAttribute('aria-pressed', String(this.preferences.has(preference)));
         this.recommendedSeatIds.clear();
+        this.resetRecommendationSession(
+            shouldRecompute ? 'none' : (this.draft.selectedSeatIds.length > 0 ? 'manual' : 'none')
+        );
         this.rebuildDraft({ preserveSeats: true });
+        if (shouldRecompute) this.recommendSeats({ undoSnapshot });
     }
 
     togglePopularity() {
@@ -500,6 +539,9 @@ class CommercialBookingPage {
         const replaced = this.booking.replaceSeats(this.draft, [...selected]);
         if (!replaced.ok) return this.notify(replaced.error.message);
         this.draft = replaced.value;
+        this.resetRecommendationSession('manual');
+        this.recommendedSeatIds.clear();
+        this.hideRecommendationFeedback();
         this.hideSeatConflict();
         this.updateQuote();
         this.renderSeatMap();
@@ -534,6 +576,9 @@ class CommercialBookingPage {
         const replaced = this.booking.replaceSeats(this.draft, [...selected]);
         if (!replaced.ok) return this.notify(replaced.error.message);
         this.draft = replaced.value;
+        this.resetRecommendationSession('manual');
+        this.recommendedSeatIds.clear();
+        this.hideRecommendationFeedback();
         this.seatMap.rememberFocus(additions[0].id);
         this.hideSeatConflict();
         this.updateQuote();
@@ -543,19 +588,260 @@ class CommercialBookingPage {
         this.announce(`已框选 ${additions.map(seat => seat.label).join('、')}`);
     }
 
-    recommendSeats() {
-        const result = this.booking.recommendSeats(this.draft);
-        if (!result.ok) return this.notify(result.error.message);
-        this.draft = result.value.draft;
-        this.recommendedSeatIds = new Set(result.value.seats.map(seat => seat.id));
-        this.hideSeatConflict();
-        this.seatMap.rememberFocus(this.draft.selectedSeatIds[0]);
-        this.updateQuote();
+    recommendationSignature(inventoryRevision = this.inventory?.revision ?? 0) {
+        return JSON.stringify({
+            showtimeId: this.draft.showtimeId,
+            ticketItems: this.draft.ticketItems,
+            partyType: this.draft.partyType,
+            preferences: this.draft.preferences,
+            accessibilityAcknowledged: this.draft.accessibilityAcknowledged,
+            inventoryRevision
+        });
+    }
+
+    resetRecommendationSession(origin = 'none') {
+        this.recommendationSession = this.emptyRecommendationSession(origin);
+        this.alternateRecommendation = null;
+        if (this.recommendationUndoTimer !== null) {
+            window.clearTimeout(this.recommendationUndoTimer);
+            this.recommendationUndoTimer = null;
+        }
+        const undo = element('recommendation-undo');
+        if (undo) {
+            undo.hidden = true;
+            undo.onclick = null;
+        }
+        const feedback = element('recommendation-feedback');
+        if (feedback) feedback.hidden = true;
+        this.renderRecommendationControls();
+    }
+
+    renderRecommendationControls() {
+        const button = element('recommend-seats');
+        const label = element('recommend-seats-label');
+        const count = element('recommendation-count');
+        if (!button || !label || !count) return;
+        const isRecommendation = this.recommendationSession.origin === 'recommendation' &&
+            this.recommendationSession.candidates.length > 0;
+        label.textContent = isRecommendation ?
+            (this.recommendationSession.candidates.length === 1 ? '已是唯一连座' : '换一组') :
+            '智能选座';
+        button.disabled = isRecommendation && this.recommendationSession.candidates.length === 1;
+        count.hidden = !isRecommendation || this.recommendationSession.candidates.length === 1;
+        if (!count.hidden) {
+            count.textContent =
+                `方案 ${this.recommendationSession.currentIndex + 1}/${this.recommendationSession.candidates.length}`;
+        }
+    }
+
+    captureRecommendationSnapshot() {
+        return {
+            draft: this.draft,
+            quote: this.quote,
+            preferences: [...this.preferences],
+            recommendedSeatIds: [...this.recommendedSeatIds],
+            session: {
+                ...this.recommendationSession,
+                candidates: [...this.recommendationSession.candidates]
+            }
+        };
+    }
+
+    syncPreferenceButtons() {
+        document.querySelectorAll('[data-preference]').forEach(button => {
+            button.setAttribute('aria-pressed', String(this.preferences.has(button.dataset.preference)));
+        });
+    }
+
+    offerRecommendationUndo(snapshot) {
+        if (!snapshot) return;
+        const undo = element('recommendation-undo');
+        undo.hidden = false;
+        undo.onclick = () => this.undoAutomaticRecommendation(snapshot);
+        if (this.recommendationUndoTimer !== null) {
+            window.clearTimeout(this.recommendationUndoTimer);
+        }
+        this.recommendationUndoTimer = window.setTimeout(() => {
+            undo.hidden = true;
+            undo.onclick = null;
+            this.recommendationUndoTimer = null;
+        }, 5000);
+    }
+
+    undoAutomaticRecommendation(snapshot = null) {
+        if (!snapshot) return;
+        if (this.recommendationUndoTimer !== null) {
+            window.clearTimeout(this.recommendationUndoTimer);
+            this.recommendationUndoTimer = null;
+        }
+        this.preferences = new Set(snapshot.preferences);
+        this.syncPreferenceButtons();
+        this.draft = snapshot.draft;
+        this.quote = snapshot.quote;
+        this.recommendedSeatIds = new Set(snapshot.recommendedSeatIds);
+        this.recommendationSession = {
+            ...snapshot.session,
+            candidates: [...snapshot.session.candidates]
+        };
+        element('recommendation-undo').hidden = true;
+        element('recommendation-undo').onclick = null;
+        const candidate = this.recommendationSession.candidates[this.recommendationSession.currentIndex];
+        if (candidate) {
+            this.showRecommendationFeedback({
+                title: '已撤销偏好换座',
+                message: candidate.reason
+            });
+        } else {
+            this.hideRecommendationFeedback();
+        }
+        this.renderRecommendationControls();
         this.renderSeatMap({ focusSeat: true });
         this.renderSummary();
         this.persistDraft();
-        this.notify(result.value.reason);
-        this.announce(`已推荐 ${result.value.seats.map(seat => seat.label).join('、')}`);
+        this.announce('已恢复上一组推荐座位');
+    }
+
+    showRecommendationFeedback({
+        title = '智能选座',
+        message,
+        alternate = null,
+        showDismiss = false
+    }) {
+        const feedback = element('recommendation-feedback');
+        element('recommendation-feedback-title').textContent = title;
+        element('recommendation-feedback-message').textContent = message;
+        const alternateButton = element('recommendation-alternate');
+        const dismissButton = element('recommendation-dismiss');
+        alternateButton.hidden = !alternate;
+        dismissButton.hidden = !showDismiss;
+        if (alternate) {
+            alternateButton.textContent = `选择 ${formatTime(alternate.context.showtime.startsAt)} 场`;
+        }
+        feedback.hidden = false;
+    }
+
+    hideRecommendationFeedback() {
+        element('recommendation-feedback').hidden = true;
+        element('recommendation-alternate').hidden = true;
+        element('recommendation-dismiss').hidden = true;
+        element('recommendation-undo').hidden = true;
+    }
+
+    applyRecommendationCandidate(index, {
+        undoSnapshot = null,
+        conflictRecovery = false,
+        wrapped = false
+    } = {}) {
+        const candidate = this.recommendationSession.candidates[index];
+        if (!candidate) return;
+        this.recommendationSession.currentIndex = index;
+        this.recommendationSession.origin = 'recommendation';
+        this.draft = candidate.draft;
+        this.quote = candidate.pricingQuote;
+        this.recommendedSeatIds = new Set(candidate.seats.map(seat => seat.id));
+        this.hideSeatConflict();
+        this.seatMap.rememberFocus(this.draft.selectedSeatIds[0]);
+        this.renderRecommendationControls();
+        this.renderSeatMap({ focusSeat: true });
+        this.renderSummary();
+        this.persistDraft();
+        if (!undoSnapshot && this.recommendationUndoTimer !== null) {
+            window.clearTimeout(this.recommendationUndoTimer);
+            this.recommendationUndoTimer = null;
+            element('recommendation-undo').hidden = true;
+            element('recommendation-undo').onclick = null;
+        }
+        this.showRecommendationFeedback({
+            title: conflictRecovery ? '已自动调整座位' : '智能选座',
+            message: candidate.reason
+        });
+        this.offerRecommendationUndo(undoSnapshot);
+        const announcement = wrapped ?
+            `已回到第一组推荐，${candidate.seats.map(seat => seat.label).join('、')}` :
+            `${conflictRecovery ? '已调整为' : '已推荐'} ${candidate.seats.map(seat => seat.label).join('、')}`;
+        this.announce(announcement);
+    }
+
+    recommendSeats({
+        preserveSeatIds = [],
+        undoSnapshot = null,
+        conflictRecovery = false
+    } = {}) {
+        const canCycle = preserveSeatIds.length === 0 &&
+            !undoSnapshot &&
+            this.recommendationSession.origin === 'recommendation' &&
+            this.recommendationSession.signature === this.recommendationSignature() &&
+            this.recommendationSession.candidates.length > 1;
+        if (canCycle) {
+            const nextIndex =
+                (this.recommendationSession.currentIndex + 1) % this.recommendationSession.candidates.length;
+            this.applyRecommendationCandidate(nextIndex, {
+                wrapped: nextIndex === 0
+            });
+            return;
+        }
+
+        const result = this.booking.recommendSeats(this.draft, { preserveSeatIds });
+        if (!result.ok) return this.notify(result.error.message);
+        if (result.value.status === 'recommended') {
+            const inventory = this.booking.getInventory(this.draft.showtimeId);
+            if (inventory.ok) this.inventory = inventory.value;
+            this.recommendationSession = {
+                origin: 'recommendation',
+                signature: this.recommendationSignature(result.value.inventoryRevision),
+                candidates: [...result.value.candidates],
+                currentIndex: 0
+            };
+            this.applyRecommendationCandidate(0, {
+                undoSnapshot,
+                conflictRecovery
+            });
+            return;
+        }
+
+        this.resetRecommendationSession(this.draft.selectedSeatIds.length > 0 ? 'manual' : 'none');
+        if (result.value.status === 'alternate-showtime') {
+            this.alternateRecommendation = result.value.alternateShowtime;
+            const alternate = result.value.alternateShowtime;
+            this.showRecommendationFeedback({
+                title: '当前场次没有完整连座',
+                message: `${formatTime(alternate.context.showtime.startsAt)} 场有符合条件的完整连座。`,
+                alternate,
+                showDismiss: true
+            });
+            element('recommendation-alternate').focus();
+            this.announce(`当前场次没有完整连座，建议选择 ${formatTime(alternate.context.showtime.startsAt)} 场`);
+            return;
+        }
+        this.showRecommendationFeedback({
+            title: '当前没有完整连座',
+            message: '你可以留在本场手动选择其他座位组合。',
+            showDismiss: true
+        });
+        this.notify('当前场次及相邻场次都没有符合条件的完整连座');
+    }
+
+    applyAlternateShowtime() {
+        const alternate = this.alternateRecommendation;
+        const candidate = alternate?.candidates?.[0];
+        if (!alternate || !candidate) return;
+        const changed = this.selectShowtime(alternate.context.showtime.id, {
+            announce: false,
+            restoredDraft: candidate.draft
+        });
+        if (!changed) return;
+        this.recommendationSession = {
+            origin: 'recommendation',
+            signature: this.recommendationSignature(alternate.inventoryRevision),
+            candidates: [...alternate.candidates],
+            currentIndex: 0
+        };
+        this.alternateRecommendation = null;
+        this.applyRecommendationCandidate(0);
+        this.catalogController.render(this.catalogSelection());
+        this.announce(
+            `已切换到 ${formatTime(this.context.showtime.startsAt)} 场并推荐 ${candidate.seats.map(seat => seat.label).join('、')}`
+        );
     }
 
     updateQuote() {
@@ -719,6 +1005,11 @@ class CommercialBookingPage {
             this.context.auditorium.seats.find(seat => seat.id === id)
         ).filter(Boolean);
         const missing = this.draft.ticketCount - selectedSeats.length;
+        const audienceGuidance = element('audience-seat-guidance');
+        const warning = this.recommendationSession.origin === 'manual' ?
+            audienceSeatWarning(this.draft, selectedSeats, this.context.auditorium) : '';
+        audienceGuidance.textContent = warning;
+        audienceGuidance.hidden = warning.length === 0;
         element('summary-ticket-count').textContent = `${this.draft.ticketCount} 张`;
         const seatList = element('selected-seat-list');
         seatList.replaceChildren();
@@ -813,7 +1104,9 @@ class CommercialBookingPage {
         const removed = this.draft.selectedSeatIds.filter(seatId =>
             unavailable.has(seatId) || conflictingSeatIds.includes(seatId)
         );
-        const remaining = this.draft.selectedSeatIds.filter(seatId => !unavailable.has(seatId));
+        const remaining = this.draft.selectedSeatIds.filter(seatId =>
+            !unavailable.has(seatId) && !conflictingSeatIds.includes(seatId)
+        );
         const replaced = this.booking.replaceSeats(this.draft, remaining);
         if (replaced.ok) this.draft = replaced.value;
         this.updateQuote();
@@ -824,12 +1117,14 @@ class CommercialBookingPage {
             this.context.auditorium.seats.find(seat => seat.id === id)?.label || id
         );
         element('seat-conflict-message').textContent = labels.length > 0 ?
-            `${labels.join('、')} 已不可用并从本单移除。` :
-            '原座位组合已不可用并从本单移除。';
+            `${labels.join('、')} 已不可用，正在为你调整到最近的完整连座。` :
+            '原座位组合已不可用，正在为你调整到最近的完整连座。';
         element('seat-conflict').hidden = false;
-        element('seat-conflict-recommend').focus();
-        this.notify('座位库存刚刚发生变化，请重新选择');
-        this.announce('部分座位已被其他观众抢先选择，已从本单移除');
+        this.announce('部分座位已被其他观众抢先选择，正在自动调整');
+        this.recommendSeats({
+            preserveSeatIds: remaining,
+            conflictRecovery: true
+        });
     }
 
     hideSeatConflict() {
@@ -839,7 +1134,12 @@ class CommercialBookingPage {
     refreshInventory() {
         const inventory = this.booking.getInventory(this.context.showtime.id);
         if (!inventory.ok) return;
+        const revisionChanged = this.inventory && this.inventory.revision !== inventory.value.revision;
         this.inventory = inventory.value;
+        if (revisionChanged && this.recommendationSession.origin === 'recommendation') {
+            this.resetRecommendationSession(this.draft.selectedSeatIds.length > 0 ? 'manual' : 'none');
+            this.recommendedSeatIds.clear();
+        }
         this.renderSeatMap();
         this.renderSummary();
     }

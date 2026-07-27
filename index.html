@@ -163,8 +163,10 @@
                     <div class="seat-tools" aria-label="座位推荐偏好">
                         <div class="seat-tool-actions">
                             <button class="recommend-button" id="recommend-seats" type="button">
-                                <span aria-hidden="true">✦</span> 帮我选连座
+                                <span aria-hidden="true">✦</span>
+                                <span id="recommend-seats-label">智能选座</span>
                             </button>
+                            <span class="recommendation-count" id="recommendation-count" hidden></span>
                             <button class="seat-guide-toggle" id="toggle-popularity" type="button" aria-pressed="false">
                                 <span aria-hidden="true">◌</span> 显示热度参考
                             </button>
@@ -173,16 +175,29 @@
                             <button type="button" data-preference="center" aria-pressed="true">靠中间</button>
                             <button type="button" data-preference="back" aria-pressed="false">靠后排</button>
                             <button type="button" data-preference="aisle" aria-pressed="false">靠过道</button>
-                            <button type="button" data-preference="step-free" aria-pressed="false">无台阶</button>
+                            <button type="button" data-preference="step-free" aria-pressed="false">需要无台阶通行</button>
                         </div>
                     </div>
+
+                    <div class="recommendation-feedback" id="recommendation-feedback" role="status" hidden>
+                        <div>
+                            <strong id="recommendation-feedback-title">座位推荐</strong>
+                            <span id="recommendation-feedback-message"></span>
+                        </div>
+                        <div class="recommendation-feedback-actions">
+                            <button id="recommendation-undo" type="button" hidden>撤销</button>
+                            <button id="recommendation-alternate" type="button" hidden></button>
+                            <button id="recommendation-dismiss" type="button" hidden>留在本场手动选座</button>
+                        </div>
+                    </div>
+
+                    <p class="audience-seat-guidance" id="audience-seat-guidance" role="status" hidden></p>
 
                     <div class="seat-conflict" id="seat-conflict" role="status" hidden>
                         <div>
                             <strong>刚刚有人抢先选择了部分座位</strong>
                             <span id="seat-conflict-message">已移除不可用座位，你可以继续手动选择。</span>
                         </div>
-                        <button id="seat-conflict-recommend" type="button">重新推荐连座</button>
                     </div>
 
                     <div class="seat-stage">

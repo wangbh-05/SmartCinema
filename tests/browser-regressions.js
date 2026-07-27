@@ -197,6 +197,10 @@ async function run() {
             assertContract(!doc.querySelector('[data-party-type="family"]').disabled, '两张票不能主动选择家庭观影');
             assertContract(doc.querySelector('[data-party-type="solo"]').disabled, '两张票仍允许选择单人观影');
             assertContract(doc.querySelector('[data-party-type="group"]').disabled, '两张票仍允许选择团体观影');
+            assertContract(
+                doc.getElementById('recommend-seats-label').textContent === '智能选座',
+                '推荐入口没有使用“智能选座”名称'
+            );
             recommend(doc);
             await delay();
             assertContract(!doc.getElementById('seat-decision-guide').hidden, '选座后没有显示座位体验说明');
@@ -221,6 +225,92 @@ async function run() {
             assertContract(selected.length === 2, `推荐选择了 ${selected.length} 个座位而非 2 个`);
             assertContract(total.startsWith('¥') && total !== '—', `总价未形成：${total}`);
             assertContract(!doc.getElementById('continue-booking').disabled, '座位选满后继续按钮仍禁用');
+            assertContract(
+                doc.getElementById('recommend-seats-label').textContent === '换一组',
+                '推荐成功后入口没有切换为“换一组”'
+            );
+            assertContract(!doc.getElementById('recommendation-count').hidden, '多候选没有显示方案计数');
+            const firstRecommendedIds = [...selected].map(button => button.dataset.seatId).join('|');
+            doc.getElementById('recommend-seats').click();
+            await delay();
+            const secondRecommendedIds = [...doc.querySelectorAll('.seat-button.is-selected')]
+                .map(button => button.dataset.seatId).join('|');
+            assertContract(secondRecommendedIds !== firstRecommendedIds, '换一组没有切换座位组合');
+
+            const aislePreference = doc.querySelector('[data-preference="aisle"]');
+            aislePreference.click();
+            await delay();
+            assertContract(
+                aislePreference.getAttribute('aria-pressed') === 'true',
+                '推荐来源下偏好没有即时生效'
+            );
+            assertContract(!doc.getElementById('recommendation-undo').hidden, '自动换座后没有提供短时撤销');
+            doc.getElementById('recommendation-undo').click();
+            await delay();
+            assertContract(
+                aislePreference.getAttribute('aria-pressed') === 'false',
+                '撤销没有恢复上一组偏好'
+            );
+
+            const stepFreePreference = doc.querySelector('[data-preference="step-free"]');
+            stepFreePreference.click();
+            await delay();
+            const stepFreeSeatIds = [...doc.querySelectorAll('.seat-button.is-selected')]
+                .map(button => button.dataset.seatId);
+            assertContract(
+                stepFreeSeatIds.length === 2 && stepFreeSeatIds.every(id => id.startsWith('H-')),
+                `无台阶需求返回了其他排座位：${stepFreeSeatIds.join(', ')}`
+            );
+            doc.getElementById('recommendation-undo').click();
+            await delay();
+
+            const manuallyRemoved = doc.querySelector('.seat-button.is-selected');
+            manuallyRemoved.click();
+            await delay();
+            const manualSeatIds = [...doc.querySelectorAll('.seat-button.is-selected')]
+                .map(button => button.dataset.seatId).join('|');
+            doc.querySelector('[data-preference="back"]').click();
+            await delay();
+            assertContract(
+                [...doc.querySelectorAll('.seat-button.is-selected')]
+                    .map(button => button.dataset.seatId).join('|') === manualSeatIds,
+                '手选来源下切换偏好覆盖了现有座位'
+            );
+            assertContract(
+                doc.getElementById('recommend-seats-label').textContent === '智能选座',
+                '手动改座后推荐入口没有恢复为智能选座'
+            );
+
+            doc.querySelector('[data-ticket-action="increase"][data-ticket-type-id="child"]').click();
+            doc.querySelector('[data-ticket-action="decrease"][data-ticket-type-id="adult"]').click();
+            doc.querySelector('[data-ticket-action="decrease"][data-ticket-type-id="adult"]').click();
+            await delay();
+            const childFrontSeat = [...doc.querySelectorAll('.seat-button')]
+                .find(button => /^[ABC]-/.test(button.dataset.seatId) && !button.disabled);
+            assertContract(Boolean(childFrontSeat), '没有可用于验证儿童手选提示的前三排座位');
+            childFrontSeat.click();
+            await delay();
+            assertContract(
+                !doc.getElementById('audience-seat-guidance').hidden &&
+                doc.getElementById('audience-seat-guidance').textContent.includes('儿童不建议的前三排'),
+                '儿童手选前三排没有显示非阻塞提示'
+            );
+            assertContract(!doc.getElementById('continue-booking').disabled, '年龄提示错误阻止了手动购票');
+
+            doc.querySelector('[data-ticket-action="increase"][data-ticket-type-id="senior"]').click();
+            doc.querySelector('[data-ticket-action="decrease"][data-ticket-type-id="child"]').click();
+            await delay();
+            const seniorBackSeat = [...doc.querySelectorAll('.seat-button')]
+                .find(button => /^[IJ]-/.test(button.dataset.seatId) && !button.disabled);
+            assertContract(Boolean(seniorBackSeat), '没有可用于验证长者手选提示的后三排座位');
+            seniorBackSeat.click();
+            await delay();
+            assertContract(
+                !doc.getElementById('audience-seat-guidance').hidden &&
+                doc.getElementById('audience-seat-guidance').textContent.includes('长者不建议的后三排'),
+                '长者手选后三排没有显示非阻塞提示'
+            );
+            assertContract(!doc.getElementById('continue-booking').disabled, '长者提示错误阻止了手动购票');
         } finally {
             disposeFrame(frame);
         }
@@ -407,7 +497,7 @@ async function run() {
         }
     });
 
-    await regression('UX-008', '并发抢座应移除失效选择并支持一键重新推荐', async () => {
+    await regression('UX-008', '并发抢座应自动修复为新的完整连座', async () => {
         const frame = await createAppFrame();
         try {
             const doc = frame.contentDocument;
@@ -427,19 +517,24 @@ async function run() {
             localStorage.setItem('smartcinema_state_v3', JSON.stringify(stateV3));
 
             doc.getElementById('continue-booking').click();
-            const conflict = await waitFor(() => !doc.getElementById('seat-conflict').hidden, '抢座冲突恢复提示');
-            assertContract(Boolean(conflict), '没有显示抢座冲突恢复提示');
-            assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 0, '失效座位仍留在草稿');
-            assertContract(doc.getElementById('continue-booking').disabled, '冲突后仍允许继续结算');
-            assertContract(
-                doc.activeElement === doc.getElementById('seat-conflict-recommend'),
-                '焦点没有移动到冲突恢复动作'
+            const repaired = await waitFor(
+                () => doc.getElementById('recommendation-feedback-title').textContent === '已自动调整座位',
+                '抢座自动修复'
             );
-            doc.getElementById('seat-conflict-recommend').click();
-            await delay();
-            assertContract(doc.querySelectorAll('.seat-button.is-selected').length === 2, '未重新推荐合法连座');
-            assertContract(doc.getElementById('seat-conflict').hidden, '恢复后冲突提示未清除');
-            assertContract(!doc.getElementById('continue-booking').disabled, '重新推荐后仍不能继续');
+            assertContract(Boolean(repaired), '抢座后没有自动生成替代连座');
+            const repairedIds = [...doc.querySelectorAll('.seat-button.is-selected')]
+                .map(button => button.dataset.seatId);
+            assertContract(repairedIds.length === 2, '抢座修复后没有保持完整连座');
+            assertContract(
+                repairedIds.every(id => !selectedIds.includes(id)),
+                '抢座修复仍保留了已失效座位'
+            );
+            assertContract(doc.getElementById('seat-conflict').hidden, '自动修复后冲突提示未清除');
+            assertContract(!doc.getElementById('continue-booking').disabled, '自动修复后仍不能继续');
+            assertContract(
+                doc.getElementById('recommend-seats-label').textContent === '换一组',
+                '自动修复后没有保留换组能力'
+            );
         } finally {
             disposeFrame(frame);
         }
