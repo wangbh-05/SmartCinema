@@ -405,25 +405,84 @@ async function run() {
         }
     });
 
-    await regression('UX-006', '目标视口不得页面级横向溢出，手机座位图应容器内滚动', async () => {
+    await regression('UX-006', '目标视口不得横向溢出，手机座位图应完整适配并支持缩放', async () => {
         const frame = await createAppFrame(1440);
         try {
             const failures = [];
             for (const width of [320, 390, 768, 1024, 1440]) {
                 frame.style.width = `${width}px`;
                 frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
-                await delay(40);
+                await delay(80);
                 const root = frame.contentDocument.documentElement;
                 if (root.scrollWidth > root.clientWidth + 1) {
                     failures.push(`${width}px 页面溢出 ${root.scrollWidth} > ${root.clientWidth}`);
                 }
                 if (width <= 390) {
-                    const scroller = frame.contentDocument.getElementById('seat-scroll');
-                    if (scroller.scrollWidth <= scroller.clientWidth) {
-                        failures.push(`${width}px 座位图没有形成内部滚动区域`);
+                    const doc = frame.contentDocument;
+                    const viewport = doc.getElementById('seat-viewport');
+                    const canvas = doc.getElementById('seat-layout-canvas');
+                    const surface = doc.getElementById('canvas-seat-surface');
+                    const viewportBox = viewport.getBoundingClientRect();
+                    const canvasBox = canvas.getBoundingClientRect();
+                    const fittedScale = Number(surface.dataset.seatZoomScale);
+                    const insetTolerance = 1.5;
+                    if (!(fittedScale > 0 && fittedScale < 1)) {
+                        failures.push(`${width}px 座位图没有进入完整缩略态，scale=${fittedScale}`);
+                    }
+                    if (viewport.dataset.seatLabelMode !== 'overview') {
+                        failures.push(`${width}px 缩略态仍绘制不可读座位号`);
+                    }
+                    if (
+                        canvasBox.left < viewportBox.left - insetTolerance ||
+                        canvasBox.right > viewportBox.right + insetTolerance ||
+                        canvasBox.top < viewportBox.top - insetTolerance ||
+                        canvasBox.bottom > viewportBox.bottom + insetTolerance
+                    ) {
+                        failures.push(`${width}px 初始座位全景被视口裁切`);
+                    }
+                    if (getComputedStyle(doc.querySelector('.seat-zoom-controls')).display === 'none') {
+                        failures.push(`${width}px 缺少可见缩放控件`);
                     }
                 }
             }
+
+            frame.style.width = '390px';
+            frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
+            await delay(80);
+            const mobileDoc = frame.contentDocument;
+            const surface = mobileDoc.getElementById('canvas-seat-surface');
+            const initialScale = Number(surface.dataset.seatZoomScale);
+            const glassShellStyle = getComputedStyle(mobileDoc.querySelector('.seat-glass-shell'));
+            const solidLayerFilters = [
+                mobileDoc.querySelector('.seat-glass-toolbar'),
+                mobileDoc.querySelector('.seat-zoom-controls'),
+                mobileDoc.getElementById('seat-viewport')
+            ].map(element => getComputedStyle(element).backdropFilter);
+            if (!glassShellStyle.backdropFilter.includes('blur(22px)')) {
+                failures.push('座位窗口底板没有承担主液态玻璃散射');
+            }
+            if (solidLayerFilters.some(filter => filter !== 'none')) {
+                failures.push('座位窗口内部功能部件重复叠加了玻璃滤镜');
+            }
+            mobileDoc.getElementById('seat-zoom-in').click();
+            mobileDoc.getElementById('seat-zoom-in').click();
+            await delay();
+            const readableScale = Number(surface.dataset.seatZoomScale);
+            if (!(readableScale > initialScale)) {
+                failures.push(`移动端放大没有生效，${initialScale} → ${readableScale}`);
+            }
+            if (mobileDoc.getElementById('seat-viewport').dataset.seatLabelMode !== 'readable') {
+                failures.push('移动端放大后座位号没有进入水平可读模式');
+            }
+            if (!mobileDoc.getElementById('seat-viewport').classList.contains('is-zoomed')) {
+                failures.push('移动端放大后没有进入可拖动状态');
+            }
+            mobileDoc.getElementById('seat-zoom-fit').click();
+            await delay();
+            if (Math.abs(Number(surface.dataset.seatZoomScale) - initialScale) > 0.002) {
+                failures.push('移动端“适应”没有恢复完整全景');
+            }
+
             frame.style.width = '1440px';
             frame.contentWindow.dispatchEvent(new frame.contentWindow.Event('resize'));
             frame.contentDocument.documentElement.style.scrollBehavior = 'auto';

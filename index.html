@@ -201,16 +201,33 @@
                     </div>
 
                     <div class="seat-stage">
-                        <div class="seat-scroll" id="seat-scroll" aria-label="座位图，可横向滚动">
-                            <div class="canvas-seat-surface" id="canvas-seat-surface">
-                                <canvas class="seat-heat-canvas" id="seat-heat-canvas" aria-hidden="true" hidden></canvas>
-                                <canvas class="seat-layout-canvas" id="seat-layout-canvas" tabindex="0"
-                                    role="application" aria-label="影院座位图。使用方向键移动，空格选择；鼠标拖拽可框选座位。"></canvas>
-                                <div class="canvas-seat-tooltip" id="canvas-seat-tooltip" role="tooltip" hidden></div>
-                                <div class="seat-map sr-only" id="seat-map" role="group" aria-label="影院座位无障碍操作层"></div>
+                        <div class="seat-glass-shell">
+                            <div class="seat-glass-toolbar">
+                                <div class="seat-view-copy">
+                                    <span class="seat-view-kicker">座位全景</span>
+                                    <span class="seat-zoom-status" id="seat-zoom-status" aria-live="polite">完整视图</span>
+                                </div>
+                                <div class="seat-zoom-controls" role="group" aria-label="座位图缩放">
+                                    <button id="seat-zoom-out" type="button" aria-label="缩小座位图">−</button>
+                                    <button class="seat-zoom-fit" id="seat-zoom-fit" type="button">适应</button>
+                                    <button id="seat-zoom-in" type="button" aria-label="放大座位图">＋</button>
+                                </div>
+                            </div>
+                            <div class="seat-viewport" id="seat-viewport">
+                                <div class="seat-scroll" id="seat-scroll" aria-label="座位图视口">
+                                    <div class="canvas-seat-surface" id="canvas-seat-surface">
+                                        <canvas class="seat-heat-canvas" id="seat-heat-canvas" aria-hidden="true" hidden></canvas>
+                                        <canvas class="seat-layout-canvas" id="seat-layout-canvas" tabindex="0"
+                                            role="application"
+                                            aria-label="影院座位图。使用方向键移动，空格选择；鼠标拖拽可框选座位；移动端可双指缩放，放大后单指拖动。"></canvas>
+                                        <div class="canvas-seat-tooltip" id="canvas-seat-tooltip" role="tooltip" hidden></div>
+                                        <div class="seat-map sr-only" id="seat-map" role="group" aria-label="影院座位无障碍操作层"></div>
+                                    </div>
+                                </div>
+                                <p class="seat-gesture-hint" id="seat-gesture-hint">双指缩放 · 放大后拖动查看</p>
+                                <div class="seat-viewport-shine" aria-hidden="true"></div>
                             </div>
                         </div>
-                        <div class="seat-map-edge" aria-hidden="true"></div>
                     </div>
 
                     <div class="accessible-confirm" id="accessible-confirm" hidden>

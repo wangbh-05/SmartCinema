@@ -26,14 +26,45 @@ function roundRect(context, x, y, width, height, radius) {
     context.roundRect(x, y, width, height, radius);
 }
 
+const MOBILE_BREAKPOINT = 780;
+const VIEW_PADDING = 14;
+const PAN_THRESHOLD = 7;
+
+function clamp(value, minimum, maximum) {
+    return Math.min(maximum, Math.max(minimum, value));
+}
+
+function pointerDistance(left, right) {
+    return Math.hypot(right.x - left.x, right.y - left.y);
+}
+
+function pointerMidpoint(left, right) {
+    return {
+        x: (left.x + right.x) / 2,
+        y: (left.y + right.y) / 2
+    };
+}
+
+function rubberband(value, minimum, maximum) {
+    if (value < minimum) return minimum + (value - minimum) * 0.2;
+    if (value > maximum) return maximum + (value - maximum) * 0.2;
+    return value;
+}
+
 export class CommercialSeatMapController {
     constructor({
         map,
         scroller,
+        viewport,
         surface,
         canvas,
         heatCanvas,
         tooltip,
+        zoomOutButton,
+        zoomFitButton,
+        zoomInButton,
+        zoomStatus,
+        gestureHint,
         accessibleConfirm,
         accessibleAcknowledgement,
         selectedProgress,
@@ -43,10 +74,16 @@ export class CommercialSeatMapController {
     }) {
         this.map = map;
         this.scroller = scroller;
+        this.viewport = viewport;
         this.surface = surface;
         this.canvas = canvas;
         this.heatCanvas = heatCanvas;
         this.tooltip = tooltip;
+        this.zoomOutButton = zoomOutButton;
+        this.zoomFitButton = zoomFitButton;
+        this.zoomInButton = zoomInButton;
+        this.zoomStatus = zoomStatus;
+        this.gestureHint = gestureHint;
         this.accessibleConfirm = accessibleConfirm;
         this.accessibleAcknowledgement = accessibleAcknowledgement;
         this.selectedProgress = selectedProgress;
@@ -64,6 +101,20 @@ export class CommercialSeatMapController {
         this.lastHeatKey = null;
         this.heatBitmap = null;
         this.heatAnimation = null;
+        this.activePointers = new Map();
+        this.pinch = null;
+        this.touchPan = null;
+        this.viewAnimation = null;
+        this.resizeFrame = null;
+        this.view = {
+            auditoriumId: null,
+            mobile: false,
+            scale: 1,
+            minScale: 1,
+            maxScale: 1,
+            panX: 0,
+            panY: 0
+        };
         this._bind();
     }
 
@@ -79,7 +130,10 @@ export class CommercialSeatMapController {
         this.canvas.addEventListener('pointerleave', () => this._clearHover());
         this.canvas.addEventListener('pointerdown', event => this._handlePointerDown(event));
         this.canvas.addEventListener('pointerup', event => this._handlePointerUp(event));
-        this.canvas.addEventListener('pointercancel', () => this._cancelDrag());
+        this.canvas.addEventListener('pointercancel', event => this._handlePointerCancel(event));
+        this.zoomOutButton?.addEventListener('click', event => this._stepZoom(-1, event.detail === 0));
+        this.zoomFitButton?.addEventListener('click', event => this._fitView({ immediate: event.detail === 0 }));
+        this.zoomInButton?.addEventListener('click', event => this._stepZoom(1, event.detail === 0));
         this.canvas.addEventListener('focus', () => {
             if (!this.lastFocusedSeatId) this.lastFocusedSeatId = this._firstAvailableSeatId();
             this._renderCanvas(this.getState(), readCanvasTheme(document.body));
@@ -97,6 +151,13 @@ export class CommercialSeatMapController {
             attributeFilter: ['data-commerce-motion']
         });
         this.preferenceObserver = observer;
+        window.addEventListener('resize', () => {
+            if (this.resizeFrame !== null) return;
+            this.resizeFrame = requestAnimationFrame(() => {
+                this.resizeFrame = null;
+                if (this.layout) this._configureViewport({ preserveScale: true });
+            });
+        });
     }
 
     resetFocus() {
@@ -119,6 +180,10 @@ export class CommercialSeatMapController {
         this.layout = createCurvedSeatLayout(context.auditorium, { readable: theme.readable });
         this.surface.style.width = `${this.layout.width}px`;
         this.surface.style.height = `${this.layout.height}px`;
+        this._configureViewport({
+            preserveScale: this.view.auditoriumId === context.auditorium.id
+        });
+        this.view.auditoriumId = context.auditorium.id;
         this.surface.dataset.auditoriumSize = this.layout.columnCount <= 10 ? 'small' :
             (this.layout.columnCount <= 20 ? 'medium' : 'large');
         this.map.classList.toggle('shows-popularity', showPopularity);
@@ -129,7 +194,7 @@ export class CommercialSeatMapController {
         this._renderHeatmap(state, theme);
         this._renderCanvas(state, theme);
         this._renderAccessibleConfirmation(state);
-        this._centerLargeAuditorium(context.auditorium.id);
+        if (!this.view.mobile) this._centerLargeAuditorium(context.auditorium.id);
 
         const focusId = this.lastFocusedSeatId || draft.selectedSeatIds[0] || this._firstAvailableSeatId();
         if (focusId) {
@@ -137,9 +202,235 @@ export class CommercialSeatMapController {
             this.canvas.setAttribute('aria-activedescendant', `seat-option-${focusId}`);
         }
         if (focusSeat && focusId) {
-            const target = this.map.querySelector(`[data-seat-id="${focusId}"]`);
-            target?.focus({ preventScroll: true });
+            this.canvas.focus({ preventScroll: true });
+            this._revealSeat(focusId);
         }
+    }
+
+    _configureViewport({ preserveScale = false } = {}) {
+        const mobile = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+        const wasMobile = this.view.mobile;
+        this.view.mobile = mobile;
+        this.viewport.classList.toggle('is-mobile-seat-view', mobile);
+
+        if (!mobile) {
+            this._stopViewAnimation();
+            this.view = {
+                ...this.view,
+                mobile: false,
+                scale: 1,
+                minScale: 1,
+                maxScale: 1,
+                panX: 0,
+                panY: 0
+            };
+            this.surface.style.transform = 'none';
+            this.surface.removeAttribute('data-seat-zoom-scale');
+            this.viewport.classList.remove('is-zoomed');
+            this._updateZoomControls();
+            return;
+        }
+
+        const viewportWidth = Math.max(1, this.viewport.clientWidth);
+        const viewportHeight = Math.max(1, this.viewport.clientHeight);
+        const fittedScale = Math.min(
+            1,
+            (viewportWidth - VIEW_PADDING * 2) / this.layout.width,
+            (viewportHeight - VIEW_PADDING * 2) / this.layout.height
+        );
+        const minScale = clamp(fittedScale, 0.26, 1);
+        const maxScale = clamp(Math.max(1.25, minScale * 3.4), 1.25, 2.2);
+        const keepCurrentScale = preserveScale && wasMobile;
+        const scale = keepCurrentScale ? clamp(this.view.scale, minScale, maxScale) : minScale;
+        const centered = this._centeredPan(scale);
+        this.view = {
+            ...this.view,
+            mobile: true,
+            minScale,
+            maxScale,
+            scale,
+            panX: keepCurrentScale ? this.view.panX : centered.x,
+            panY: keepCurrentScale ? this.view.panY : centered.y
+        };
+        const constrained = this._constrainView(this.view);
+        this.view.panX = constrained.panX;
+        this.view.panY = constrained.panY;
+        this.scroller.scrollLeft = 0;
+        this.scroller.scrollTop = 0;
+        this._applyViewTransform();
+    }
+
+    _centeredPan(scale) {
+        return {
+            x: (this.viewport.clientWidth - this.layout.width * scale) / 2,
+            y: (this.viewport.clientHeight - this.layout.height * scale) / 2
+        };
+    }
+
+    _panBounds(scale) {
+        const viewportWidth = this.viewport.clientWidth;
+        const viewportHeight = this.viewport.clientHeight;
+        const contentWidth = this.layout.width * scale;
+        const contentHeight = this.layout.height * scale;
+        const centered = this._centeredPan(scale);
+        return {
+            minX: contentWidth <= viewportWidth - VIEW_PADDING * 2 ?
+                centered.x : viewportWidth - contentWidth - VIEW_PADDING,
+            maxX: contentWidth <= viewportWidth - VIEW_PADDING * 2 ?
+                centered.x : VIEW_PADDING,
+            minY: contentHeight <= viewportHeight - VIEW_PADDING * 2 ?
+                centered.y : viewportHeight - contentHeight - VIEW_PADDING,
+            maxY: contentHeight <= viewportHeight - VIEW_PADDING * 2 ?
+                centered.y : VIEW_PADDING
+        };
+    }
+
+    _constrainView({ scale, panX, panY }, { resist = false } = {}) {
+        const nextScale = resist ?
+            rubberband(scale, this.view.minScale, this.view.maxScale) :
+            clamp(scale, this.view.minScale, this.view.maxScale);
+        const bounds = this._panBounds(nextScale);
+        return {
+            scale: nextScale,
+            panX: resist ? rubberband(panX, bounds.minX, bounds.maxX) :
+                clamp(panX, bounds.minX, bounds.maxX),
+            panY: resist ? rubberband(panY, bounds.minY, bounds.maxY) :
+                clamp(panY, bounds.minY, bounds.maxY)
+        };
+    }
+
+    _applyViewTransform({ renderLabels = true } = {}) {
+        if (!this.view.mobile) return;
+        const { scale, panX, panY, minScale } = this.view;
+        this.surface.style.transform =
+            `translate3d(${panX.toFixed(3)}px, ${panY.toFixed(3)}px, 0) scale(${scale.toFixed(5)})`;
+        this.surface.dataset.seatZoomScale = scale.toFixed(3);
+        const zoomed = scale > minScale + 0.035;
+        this.viewport.classList.toggle('is-zoomed', zoomed);
+        const labelMode = scale < 0.62 ? 'overview' : 'readable';
+        this.viewport.dataset.seatLabelMode = labelMode;
+        if (renderLabels && this.lastLabelMode !== labelMode && this.layout) {
+            this.lastLabelMode = labelMode;
+            this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+        }
+        this._updateZoomControls();
+    }
+
+    _updateZoomControls() {
+        if (!this.zoomStatus) return;
+        if (!this.view.mobile) {
+            this.zoomStatus.textContent = '完整视图';
+            return;
+        }
+        const atMinimum = this.view.scale <= this.view.minScale + 0.01;
+        this.zoomStatus.textContent = atMinimum ?
+            '完整视图 · 双指放大' :
+            `${Math.round(this.view.scale * 100)}% · 拖动查看`;
+        this.zoomOutButton.disabled = atMinimum;
+        this.zoomInButton.disabled = this.view.scale >= this.view.maxScale - 0.01;
+        this.zoomFitButton.disabled = atMinimum;
+        this.gestureHint.setAttribute('aria-hidden', String(!atMinimum));
+    }
+
+    _fitView({ immediate = false } = {}) {
+        if (!this.view.mobile) return;
+        const centered = this._centeredPan(this.view.minScale);
+        this._animateViewTo({
+            scale: this.view.minScale,
+            panX: centered.x,
+            panY: centered.y
+        }, { immediate });
+    }
+
+    _stepZoom(direction, immediate = false) {
+        if (!this.view.mobile) return;
+        const factor = direction > 0 ? 1.32 : 1 / 1.32;
+        const targetScale = clamp(
+            this.view.scale * factor,
+            this.view.minScale,
+            this.view.maxScale
+        );
+        this._zoomAroundPoint(targetScale, {
+            x: this.viewport.clientWidth / 2,
+            y: this.viewport.clientHeight / 2
+        }, { immediate });
+    }
+
+    _zoomAroundPoint(targetScale, point, { immediate = false } = {}) {
+        const anchorX = (point.x - this.view.panX) / this.view.scale;
+        const anchorY = (point.y - this.view.panY) / this.view.scale;
+        const target = this._constrainView({
+            scale: targetScale,
+            panX: point.x - anchorX * targetScale,
+            panY: point.y - anchorY * targetScale
+        });
+        this._animateViewTo(target, { immediate });
+    }
+
+    _animateViewTo(target, { immediate = false } = {}) {
+        const theme = readCanvasTheme(document.body);
+        this._stopViewAnimation();
+        if (immediate || theme.reduceMotion) {
+            Object.assign(this.view, target);
+            this._applyViewTransform();
+            return;
+        }
+
+        let previousTime = performance.now();
+        const velocity = { scale: 0, panX: 0, panY: 0 };
+        const stiffness = 240;
+        const damping = 31;
+        const tick = now => {
+            const delta = Math.min(0.032, Math.max(0.001, (now - previousTime) / 1000));
+            previousTime = now;
+            let settled = true;
+            for (const key of ['scale', 'panX', 'panY']) {
+                const displacement = target[key] - this.view[key];
+                const acceleration = stiffness * displacement - damping * velocity[key];
+                velocity[key] += acceleration * delta;
+                this.view[key] += velocity[key] * delta;
+                const tolerance = key === 'scale' ? 0.001 : 0.12;
+                if (Math.abs(displacement) > tolerance || Math.abs(velocity[key]) > tolerance) {
+                    settled = false;
+                }
+            }
+            this._applyViewTransform();
+            if (settled) {
+                Object.assign(this.view, target);
+                this._applyViewTransform();
+                this.viewAnimation = null;
+                return;
+            }
+            this.viewAnimation = requestAnimationFrame(tick);
+        };
+        this.viewAnimation = requestAnimationFrame(tick);
+    }
+
+    _stopViewAnimation() {
+        if (this.viewAnimation !== null) cancelAnimationFrame(this.viewAnimation);
+        this.viewAnimation = null;
+    }
+
+    _revealSeat(seatId) {
+        if (!this.view.mobile || this.view.scale <= this.view.minScale + 0.035) return;
+        const seat = this.layout.seats.find(item => item.id === seatId);
+        if (!seat) return;
+        const margin = 38;
+        const screenX = this.view.panX + seat.centerX * this.view.scale;
+        const screenY = this.view.panY + seat.centerY * this.view.scale;
+        let panX = this.view.panX;
+        let panY = this.view.panY;
+        if (screenX < margin) panX += margin - screenX;
+        if (screenX > this.viewport.clientWidth - margin) {
+            panX -= screenX - (this.viewport.clientWidth - margin);
+        }
+        if (screenY < margin) panY += margin - screenY;
+        if (screenY > this.viewport.clientHeight - margin) {
+            panY -= screenY - (this.viewport.clientHeight - margin);
+        }
+        const target = this._constrainView({ ...this.view, panX, panY });
+        Object.assign(this.view, target);
+        this._applyViewTransform();
     }
 
     _renderSemanticSeats(state) {
@@ -294,14 +585,14 @@ export class CommercialSeatMapController {
     }
 
     _drawSeat(context, seat, theme, state) {
-        const scale = state.hovered && !theme.reduceMotion ? 1.06 : 1;
+        const hoverScale = state.hovered && !theme.reduceMotion ? 1.06 : 1;
         const backHeight = seat.height - 3;
         const label = seat.kind === 'wheelchair' ? '♿' :
             (seat.kind === 'companion' ? '陪' : String(seat.seatNumber));
         context.save();
         context.translate(seat.centerX, seat.centerY);
         context.rotate(seat.rotation);
-        context.scale(scale, scale);
+        context.scale(hoverScale, hoverScale);
         context.translate(-seat.width / 2, -seat.height / 2);
 
         let border = '#697282';
@@ -376,23 +667,27 @@ export class CommercialSeatMapController {
         }
         context.restore();
 
-        // Use the rounded backrest's exact local centre as the anchor, then
-        // apply the same rotation as the chair. Ink bounds, rather than text
-        // advance width, keep asymmetric labels such as 1, 10 and 11 centred.
+        if (this.view.mobile && this.viewport.dataset.seatLabelMode === 'overview') return;
+
+        // Use the rounded backrest's exact local centre as the anchor. Desktop
+        // follows the row curve; mobile keeps labels upright so small numbers
+        // remain aligned and legible while the surface is being transformed.
         context.save();
         context.translate(seat.centerX, seat.centerY);
-        context.rotate(seat.rotation);
+        if (!this.view.mobile) context.rotate(seat.rotation);
         context.fillStyle = text;
-        const fontSize = theme.readable ? 9 : (seat.kind === 'wheelchair' ? 10 : 8);
+        const mobileFontSize = Math.min(11, Math.max(8, 7 / Math.max(0.62, this.view.scale)));
+        const fontSize = theme.readable ? 9 :
+            (this.view.mobile ? mobileFontSize : (seat.kind === 'wheelchair' ? 10 : 8));
         context.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
         context.textAlign = 'left';
         context.textBaseline = 'alphabetic';
         const metrics = context.measureText(label);
         const placement = centerTextMetricsInRectangle(metrics, {
-            x: -seat.width * scale / 2,
-            y: -seat.height * scale / 2,
-            width: seat.width * scale,
-            height: backHeight * scale
+            x: -seat.width * hoverScale / 2,
+            y: -seat.height * hoverScale / 2,
+            width: seat.width * hoverScale,
+            height: backHeight * hoverScale
         }, {
             fallbackAscent: fontSize * 0.72,
             fallbackDescent: fontSize * 0.2
@@ -456,6 +751,10 @@ export class CommercialSeatMapController {
 
     _handlePointerMove(event) {
         if (!this.layout) return;
+        if (event.pointerType === 'touch' && this.activePointers.has(event.pointerId)) {
+            this._handleTouchMove(event);
+            return;
+        }
         const point = canvasPoint(this.canvas, event);
         if (this.drag) {
             this.drag.endX = point.x;
@@ -479,13 +778,21 @@ export class CommercialSeatMapController {
     }
 
     _handlePointerDown(event) {
-        if (event.pointerType === 'touch' || event.button !== 0) return;
+        if (event.pointerType === 'touch' && this.view.mobile) {
+            this._handleTouchDown(event);
+            return;
+        }
+        if (event.button !== 0) return;
         const point = canvasPoint(this.canvas, event);
         this.drag = { startX: point.x, startY: point.y, endX: point.x, endY: point.y, active: false };
         this.canvas.setPointerCapture(event.pointerId);
     }
 
     _handlePointerUp(event) {
+        if (event.pointerType === 'touch' && this.activePointers.has(event.pointerId)) {
+            this._handleTouchEnd(event);
+            return;
+        }
         if (!this.drag) return;
         const drag = this.drag;
         if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
@@ -497,6 +804,127 @@ export class CommercialSeatMapController {
             if (seatIds.length > 0) this.onSelectSeats(seatIds);
         }
         this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+    }
+
+    _pointerInViewport(event) {
+        const bounds = this.viewport.getBoundingClientRect();
+        return {
+            x: event.clientX - bounds.left,
+            y: event.clientY - bounds.top
+        };
+    }
+
+    _handleTouchDown(event) {
+        this._stopViewAnimation();
+        const point = this._pointerInViewport(event);
+        this.activePointers.set(event.pointerId, point);
+        this.canvas.setPointerCapture(event.pointerId);
+
+        if (this.activePointers.size >= 2) {
+            const [left, right] = [...this.activePointers.values()].slice(0, 2);
+            const midpoint = pointerMidpoint(left, right);
+            this.pinch = {
+                distance: Math.max(1, pointerDistance(left, right)),
+                scale: this.view.scale,
+                anchorX: (midpoint.x - this.view.panX) / this.view.scale,
+                anchorY: (midpoint.y - this.view.panY) / this.view.scale
+            };
+            this.touchPan = null;
+            this.suppressNextClick = true;
+            event.preventDefault();
+            return;
+        }
+
+        if (this.view.scale > this.view.minScale + 0.035) {
+            this.touchPan = {
+                pointerId: event.pointerId,
+                startX: point.x,
+                startY: point.y,
+                panX: this.view.panX,
+                panY: this.view.panY,
+                active: false
+            };
+        }
+    }
+
+    _handleTouchMove(event) {
+        const point = this._pointerInViewport(event);
+        this.activePointers.set(event.pointerId, point);
+
+        if (this.activePointers.size >= 2 && this.pinch) {
+            const [left, right] = [...this.activePointers.values()].slice(0, 2);
+            const midpoint = pointerMidpoint(left, right);
+            const nextScale = this.pinch.scale *
+                (pointerDistance(left, right) / this.pinch.distance);
+            const next = this._constrainView({
+                scale: nextScale,
+                panX: midpoint.x - this.pinch.anchorX * nextScale,
+                panY: midpoint.y - this.pinch.anchorY * nextScale
+            }, { resist: true });
+            Object.assign(this.view, next);
+            this._applyViewTransform();
+            this.suppressNextClick = true;
+            event.preventDefault();
+            return;
+        }
+
+        if (!this.touchPan || this.touchPan.pointerId !== event.pointerId) return;
+        const deltaX = point.x - this.touchPan.startX;
+        const deltaY = point.y - this.touchPan.startY;
+        if (!this.touchPan.active && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
+            this.touchPan.active = true;
+            this.suppressNextClick = true;
+        }
+        if (!this.touchPan.active) return;
+        const next = this._constrainView({
+            ...this.view,
+            panX: this.touchPan.panX + deltaX,
+            panY: this.touchPan.panY + deltaY
+        }, { resist: true });
+        Object.assign(this.view, next);
+        this._applyViewTransform({ renderLabels: false });
+        event.preventDefault();
+    }
+
+    _handleTouchEnd(event) {
+        if (this.canvas.hasPointerCapture(event.pointerId)) {
+            this.canvas.releasePointerCapture(event.pointerId);
+        }
+        this.activePointers.delete(event.pointerId);
+
+        if (this.activePointers.size === 1 && this.pinch) {
+            const [pointerId, point] = [...this.activePointers.entries()][0];
+            this.pinch = null;
+            this.touchPan = this.view.scale > this.view.minScale + 0.035 ? {
+                pointerId,
+                startX: point.x,
+                startY: point.y,
+                panX: this.view.panX,
+                panY: this.view.panY,
+                active: true
+            } : null;
+            return;
+        }
+
+        if (this.activePointers.size === 0) {
+            this.pinch = null;
+            this.touchPan = null;
+            const target = this._constrainView(this.view);
+            this._animateViewTo(target);
+        }
+    }
+
+    _handlePointerCancel(event) {
+        if (event.pointerType === 'touch') {
+            this.activePointers.delete(event.pointerId);
+            if (this.activePointers.size === 0) {
+                this.pinch = null;
+                this.touchPan = null;
+                this._animateViewTo(this._constrainView(this.view));
+            }
+            return;
+        }
+        this._cancelDrag();
     }
 
     _cancelDrag() {
@@ -558,6 +986,7 @@ export class CommercialSeatMapController {
         this.lastFocusedSeatId = target.id;
         this.canvas.setAttribute('aria-activedescendant', `seat-option-${target.id}`);
         this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+        this._revealSeat(target.id);
     }
 
     _handleSemanticKeydown(event) {
@@ -616,7 +1045,7 @@ export class CommercialSeatMapController {
     }
 
     _centerLargeAuditorium(auditoriumId) {
-        if (this.layout.columnCount <= 20 || this.lastCenteredAuditoriumId === auditoriumId) return;
+        if (this.lastCenteredAuditoriumId === auditoriumId) return;
         this.lastCenteredAuditoriumId = auditoriumId;
         requestAnimationFrame(() => {
             this.scroller.scrollLeft = Math.max(0, (this.scroller.scrollWidth - this.scroller.clientWidth) / 2);
