@@ -277,6 +277,14 @@ button:disabled {
     gap: 6px;
 }
 
+.catalog-carousel.is-static {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.catalog-carousel.is-static .catalog-carousel-button {
+    display: none;
+}
+
 .catalog-carousel-button {
     min-width: 0;
     padding: 0;
@@ -285,7 +293,11 @@ button:disabled {
     background: var(--commerce-panel);
     color: var(--commerce-ink);
     font-size: 15px;
-    transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+    transition: border-color 140ms ease,
+        background-color 140ms ease,
+        transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .catalog-carousel-button:disabled {
@@ -293,12 +305,15 @@ button:disabled {
 }
 
 .catalog-carousel-button:active:not(:disabled) {
-    transform: scale(0.94);
+    transform: scale(0.97);
 }
 
 .catalog-options {
+    --catalog-gap: 7px;
+    --catalog-page-size: 1;
+    --catalog-option-basis: 100%;
     display: flex;
-    gap: 7px;
+    gap: var(--catalog-gap);
     min-width: 0;
 }
 
@@ -313,16 +328,33 @@ button:disabled {
     display: none;
 }
 
-.catalog-carousel .catalog-option {
+.catalog-carousel .catalog-option[data-carousel-snap="start"] {
     scroll-snap-align: start;
+    scroll-snap-stop: always;
 }
 
-.movie-options .catalog-option {
-    flex: 0 0 calc((100% - 14px) / 3);
+.catalog-carousel .catalog-option[data-carousel-snap="end"] {
+    scroll-snap-align: end;
+    scroll-snap-stop: always;
 }
 
-.cinema-options .catalog-option {
-    flex: 0 0 calc((100% - 7px) / 2);
+.catalog-carousel .catalog-option {
+    flex: 0 0 var(--catalog-option-basis);
+}
+
+.movie-options {
+    --catalog-page-size: 3;
+    --catalog-option-basis: calc((100% - 14px) / 3);
+}
+
+.cinema-options {
+    --catalog-page-size: 2;
+    --catalog-option-basis: calc((100% - 7px) / 2);
+}
+
+.date-options {
+    --catalog-page-size: 3;
+    --catalog-option-basis: calc((100% - 14px) / 3);
 }
 
 .catalog-option {
@@ -337,9 +369,13 @@ button:disabled {
     border-radius: 11px;
     background: var(--commerce-panel);
     text-align: left;
-    transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
-        border-color 140ms ease,
-        background-color 140ms ease;
+    transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
+        border-color 150ms ease,
+        background-color 150ms ease,
+        color 150ms ease,
+        opacity 150ms ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .catalog-option strong,
@@ -356,6 +392,7 @@ button:disabled {
 .catalog-option small {
     color: var(--commerce-muted);
     font-size: 9px;
+    transition: color 150ms ease;
 }
 
 .catalog-option[aria-pressed="true"] {
@@ -373,7 +410,12 @@ button:disabled {
 }
 
 .catalog-option:active {
-    transform: scale(0.97);
+    transform: scale(0.985);
+}
+
+.catalog-options.is-keyboard-selecting .catalog-option,
+.catalog-options.is-keyboard-selecting .catalog-option small {
+    transition: none;
 }
 
 .catalog-disclosure {
@@ -2619,29 +2661,65 @@ button:disabled {
         grid-column: auto;
     }
 
-    .date-options {
-        max-width: 100%;
-        overflow-x: auto;
-        padding: 1px 1px 4px;
-        overscroll-behavior-inline: contain;
-        scrollbar-width: thin;
+    .catalog-control {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 7px;
+    }
+
+    .catalog-control.has-carousel-overflow {
+        grid-template-columns: minmax(0, 1fr) 44px 44px;
+        column-gap: 6px;
+    }
+
+    .catalog-control-heading {
+        grid-row: 1;
+        grid-column: 1;
+        align-self: center;
+        min-height: 18px;
+    }
+
+    .catalog-label {
+        margin-bottom: 0;
     }
 
     .catalog-carousel {
-        grid-template-columns: 26px minmax(0, 1fr) 26px;
-        gap: 5px;
+        display: contents;
     }
 
-    .movie-options .catalog-option {
-        flex-basis: calc((100% - 7px) / 2);
+    .catalog-carousel-button {
+        width: 44px;
+        min-height: 44px;
+        grid-row: 1;
     }
 
-    .cinema-options .catalog-option {
-        flex-basis: 78%;
+    .catalog-carousel-button[data-carousel-direction="previous"] {
+        grid-column: 2;
     }
 
-    .date-options .catalog-option {
-        flex: 0 0 88px;
+    .catalog-carousel-button[data-carousel-direction="next"] {
+        grid-column: 3;
+    }
+
+    .catalog-options {
+        width: 100%;
+        grid-row: 2;
+        grid-column: 1 / -1;
+    }
+
+    .movie-options {
+        --catalog-page-size: 3;
+        --catalog-option-basis: calc((100% - 14px) / 3);
+    }
+
+    .cinema-options {
+        --catalog-page-size: 2;
+        --catalog-option-basis: calc((100% - 7px) / 2);
+    }
+
+    .date-options {
+        --catalog-page-size: 4;
+        --catalog-option-basis: calc((100% - 21px) / 4);
     }
 
     .movie-context {
@@ -2947,6 +3025,23 @@ button:disabled {
     }
 }
 
+@media (max-width: 480px) {
+    .movie-options {
+        --catalog-page-size: 2;
+        --catalog-option-basis: calc((100% - 7px) / 2);
+    }
+
+    .cinema-options {
+        --catalog-page-size: 1;
+        --catalog-option-basis: 100%;
+    }
+
+    .date-options {
+        --catalog-page-size: 3;
+        --catalog-option-basis: calc((100% - 14px) / 3);
+    }
+}
+
 @media (max-width: 420px) {
     .header-link-label {
         display: none;
@@ -3025,8 +3120,27 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
     .dialog-overlay,
     .commerce-dialog,
+    .catalog-carousel-button,
+    .catalog-option,
+    .catalog-option small,
     .seat-zoom-controls button,
     .seat-gesture-hint {
         transition: none;
     }
+
+    .catalog-carousel-button:active:not(:disabled),
+    .catalog-option:active {
+        transform: none;
+    }
+}
+
+html[data-commerce-motion="reduce"] .catalog-carousel-button,
+html[data-commerce-motion="reduce"] .catalog-option,
+html[data-commerce-motion="reduce"] .catalog-option small {
+    transition: none;
+}
+
+html[data-commerce-motion="reduce"] .catalog-carousel-button:active:not(:disabled),
+html[data-commerce-motion="reduce"] .catalog-option:active {
+    transform: none;
 }

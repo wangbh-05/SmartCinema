@@ -607,8 +607,8 @@ async function run() {
             assertContract(doc.querySelectorAll('[data-catalog-type="cinema"]').length === 3, '影院目录不是 3 家');
             assertContract(doc.querySelectorAll('[data-catalog-type="date"]').length === 3, '营业日目录不是 3 天');
             await waitFor(
-                () => doc.getElementById('movie-carousel-status').textContent.includes('/ 7'),
-                '影片滑窗报告范围'
+                () => doc.getElementById('movie-carousel-status').textContent.includes('/ 3 页'),
+                '影片滑窗报告页数'
             );
             doc.querySelector('[data-carousel-target="movie-list"][data-carousel-direction="next"]').click();
             await delay(220);
@@ -658,6 +658,297 @@ async function run() {
                 () => doc.activeElement?.dataset.catalogValue === 'cinema-riverside',
                 '目录重绘后归还触发按钮焦点'
             );
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
+    await regression('UX-010', '移动端目录应使用完整等宽页面并在影院切换后稳定渲染', async () => {
+        const frame = await createAppFrame(390);
+        try {
+            const doc = frame.contentDocument;
+            const win = frame.contentWindow;
+            const listMetrics = id => {
+                const list = doc.getElementById(id);
+                const listBox = list.getBoundingClientRect();
+                const options = [...list.querySelectorAll('.catalog-option')];
+                const fullyVisible = options.filter(option => {
+                    const box = option.getBoundingClientRect();
+                    return box.left >= listBox.left - 1 && box.right <= listBox.right + 1;
+                });
+                const partiallyVisible = options.filter(option => {
+                    const box = option.getBoundingClientRect();
+                    const intersects = box.right > listBox.left + 1 && box.left < listBox.right - 1;
+                    return intersects && !fullyVisible.includes(option);
+                });
+                return {
+                    list,
+                    listBox,
+                    options,
+                    fullyVisible,
+                    partiallyVisible
+                };
+            };
+            const expectedVisible = width => width <= 480 ?
+                { movie: 2, cinema: 1, date: 3 } :
+                { movie: 3, cinema: 2, date: 3 };
+
+            for (const width of [320, 390, 768]) {
+                frame.style.width = `${width}px`;
+                win.dispatchEvent(new win.Event('resize'));
+                ['movie-list', 'cinema-list', 'date-list'].forEach(id => {
+                    doc.getElementById(id).scrollTo({ left: 0, behavior: 'auto' });
+                });
+                await delay(100);
+
+                const metrics = {
+                    movie: listMetrics('movie-list'),
+                    cinema: listMetrics('cinema-list'),
+                    date: listMetrics('date-list')
+                };
+                const widths = Object.values(metrics).map(item => item.listBox.width);
+                assertContract(
+                    Math.max(...widths) - Math.min(...widths) <= 1,
+                    `${width}px 影片、影院与日期窗口宽度不一致`
+                );
+                const expected = expectedVisible(width);
+                Object.entries(metrics).forEach(([type, metric]) => {
+                    assertContract(
+                        metric.fullyVisible.length === expected[type],
+                        `${width}px ${type} 首屏完整卡片数错误：${metric.fullyVisible.length}`
+                    );
+                    assertContract(
+                        metric.partiallyVisible.length === 0,
+                        `${width}px ${type} 首屏仍露出被裁切卡片`
+                    );
+                });
+
+                for (const id of ['movie-list', 'cinema-list']) {
+                    const previous = doc.querySelector(
+                        `[data-carousel-target="${id}"][data-carousel-direction="previous"]`
+                    );
+                    const next = doc.querySelector(
+                        `[data-carousel-target="${id}"][data-carousel-direction="next"]`
+                    );
+                    [previous, next].forEach(button => {
+                        const box = button.getBoundingClientRect();
+                        assertContract(
+                            box.width >= 44 && box.height >= 44,
+                            `${width}px ${id} 翻页按钮不足 44×44px`
+                        );
+                    });
+
+                    let turns = 0;
+                    while (!next.disabled && turns < 10) {
+                        next.click();
+                        turns++;
+                        await delay(35);
+                    }
+                    const lastPage = listMetrics(id);
+                    const finalOption = lastPage.options.at(-1).getBoundingClientRect();
+                    assertContract(
+                        finalOption.left >= lastPage.listBox.left - 1 &&
+                            finalOption.right <= lastPage.listBox.right + 1,
+                        `${width}px ${id} 末张卡片未完整显示`
+                    );
+                    assertContract(
+                        lastPage.partiallyVisible.length === 0,
+                        `${width}px ${id} 末页仍露出被裁切卡片`
+                    );
+                    assertContract(
+                        lastPage.list.scrollLeft + lastPage.list.clientWidth >=
+                            lastPage.list.scrollWidth - 1,
+                        `${width}px ${id} 没有到达精确末页`
+                    );
+                    assertContract(
+                        /第 \d+ \/ \d+ 页/.test(
+                            doc.getElementById(id.replace('-list', '-carousel-status')).textContent
+                        ),
+                        `${width}px ${id} 没有报告准确页码`
+                    );
+
+                    previous.click();
+                    await delay(35);
+                    assertContract(
+                        listMetrics(id).partiallyVisible.length === 0,
+                        `${width}px ${id} 返回上一页后出现裁切`
+                    );
+                }
+                assertContract(
+                    doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1,
+                    `${width}px 目录滑动导致页面横向溢出`
+                );
+            }
+
+            frame.style.width = '390px';
+            win.dispatchEvent(new win.Event('resize'));
+            await delay(100);
+            const movieNodeBeforeSelection = doc.querySelector('[data-catalog-value="movie-your-name"]');
+            movieNodeBeforeSelection.dispatchEvent(new win.MouseEvent('click', {
+                bubbles: true,
+                detail: 1
+            }));
+            await waitFor(
+                () => doc.getElementById('movie-title').textContent === '你的名字',
+                '移动端切换到你的名字'
+            );
+            const movieNodeAfterSelection = doc.querySelector('[data-catalog-value="movie-your-name"]');
+            assertContract(
+                movieNodeAfterSelection === movieNodeBeforeSelection,
+                '影片选中时重建了按压中的按钮节点'
+            );
+            const movieTransition = getComputedStyle(movieNodeAfterSelection);
+            assertContract(
+                ['transform', 'border-color', 'background-color', 'color', 'opacity']
+                    .every(property => movieTransition.transitionProperty.includes(property)),
+                '影片卡片没有同步过渡按压、颜色和状态'
+            );
+            assertContract(
+                movieTransition.webkitTapHighlightColor === 'rgba(0, 0, 0, 0)',
+                '影片卡片仍显示浏览器默认点击闪层'
+            );
+            const movieNext = doc.querySelector(
+                '[data-carousel-target="movie-list"][data-carousel-direction="next"]'
+            );
+            let movieTurns = 0;
+            while (!movieNext.disabled && movieTurns < 10) {
+                movieNext.click();
+                movieTurns++;
+                await delay(35);
+            }
+
+            const cinemaNodeBeforeSelection = doc.querySelector('[data-catalog-value="cinema-riverside"]');
+            cinemaNodeBeforeSelection.dispatchEvent(new win.MouseEvent('click', {
+                bubbles: true,
+                detail: 1
+            }));
+            await waitFor(
+                () => doc.getElementById('cinema-name').textContent.includes('清河') &&
+                    doc.querySelectorAll('.seat-button').length === 300,
+                '移动端切换影院并渲染 300 座影厅'
+            );
+            assertContract(
+                doc.querySelector('[data-catalog-value="cinema-riverside"]') ===
+                    cinemaNodeBeforeSelection,
+                '影院选中时重建了按压中的按钮节点'
+            );
+            await waitFor(
+                () => doc.activeElement?.dataset.catalogValue === 'cinema-riverside',
+                '移动端影院切换后归还焦点'
+            );
+            const selectedCinema = doc.querySelector(
+                '[data-catalog-value="cinema-riverside"][aria-pressed="true"]'
+            );
+            const cinemaBox = selectedCinema.getBoundingClientRect();
+            const cinemaListBox = doc.getElementById('cinema-list').getBoundingClientRect();
+            assertContract(
+                cinemaBox.left >= cinemaListBox.left - 1 && cinemaBox.right <= cinemaListBox.right + 1,
+                '影院切换后选中卡片没有完整对齐'
+            );
+
+            const seatViewportBox = doc.getElementById('seat-viewport').getBoundingClientRect();
+            const seatCanvasBox = doc.getElementById('seat-layout-canvas').getBoundingClientRect();
+            assertContract(
+                seatCanvasBox.left >= seatViewportBox.left - 1.5 &&
+                    seatCanvasBox.right <= seatViewportBox.right + 1.5 &&
+                    seatCanvasBox.top >= seatViewportBox.top - 1.5 &&
+                    seatCanvasBox.bottom <= seatViewportBox.bottom + 1.5,
+                '影院切换后移动端座位全景被裁切'
+            );
+            assertContract(
+                doc.getElementById('seat-viewport').dataset.seatLabelMode === 'overview',
+                '影院切换后没有保持座位完整缩略态'
+            );
+
+            const settledScroll = ['movie-list', 'cinema-list', 'date-list']
+                .map(id => doc.getElementById(id).scrollLeft);
+            await delay(250);
+            const delayedScroll = ['movie-list', 'cinema-list', 'date-list']
+                .map(id => doc.getElementById(id).scrollLeft);
+            assertContract(
+                delayedScroll.every((value, index) => Math.abs(value - settledScroll[index]) <= 1),
+                '目录切换后仍发生延迟二次滚动'
+            );
+
+            const selectedMovie = doc.querySelector('[data-catalog-type="movie"][aria-pressed="true"]');
+            assertContract(
+                doc.querySelectorAll('#movie-list .catalog-option[tabindex="0"]').length === 1,
+                '影片目录没有保持单一 Tab 停点'
+            );
+            selectedMovie.dispatchEvent(new win.MouseEvent('click', {
+                bubbles: true,
+                detail: 0
+            }));
+            assertContract(
+                doc.getElementById('movie-list').classList.contains('is-keyboard-selecting') &&
+                    getComputedStyle(selectedMovie).transitionDuration === '0s',
+                '键盘选择仍播放目录状态动画'
+            );
+            const selectedValue = selectedMovie.dataset.catalogValue;
+            selectedMovie.dispatchEvent(new win.KeyboardEvent('keydown', {
+                key: 'ArrowRight',
+                bubbles: true
+            }));
+            assertContract(
+                doc.activeElement?.matches('#movie-list .catalog-option'),
+                '影片目录方向键没有移动焦点'
+            );
+            assertContract(
+                doc.querySelector('[data-catalog-type="movie"][aria-pressed="true"]').dataset.catalogValue ===
+                    selectedValue,
+                '方向键移动焦点时错误切换了影片'
+            );
+
+            const movieList = doc.getElementById('movie-list');
+            const originalScrollTo = movieList.scrollTo.bind(movieList);
+            const originalMatchMedia = win.matchMedia;
+            let observedBehavior = null;
+            movieList.scrollTo = options => {
+                observedBehavior = options.behavior;
+                return originalScrollTo(options);
+            };
+            movieList.scrollTo({ left: 0, behavior: 'auto' });
+            await delay(35);
+            observedBehavior = null;
+            movieNext.dispatchEvent(new win.MouseEvent('click', {
+                bubbles: true,
+                detail: 1
+            }));
+            await waitFor(() => {
+                const metrics = listMetrics('movie-list');
+                return metrics.list.scrollLeft > 0 && metrics.partiallyVisible.length === 0;
+            }, '指针翻页到达完整卡片边界');
+            assertContract(observedBehavior === 'smooth', '指针翻页没有保留短距离空间连续性');
+
+            movieList.scrollTo({ left: 0, behavior: 'auto' });
+            await delay(35);
+            observedBehavior = null;
+            doc.documentElement.dataset.commerceMotion = 'reduce';
+            movieNext.dispatchEvent(new win.MouseEvent('click', {
+                bubbles: true,
+                detail: 1
+            }));
+            assertContract(observedBehavior === 'auto', '应用减少动态效果未关闭目录平滑滚动');
+
+            movieList.scrollTo({ left: 0, behavior: 'auto' });
+            await delay(35);
+            observedBehavior = null;
+            doc.documentElement.dataset.commerceMotion = 'system';
+            Object.defineProperty(win, 'matchMedia', {
+                configurable: true,
+                value: query => query.includes('prefers-reduced-motion') ?
+                    { matches: true } : originalMatchMedia.call(win, query)
+            });
+            movieNext.dispatchEvent(new win.MouseEvent('click', {
+                bubbles: true,
+                detail: 1
+            }));
+            assertContract(observedBehavior === 'auto', '系统减少动态效果未关闭目录平滑滚动');
+            movieList.scrollTo = originalScrollTo;
+            Object.defineProperty(win, 'matchMedia', {
+                configurable: true,
+                value: originalMatchMedia
+            });
         } finally {
             disposeFrame(frame);
         }
@@ -924,8 +1215,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 19 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：18 个商业、架构与运维回归，加运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 20 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：19 个商业、架构与运维回归，加运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);
