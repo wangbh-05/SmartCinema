@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
+
+  <title>Liquid Glass Dashboard</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      color-scheme: dark;
+
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Display",
+        "SF Pro Text",
+        "Segoe UI",
+        sans-serif;
+
+      --page-text: rgb(255 255 255 / 0.94);
+      --secondary-text: rgb(255 255 255 / 0.58);
+      --tertiary-text: rgb(255 255 255 / 0.40);
+
+      --glass-border: rgb(255 255 255 / 0.18);
+      --glass-highlight: rgb(255 255 255 / 0.40);
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 42px 24px;
+
+      display: grid;
+      place-items: center;
+
+      overflow-x: hidden;
+      color: var(--page-text);
+
+      /*
+       * 保持低饱和、中性的背景。
+       * 明暗层次足够丰富，使玻璃模糊可见，
+       * 但没有明显的彩色发光。
+       */
+      background:
+        linear-gradient(
+          145deg,
+          rgb(61 66 74) 0%,
+          rgb(37 41 48) 44%,
+          rgb(20 23 28) 100%
+        );
+    }
+
+    /*
+     * 背景中的普通页面内容。
+     * 这些形状不是光源，只负责提供被玻璃模糊的纹理。
+     */
+    .background-layer {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .background-block {
+      position: absolute;
+
+      border: 1px solid rgb(255 255 255 / 0.07);
+      border-radius: 42px;
+
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.13),
+          rgb(255 255 255 / 0.025)
+        );
+
+      box-shadow:
+        0 32px 90px rgb(0 0 0 / 0.22);
+    }
+
+    .background-block:nth-child(1) {
+      width: 540px;
+      height: 300px;
+      top: -90px;
+      left: -120px;
+      transform: rotate(-9deg);
+    }
+
+    .background-block:nth-child(2) {
+      width: 420px;
+      height: 270px;
+      right: -110px;
+      bottom: -80px;
+      transform: rotate(11deg);
+    }
+
+    .background-block:nth-child(3) {
+      width: 230px;
+      height: 170px;
+      top: 9%;
+      right: 9%;
+      transform: rotate(-5deg);
+    }
+
+    .background-word {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+
+      transform: translate(-50%, -50%);
+
+      color: rgb(255 255 255 / 0.055);
+      font-size: clamp(6rem, 17vw, 14rem);
+      font-weight: 750;
+      line-height: 0.76;
+      letter-spacing: -0.08em;
+      text-align: center;
+      user-select: none;
+    }
+
+    /*
+     * 外层应用容器。
+     */
+    .dashboard {
+      position: relative;
+      z-index: 1;
+
+      width: min(1080px, 100%);
+      overflow: hidden;
+
+      border: 1px solid rgb(255 255 255 / 0.21);
+      border-radius: 36px;
+
+      /*
+       * 主玻璃底板维持较高透明度。
+       */
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.095) 0%,
+          rgb(255 255 255 / 0.035) 38%,
+          rgb(255 255 255 / 0.018) 68%,
+          rgb(255 255 255 / 0.055) 100%
+        );
+
+      -webkit-backdrop-filter:
+        blur(24px)
+        saturate(112%)
+        contrast(104%)
+        brightness(103%);
+
+      backdrop-filter:
+        blur(24px)
+        saturate(112%)
+        contrast(104%)
+        brightness(103%);
+
+      box-shadow:
+        0 34px 100px rgb(0 0 0 / 0.27),
+        0 8px 28px rgb(0 0 0 / 0.14),
+        inset 0 1px 0 rgb(255 255 255 / 0.40),
+        inset 0 -1px 0 rgb(255 255 255 / 0.055);
+    }
+
+    /*
+     * 静态表面高光。
+     */
+    .dashboard::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+
+      border-radius: inherit;
+      pointer-events: none;
+
+      background:
+        linear-gradient(
+          135deg,
+          rgb(255 255 255 / 0.085),
+          transparent 27%,
+          transparent 74%,
+          rgb(255 255 255 / 0.018)
+        );
+    }
+
+    /*
+     * 外层边缘高光。
+     */
+    .dashboard::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+
+      padding: 1px;
+      border-radius: inherit;
+      pointer-events: none;
+
+      background:
+        linear-gradient(
+          140deg,
+          rgb(255 255 255 / 0.68),
+          rgb(255 255 255 / 0.12) 26%,
+          rgb(255 255 255 / 0.035) 57%,
+          rgb(255 255 255 / 0.23) 83%,
+          rgb(255 255 255 / 0.045)
+        );
+
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+
+      -webkit-mask-composite: xor;
+
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+
+      mask-composite: exclude;
+    }
+
+    .dashboard-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    /*
+     * 顶部工具栏。
+     */
+    .topbar {
+      min-height: 76px;
+      padding: 16px 22px;
+
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+
+      border-bottom: 1px solid rgb(255 255 255 / 0.085);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+
+      display: grid;
+      place-items: center;
+
+      border: 1px solid rgb(255 255 255 / 0.18);
+      border-radius: 12px;
+
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.16),
+          rgb(255 255 255 / 0.045)
+        );
+
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.26),
+        0 5px 16px rgb(0 0 0 / 0.10);
+
+      font-size: 0.93rem;
+      font-weight: 750;
+    }
+
+    .brand-copy {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand-name {
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+
+    .brand-description {
+      color: var(--tertiary-text);
+      font-size: 0.73rem;
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 9px;
+    }
+
+    .glass-button {
+      min-width: 42px;
+      min-height: 42px;
+      padding: 0 15px;
+
+      border: 1px solid rgb(255 255 255 / 0.13);
+      border-radius: 999px;
+
+      color: inherit;
+      font: inherit;
+      font-size: 0.84rem;
+      cursor: pointer;
+
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.12),
+          rgb(255 255 255 / 0.033)
+        );
+
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.23),
+        0 4px 12px rgb(0 0 0 / 0.09);
+
+      transition:
+        transform 140ms ease,
+        background-color 150ms ease,
+        border-color 150ms ease;
+    }
+
+    .glass-button:hover {
+      border-color: rgb(255 255 255 / 0.23);
+      background-color: rgb(255 255 255 / 0.06);
+    }
+
+    .glass-button:active {
+      transform: scale(0.96);
+    }
+
+    .glass-button:focus-visible {
+      outline: 2px solid rgb(255 255 255 / 0.72);
+      outline-offset: 3px;
+    }
+
+    /*
+     * 主内容区域。
+     */
+    .main-content {
+      padding: 26px;
+
+      display: grid;
+      gap: 18px;
+    }
+
+    .heading-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .eyebrow {
+      margin: 0 0 7px;
+
+      color: var(--secondary-text);
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+
+      font-size: clamp(2rem, 5vw, 3.6rem);
+      font-weight: 680;
+      line-height: 1;
+      letter-spacing: -0.052em;
+    }
+
+    .heading-description {
+      max-width: 340px;
+      margin: 0;
+
+      color: var(--secondary-text);
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    /*
+     * 卡片栅格。
+     */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    /*
+     * 圆角矩形玻璃卡片。
+     *
+     * 因为卡片位于已模糊的主玻璃底板上，
+     * 这里不再使用很强的 backdrop-filter。
+     *
+     * 卡片主要依赖半透明填充、边框和 inset 阴影，
+     * 避免出现多层模糊导致的浑浊感。
+     */
+    .glass-card {
+      position: relative;
+      min-height: 180px;
+      padding: 21px;
+
+      overflow: hidden;
+      border: 1px solid rgb(255 255 255 / 0.12);
+      border-radius: 24px;
+
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.10),
+          rgb(255 255 255 / 0.035) 48%,
+          rgb(255 255 255 / 0.018)
+        );
+
+      -webkit-backdrop-filter:
+        blur(8px)
+        brightness(103%);
+
+      backdrop-filter:
+        blur(8px)
+        brightness(103%);
+
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.20),
+        inset 0 -1px 0 rgb(255 255 255 / 0.025),
+        0 12px 32px rgb(0 0 0 / 0.10);
+    }
+
+    /*
+     * 卡片顶部的固定反射。
+     */
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+
+      border-radius: inherit;
+
+      background:
+        linear-gradient(
+          135deg,
+          rgb(255 255 255 / 0.055),
+          transparent 31%,
+          transparent 78%
+        );
+    }
+
+    .card-content {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+    }
+
+    .card-large {
+      grid-column: span 7;
+      min-height: 270px;
+    }
+
+    .card-tall {
+      grid-column: span 5;
+      min-height: 270px;
+    }
+
+    .card-small {
+      grid-column: span 4;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .card-label {
+      margin: 0;
+
+      color: var(--secondary-text);
+      font-size: 0.76rem;
+      font-weight: 580;
+    }
+
+    .card-menu {
+      width: 31px;
+      height: 31px;
+      padding: 0;
+
+      border: 1px solid rgb(255 255 255 / 0.10);
+      border-radius: 50%;
+
+      color: var(--secondary-text);
+      cursor: pointer;
+
+      background: rgb(255 255 255 / 0.035);
+    }
+
+    .metric {
+      margin-top: 28px;
+
+      font-size: clamp(2.7rem, 7vw, 5rem);
+      font-weight: 630;
+      line-height: 0.88;
+      letter-spacing: -0.065em;
+    }
+
+    .metric-unit {
+      margin-left: 7px;
+
+      color: var(--secondary-text);
+      font-size: 0.9rem;
+      font-weight: 520;
+      letter-spacing: 0;
+    }
+
+    .metric-change {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+
+      margin-top: 18px;
+      padding: 7px 10px;
+
+      border: 1px solid rgb(255 255 255 / 0.10);
+      border-radius: 999px;
+
+      color: rgb(255 255 255 / 0.68);
+      background: rgb(255 255 255 / 0.035);
+
+      font-size: 0.75rem;
+    }
+
+    /*
+     * 用纯 CSS 制作一条中性趋势曲线，
+     * 避免引入炫彩图表。
+     */
+    .chart {
+      position: absolute;
+      right: 0;
+      bottom: 4px;
+      left: 0;
+
+      height: 88px;
+      overflow: hidden;
+
+      border-bottom: 1px solid rgb(255 255 255 / 0.065);
+    }
+
+    .chart::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+
+      background:
+        linear-gradient(
+          to right,
+          transparent 0,
+          transparent calc(25% - 1px),
+          rgb(255 255 255 / 0.038) 25%,
+          transparent calc(25% + 1px),
+          transparent calc(50% - 1px),
+          rgb(255 255 255 / 0.038) 50%,
+          transparent calc(50% + 1px),
+          transparent calc(75% - 1px),
+          rgb(255 255 255 / 0.038) 75%,
+          transparent calc(75% + 1px)
+        );
+    }
+
+    .chart-line {
+      position: absolute;
+      inset: 12px 0 0;
+
+      background:
+        linear-gradient(
+          160deg,
+          transparent 0 9%,
+          rgb(255 255 255 / 0.60) 9.5% 10.2%,
+          transparent 10.7% 22%,
+          rgb(255 255 255 / 0.60) 22.5% 23.2%,
+          transparent 23.7% 34%,
+          rgb(255 255 255 / 0.60) 34.5% 35.2%,
+          transparent 35.7% 49%,
+          rgb(255 255 255 / 0.60) 49.5% 50.2%,
+          transparent 50.7% 62%,
+          rgb(255 255 255 / 0.60) 62.5% 63.2%,
+          transparent 63.7% 78%,
+          rgb(255 255 255 / 0.60) 78.5% 79.2%,
+          transparent 79.7%
+        );
+
+      opacity: 0.65;
+      transform: skewY(-4deg);
+    }
+
+    /*
+     * 进度卡片。
+     */
+    .progress-list {
+      display: grid;
+      gap: 18px;
+      margin-top: 24px;
+    }
+
+    .progress-item {
+      display: grid;
+      gap: 9px;
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+
+      color: var(--secondary-text);
+      font-size: 0.76rem;
+    }
+
+    .progress-track {
+      height: 7px;
+      overflow: hidden;
+
+      border-radius: 999px;
+      background: rgb(255 255 255 / 0.075);
+
+      box-shadow:
+        inset 0 1px 2px rgb(0 0 0 / 0.12);
+    }
+
+    .progress-value {
+      height: 100%;
+      border-radius: inherit;
+
+      background:
+        linear-gradient(
+          90deg,
+          rgb(255 255 255 / 0.68),
+          rgb(255 255 255 / 0.35)
+        );
+
+      box-shadow:
+        0 0 10px rgb(255 255 255 / 0.08);
+    }
+
+    .progress-value--74 {
+      width: 74%;
+    }
+
+    .progress-value--58 {
+      width: 58%;
+    }
+
+    .progress-value--86 {
+      width: 86%;
+    }
+
+    /*
+     * 小卡片内容。
+     */
+    .small-card-value {
+      margin-top: 25px;
+
+      font-size: 2.45rem;
+      font-weight: 630;
+      line-height: 1;
+      letter-spacing: -0.055em;
+    }
+
+    .small-card-description {
+      margin: 13px 0 0;
+
+      color: var(--secondary-text);
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    .card-icon {
+      width: 37px;
+      height: 37px;
+
+      display: grid;
+      place-items: center;
+
+      border: 1px solid rgb(255 255 255 / 0.12);
+      border-radius: 12px;
+
+      color: rgb(255 255 255 / 0.67);
+      background: rgb(255 255 255 / 0.045);
+
+      font-size: 0.86rem;
+    }
+
+    /*
+     * 卡片之间的轻微层级差异。
+     * 依然保持中性色。
+     */
+    .glass-card--raised {
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.13),
+          rgb(255 255 255 / 0.045) 48%,
+          rgb(255 255 255 / 0.022)
+        );
+
+      border-color: rgb(255 255 255 / 0.15);
+    }
+
+    /*
+     * 底部状态栏。
+     */
+    .statusbar {
+      padding: 15px 26px;
+
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+
+      border-top: 1px solid rgb(255 255 255 / 0.075);
+
+      color: var(--tertiary-text);
+      font-size: 0.74rem;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+
+      border-radius: 50%;
+      background: rgb(255 255 255 / 0.58);
+
+      box-shadow:
+        0 0 0 4px rgb(255 255 255 / 0.055);
+    }
+
+    @supports not (
+      (backdrop-filter: blur(1px)) or
+      (-webkit-backdrop-filter: blur(1px))
+    ) {
+      .dashboard {
+        background: rgb(43 47 54 / 0.94);
+      }
+
+      .glass-card {
+        background: rgb(255 255 255 / 0.075);
+      }
+    }
+
+    @media (max-width: 820px) {
+      .heading-row {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .card-large,
+      .card-tall {
+        grid-column: span 12;
+      }
+
+      .card-small {
+        grid-column: span 6;
+      }
+    }
+
+    @media (max-width: 560px) {
+      body {
+        padding: 16px;
+      }
+
+      .dashboard {
+        border-radius: 28px;
+      }
+
+      .topbar {
+        padding: 14px 16px;
+      }
+
+      .brand-description {
+        display: none;
+      }
+
+      .main-content {
+        padding: 20px 16px;
+      }
+
+      .card-grid {
+        gap: 11px;
+      }
+
+      .card-small {
+        grid-column: span 12;
+      }
+
+      .glass-card {
+        padding: 18px;
+        border-radius: 21px;
+      }
+
+      .statusbar {
+        padding: 14px 17px;
+      }
+
+      .statusbar > span:last-child {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .glass-button {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="background-layer" aria-hidden="true">
+    <div class="background-block"></div>
+    <div class="background-block"></div>
+    <div class="background-block"></div>
+
+    <div class="background-word">
+      GLASS<br />
+      PANEL
+    </div>
+  </div>
+
+  <main class="dashboard">
+    <div class="dashboard-content">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">LG</div>
+
+          <div class="brand-copy">
+            <span class="brand-name">Glass Workspace</span>
+            <span class="brand-description">
+              Neutral interface system
+            </span>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="glass-button" type="button">
+            搜索
+          </button>
+
+          <button
+            class="glass-button"
+            type="button"
+            aria-label="更多选项"
+          >
+            •••
+          </button>
+        </div>
+      </header>
+
+      <section class="main-content">
+        <div class="heading-row">
+          <div>
+            <p class="eyebrow">Overview</p>
+            <h1>工作概览</h1>
+          </div>
+
+          <p class="heading-description">
+            在一个透明的液态玻璃底板上，组织不同尺寸和层级的
+            圆角矩形信息卡片。
+          </p>
+        </div>
+
+        <div class="card-grid">
+          <article class="glass-card card-large glass-card--raised">
+            <div class="card-content">
+              <div class="card-header">
+                <p class="card-label">本周专注时间</p>
+
+                <button
+                  class="card-menu"
+                  type="button"
+                  aria-label="查看专注时间详情"
+                >
+                  •••
+                </button>
+              </div>
+
+              <div class="metric">
+                32.8
+                <span class="metric-unit">小时</span>
+              </div>
+
+              <div class="metric-change">
+                ↑ 较上周增加 8.4%
+              </div>
+
+              <div class="chart" aria-hidden="true">
+                <div class="chart-line"></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="glass-card card-tall">
+            <div class="card-content">
+              <div class="card-header">
+                <p class="card-label">项目进度</p>
+                <div class="card-icon">↗</div>
+              </div>
+
+              <div class="progress-list">
+                <div class="progress-item">
+                  <div class="progress-meta">
+                    <span>界面系统</span>
+                    <span>74%</span>
+                  </div>
+
+                  <div class="progress-track">
+                    <div
+                      class="progress-value progress-value--74"
+                    ></div>
+                  </div>
+                </div>
+
+                <div class="progress-item">
+                  <div class="progress-meta">
+                    <span>交互原型</span>
+                    <span>58%</span>
+                  </div>
+
+                  <div class="progress-track">
+                    <div
+                      class="progress-value progress-value--58"
+                    ></div>
+                  </div>
+                </div>
+
+                <div class="progress-item">
+                  <div class="progress-meta">
+                    <span>视觉规范</span>
+                    <span>86%</span>
+                  </div>
+
+                  <div class="progress-track">
+                    <div
+                      class="progress-value progress-value--86"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="glass-card card-small">
+            <div class="card-content">
+              <div class="card-header">
+                <p class="card-label">今日任务</p>
+                <div class="card-icon">✓</div>
+              </div>
+
+              <div class="small-card-value">12</div>
+
+              <p class="small-card-description">
+                已完成 8 项，还有 4 项等待处理。
+              </p>
+            </div>
+          </article>
+
+          <article class="glass-card card-small">
+            <div class="card-content">
+              <div class="card-header">
+                <p class="card-label">当前项目</p>
+                <div class="card-icon">□</div>
+              </div>
+
+              <div class="small-card-value">5</div>
+
+              <p class="small-card-description">
+                其中 2 个项目将在本周进入评审阶段。
+              </p>
+            </div>
+          </article>
+
+          <article class="glass-card card-small">
+            <div class="card-content">
+              <div class="card-header">
+                <p class="card-label">专注效率</p>
+                <div class="card-icon">◌</div>
+              </div>
+
+              <div class="small-card-value">84%</div>
+
+              <p class="small-card-description">
+                根据最近七天的工作区间计算。
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <footer class="statusbar">
+        <span class="status">
+          <span class="status-dot"></span>
+          所有服务正常
+        </span>
+
+        <span>最后同步：刚刚</span>
+      </footer>
+    </div>
+  </main>
+</body>
+</html>
