@@ -306,18 +306,35 @@ export class CommercialSeatMapController {
         };
     }
 
-    _constrainView({ scale, panX, panY }, { resist = false } = {}) {
-        const nextScale = resist ?
+    _constrainScale(scale, { resist = false } = {}) {
+        return resist ?
             rubberband(scale, this.view.minScale, this.view.maxScale) :
             clamp(scale, this.view.minScale, this.view.maxScale);
-        const bounds = this._panBounds(nextScale);
+    }
+
+    _constrainPan({ scale, panX, panY }, { resist = false } = {}) {
+        const bounds = this._panBounds(scale);
         return {
-            scale: nextScale,
+            scale,
             panX: resist ? rubberband(panX, bounds.minX, bounds.maxX) :
                 clamp(panX, bounds.minX, bounds.maxX),
             panY: resist ? rubberband(panY, bounds.minY, bounds.maxY) :
                 clamp(panY, bounds.minY, bounds.maxY)
         };
+    }
+
+    _constrainView({ scale, panX, panY }, options = {}) {
+        const nextScale = this._constrainScale(scale, options);
+        return this._constrainPan({ scale: nextScale, panX, panY }, options);
+    }
+
+    _pinchViewAt(midpoint, rawScale) {
+        const scale = this._constrainScale(rawScale, { resist: true });
+        return this._constrainPan({
+            scale,
+            panX: midpoint.x - this.pinch.anchorX * scale,
+            panY: midpoint.y - this.pinch.anchorY * scale
+        }, { resist: true });
     }
 
     _applyViewTransform({ renderLabels = true } = {}) {
@@ -346,7 +363,7 @@ export class CommercialSeatMapController {
         const atMinimum = this.view.scale <= this.view.minScale + 0.01;
         this.zoomStatus.textContent = atMinimum ?
             '完整视图 · 双指放大' :
-            `${Math.round(this.view.scale * 100)}% · 拖动查看`;
+            `${Math.round(this.view.scale * 100)}% · 双指拖动查看`;
         this.zoomOutButton.disabled = atMinimum;
         this.zoomInButton.disabled = this.view.scale >= this.view.maxScale - 0.01;
         this.zoomFitButton.disabled = atMinimum;
@@ -989,11 +1006,7 @@ export class CommercialSeatMapController {
             const midpoint = pointerMidpoint(left, right);
             const nextScale = this.pinch.scale *
                 (pointerDistance(left, right) / this.pinch.distance);
-            const next = this._constrainView({
-                scale: nextScale,
-                panX: midpoint.x - this.pinch.anchorX * nextScale,
-                panY: midpoint.y - this.pinch.anchorY * nextScale
-            }, { resist: true });
+            const next = this._pinchViewAt(midpoint, nextScale);
             Object.assign(this.view, next);
             this._applyViewTransform();
             this._suppressSyntheticClick();
@@ -1038,11 +1051,7 @@ export class CommercialSeatMapController {
             const midpoint = pointerMidpoint(left, right);
             const nextScale = this.pinch.scale *
                 (pointerDistance(left, right) / this.pinch.distance);
-            const next = this._constrainView({
-                scale: nextScale,
-                panX: midpoint.x - this.pinch.anchorX * nextScale,
-                panY: midpoint.y - this.pinch.anchorY * nextScale
-            }, { resist: true });
+            const next = this._pinchViewAt(midpoint, nextScale);
             Object.assign(this.view, next);
             this._applyViewTransform();
             this._suppressSyntheticClick();

@@ -21,6 +21,12 @@ export default class TestSeatMapController {
         if (actual !== expected) throw new Error(`Expected ${expected}, got ${actual}`);
     }
 
+    assertNear(actual, expected, tolerance = 0.0001) {
+        if (Math.abs(actual - expected) > tolerance) {
+            throw new Error(`Expected ${expected} ± ${tolerance}, got ${actual}`);
+        }
+    }
+
     runAll() {
         console.log('\n========== Seat Map Controller 测试 ==========\n');
 
@@ -64,6 +70,34 @@ export default class TestSeatMapController {
             this.assertEqual(controller._finishTouchSelect(), true);
             this.assertEqual(toggledSeatId, 'wheelchair-1');
             this.assertEqual(selectedAsBlock, false);
+        });
+
+        this.test('超过最大缩放时应使用有效 scale 保持双指锚点', () => {
+            const controller = Object.create(CommercialSeatMapController.prototype);
+            controller.viewport = { clientWidth: 400, clientHeight: 300 };
+            controller.layout = { width: 200, height: 100 };
+            controller.view = { minScale: 1, maxScale: 2 };
+            controller.pinch = { anchorX: 100, anchorY: 50 };
+
+            const next = controller._pinchViewAt({ x: 200, y: 150 }, 3);
+
+            this.assertNear(next.scale, 2.2);
+            this.assertNear(next.panX + controller.pinch.anchorX * next.scale, 200);
+            this.assertNear(next.panY + controller.pinch.anchorY * next.scale, 150);
+        });
+
+        this.test('放大后的状态提示应明确需要双指拖动', () => {
+            const controller = Object.create(CommercialSeatMapController.prototype);
+            controller.view = { mobile: true, scale: 1.5, minScale: 1, maxScale: 2 };
+            controller.zoomStatus = { textContent: '' };
+            controller.zoomOutButton = {};
+            controller.zoomInButton = {};
+            controller.zoomFitButton = {};
+            controller.gestureHint = { setAttribute() {} };
+
+            controller._updateZoomControls();
+
+            this.assertEqual(controller.zoomStatus.textContent, '150% · 双指拖动查看');
         });
 
         return {
