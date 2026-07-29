@@ -6,7 +6,10 @@ export const STATE_STORAGE_KEY = 'smartcinema_state';
 
 export class LocalStateRepository {
     constructor({ storage, clock, key = STATE_STORAGE_KEY }) {
-        if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
+        if (!storage ||
+            typeof storage.getItem !== 'function' ||
+            typeof storage.setItem !== 'function' ||
+            typeof storage.removeItem !== 'function') {
             throw new TypeError('LocalStateRepository 需要 Storage-like 对象');
         }
         if (!clock || typeof clock.now !== 'function') {
@@ -32,6 +35,18 @@ export class LocalStateRepository {
         const validated = validateState(state);
         if (!validated.ok) return validated;
         return this._write(validated.value);
+    }
+
+    clear() {
+        try {
+            this.storage.removeItem(this.key);
+        } catch (error) {
+            return err('STORAGE_WRITE_FAILED', '无法清理旧 state', { reason: error.message });
+        }
+        if (this.storage.getItem(this.key) !== null) {
+            return err('STORAGE_WRITE_FAILED', '旧 state 清理后仍然存在');
+        }
+        return ok(null);
     }
 
     update(expectedRevision, mutate) {

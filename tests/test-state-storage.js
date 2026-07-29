@@ -93,6 +93,22 @@ export default class TestStateStorage {
             this.assertEqual(second.value.state.revision, 0);
         });
 
+        this.test('旧版状态应自动清理并重新初始化当前格式', () => {
+            const deps = this._deps();
+            const outdated = this._plainState();
+            outdated.schemaVersion = 3;
+            deps.storage.setItem(STATE_STORAGE_KEY, JSON.stringify(outdated));
+            const result = deps.initializer.run();
+            this.assertTrue(result.ok);
+            this.assertTrue(result.value.initialized);
+            this.assertTrue(result.value.outdatedStateCleared);
+            this.assertEqual(result.value.state.schemaVersion, 4);
+            this.assertEqual(
+                JSON.parse(deps.storage.getItem(STATE_STORAGE_KEY)).schemaVersion,
+                4
+            );
+        });
+
         this.test('并发页面抢先初始化时应复用已写入状态', () => {
             const deps = this._deps();
             const initialize = deps.repository.initialize.bind(deps.repository);

@@ -13,17 +13,39 @@ export class StateInitializer {
 
     run() {
         const current = this.stateRepository.read();
-        if (current.ok) return ok({ state: current.value, initialized: false });
-        if (current.error.code !== 'STATE_NOT_INITIALIZED') return current;
+        if (current.ok) {
+            return ok({
+                state: current.value,
+                initialized: false,
+                outdatedStateCleared: false
+            });
+        }
+
+        let outdatedStateCleared = false;
+        if (current.error.code === 'STATE_VERSION_OUTDATED') {
+            const cleared = this.stateRepository.clear();
+            if (!cleared.ok) return cleared;
+            outdatedStateCleared = true;
+        } else if (current.error.code !== 'STATE_NOT_INITIALIZED') {
+            return current;
+        }
 
         const initialized = this.stateRepository.initialize(createDefaultState(this.clock.now()));
         if (!initialized.ok) {
             if (initialized.error.code !== 'STATE_CONFLICT') return initialized;
             const concurrent = this.stateRepository.read();
             if (!concurrent.ok) return concurrent;
-            return ok({ state: concurrent.value, initialized: false });
+            return ok({
+                state: concurrent.value,
+                initialized: false,
+                outdatedStateCleared
+            });
         }
-        return ok({ state: initialized.value, initialized: true });
+        return ok({
+            state: initialized.value,
+            initialized: true,
+            outdatedStateCleared
+        });
     }
 }
 

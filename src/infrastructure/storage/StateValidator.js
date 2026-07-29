@@ -26,7 +26,17 @@ export function validateState(input) {
         const data = cloneJson(input);
         requirePlainMap(data, 'state');
         if (data.schemaVersion !== STATE_SCHEMA_VERSION) {
-            throw new ValidationError(`state schemaVersion 必须为 ${STATE_SCHEMA_VERSION}`);
+            const actualVersion = data.schemaVersion;
+            const outdated = Number.isInteger(actualVersion) &&
+                actualVersion >= 0 &&
+                actualVersion < STATE_SCHEMA_VERSION;
+            return err(
+                outdated ? 'STATE_VERSION_OUTDATED' : 'STATE_VERSION_UNSUPPORTED',
+                outdated ?
+                    `state schemaVersion ${actualVersion} 已过期` :
+                    `state schemaVersion 必须为 ${STATE_SCHEMA_VERSION}`,
+                { actualVersion, expectedVersion: STATE_SCHEMA_VERSION }
+            );
         }
         if (!Number.isInteger(data.revision) || data.revision < 0) {
             throw new ValidationError('state revision 必须是非负整数');
