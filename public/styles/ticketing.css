@@ -1490,7 +1490,7 @@ button:disabled {
         inset 0 1px 0 rgb(255 240 234 / 0.08),
         inset 0 0 0 1px rgb(0 0 0 / 0.18),
         0 14px 34px rgb(0 0 0 / 0.14);
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
@@ -1561,6 +1561,7 @@ button:disabled {
 
     .seat-viewport {
         height: clamp(280px, 76vw, 340px);
+        overscroll-behavior: contain;
         touch-action: none;
     }
 
@@ -3050,6 +3051,7 @@ button:disabled {
         height: clamp(280px, 76vw, 340px);
         margin: 6px;
         border-radius: 21px;
+        overscroll-behavior: contain;
         touch-action: none;
     }
 

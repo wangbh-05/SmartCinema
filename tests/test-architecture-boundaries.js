@@ -116,6 +116,28 @@ export default class TestArchitectureBoundaries {
             '座位图没有使用原生 Canvas 2D 上下文');
         });
 
+        this.test('桌面座位图不得截断页面滚动链', () => {
+            const stylesheet = read('public/styles/ticketing.css');
+            const controller = read('src/ui/controllers/SeatMapController.js');
+            const baseViewportRule = stylesheet.match(/\.seat-viewport\s*\{([^}]*)\}/)?.[1] || '';
+            this.assertTrue(
+                baseViewportRule.includes('overscroll-behavior: auto'),
+                '桌面 seat viewport 未恢复原生页面滚动接力'
+            );
+            this.assertTrue(
+                !baseViewportRule.includes('overscroll-behavior: contain'),
+                '桌面 seat viewport 仍会截断页面滚动链'
+            );
+            this.assertTrue(
+                !controller.includes("addEventListener('wheel'"),
+                '桌面 seatmap 不应监听 wheel 或添加边界动效'
+            );
+            this.assertTrue(
+                !controller.includes('document.scrollingElement'),
+                '座位图控制器不得手动接管页面滚动位置'
+            );
+        });
+
         return this.printSummary();
     }
 
