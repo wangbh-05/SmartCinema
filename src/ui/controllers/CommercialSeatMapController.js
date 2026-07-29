@@ -1,7 +1,6 @@
 import { formatAmount } from '../commercial/CommerceView.js';
 import {
     canvasPoint,
-    centerTextMetricsInRectangle,
     createCurvedSeatLayout,
     createHeatmapBitmap,
     heatScoreForPeriod,
@@ -96,6 +95,7 @@ export class CommercialSeatMapController {
         this.layout = null;
         this.drag = null;
         this.suppressNextClick = false;
+        this.syntheticClickTimer = null;
         this.tooltipTimer = null;
         this.hasShownTooltip = false;
         this.lastHeatKey = null;
@@ -104,6 +104,8 @@ export class CommercialSeatMapController {
         this.activePointers = new Map();
         this.pinch = null;
         this.touchPan = null;
+        this.touchSelect = null;
+        this.nativeTouchActive = false;
         this.viewAnimation = null;
         this.resizeFrame = null;
         this.view = {
@@ -131,6 +133,16 @@ export class CommercialSeatMapController {
         this.canvas.addEventListener('pointerdown', event => this._handlePointerDown(event));
         this.canvas.addEventListener('pointerup', event => this._handlePointerUp(event));
         this.canvas.addEventListener('pointercancel', event => this._handlePointerCancel(event));
+        this.viewport.addEventListener('touchstart', event => this._handleNativeTouchStart(event), { passive: false });
+        this.viewport.addEventListener('touchmove', event => this._handleNativeTouchMove(event), { passive: false });
+        this.viewport.addEventListener('touchend', event => this._handleNativeTouchEnd(event), { passive: false });
+        this.viewport.addEventListener('touchcancel', event => this._handleNativeTouchEnd(event), { passive: false });
+        this.viewport.addEventListener('gesturestart', event => this._handleBrowserGesture(event), { passive: false });
+        this.viewport.addEventListener('gesturechange', event => this._handleBrowserGesture(event), { passive: false });
+        this.viewport.addEventListener('gestureend', event => this._handleBrowserGesture(event), { passive: false });
+        document.addEventListener('gesturestart', event => this._handleBrowserGesture(event), { passive: false });
+        document.addEventListener('gesturechange', event => this._handleBrowserGesture(event), { passive: false });
+        document.addEventListener('gestureend', event => this._handleBrowserGesture(event), { passive: false });
         this.zoomOutButton?.addEventListener('click', event => this._stepZoom(-1, event.detail === 0));
         this.zoomFitButton?.addEventListener('click', event => this._fitView({ immediate: event.detail === 0 }));
         this.zoomInButton?.addEventListener('click', event => this._stepZoom(1, event.detail === 0));
@@ -208,7 +220,7 @@ export class CommercialSeatMapController {
     }
 
     _configureViewport({ preserveScale = false } = {}) {
-        const mobile = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+        const mobile = this._shouldUseTouchViewport();
         const wasMobile = this.view.mobile;
         this.view.mobile = mobile;
         this.viewport.classList.toggle('is-mobile-seat-view', mobile);
@@ -258,6 +270,14 @@ export class CommercialSeatMapController {
         this.scroller.scrollLeft = 0;
         this.scroller.scrollTop = 0;
         this._applyViewTransform();
+    }
+
+    _shouldUseTouchViewport() {
+        const narrowLayout = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+        const coarsePointer = window.matchMedia('(pointer: coarse)').matches ||
+            window.matchMedia('(hover: none)').matches;
+        const touchCapable = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+        return narrowLayout || (coarsePointer && touchCapable);
     }
 
     _centeredPan(scale) {
@@ -545,11 +565,13 @@ export class CommercialSeatMapController {
         const held = new Set(Object.keys(state.inventory.holdIdsBySeatId));
         const selected = new Set(state.draft.selectedSeatIds);
         const recommended = new Set(state.recommendedSeatIds || []);
+        const touchSelecting = new Set(this.touchSelect?.seatIds || []);
         this.layout.seats.forEach(seat => this._drawSeat(context, seat, theme, {
             sold: sold.has(seat.id),
             held: held.has(seat.id),
             selected: selected.has(seat.id),
             recommended: recommended.has(seat.id),
+            touchSelecting: touchSelecting.has(seat.id),
             hovered: seat.id === this.hoveredSeatId,
             focused: document.activeElement === this.canvas && seat.id === this.lastFocusedSeatId
         }));
@@ -612,12 +634,12 @@ export class CommercialSeatMapController {
         }
         if (state.hovered && !state.sold && !state.held) border = state.selected ? '#ffffff' : '#dce3ef';
 
-        if (state.recommended) {
+        if (state.recommended || state.touchSelecting) {
             context.save();
-            context.strokeStyle = theme.accent;
-            context.lineWidth = state.selected ? 2 : 2.2;
+            context.strokeStyle = state.touchSelecting ? '#ffffff' : theme.accent;
+            context.lineWidth = state.touchSelecting ? 2.4 : (state.selected ? 2 : 2.2);
             context.shadowColor = theme.accent;
-            context.shadowBlur = state.selected ? 8 : 5;
+            context.shadowBlur = state.touchSelecting ? 9 : (state.selected ? 8 : 5);
             roundRect(context, -4, -4, seat.width + 8, seat.height + 8, 9);
             context.stroke();
             context.restore();
@@ -659,40 +681,23 @@ export class CommercialSeatMapController {
             context.lineTo(seat.width - 5, backHeight / 2);
             context.stroke();
         }
+        if (!(this.view.mobile && this.viewport.dataset.seatLabelMode === 'overview')) {
+            context.fillStyle = text;
+            const mobileFontSize = Math.min(11, Math.max(8, 7 / Math.max(0.62, this.view.scale)));
+            const fontSize = theme.readable ? 9 :
+                (this.view.mobile ? mobileFontSize : (seat.kind === 'wheelchair' ? 10 : 8));
+            context.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(label, seat.width / 2, backHeight / 2);
+        }
+
         if (state.focused) {
             context.strokeStyle = theme.highContrast ? '#ffffff' : '#8db3ff';
             context.lineWidth = theme.highContrast ? 3 : 2;
             roundRect(context, -6, -6, seat.width + 12, seat.height + 12, 10);
             context.stroke();
         }
-        context.restore();
-
-        if (this.view.mobile && this.viewport.dataset.seatLabelMode === 'overview') return;
-
-        // Use the rounded backrest's exact local centre as the anchor. Desktop
-        // follows the row curve; mobile keeps labels upright so small numbers
-        // remain aligned and legible while the surface is being transformed.
-        context.save();
-        context.translate(seat.centerX, seat.centerY);
-        if (!this.view.mobile) context.rotate(seat.rotation);
-        context.fillStyle = text;
-        const mobileFontSize = Math.min(11, Math.max(8, 7 / Math.max(0.62, this.view.scale)));
-        const fontSize = theme.readable ? 9 :
-            (this.view.mobile ? mobileFontSize : (seat.kind === 'wheelchair' ? 10 : 8));
-        context.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
-        context.textAlign = 'left';
-        context.textBaseline = 'alphabetic';
-        const metrics = context.measureText(label);
-        const placement = centerTextMetricsInRectangle(metrics, {
-            x: -seat.width * hoverScale / 2,
-            y: -seat.height * hoverScale / 2,
-            width: seat.width * hoverScale,
-            height: backHeight * hoverScale
-        }, {
-            fallbackAscent: fontSize * 0.72,
-            fallbackDescent: fontSize * 0.2
-        });
-        context.fillText(label, placement.x, placement.baselineY);
         context.restore();
     }
 
@@ -738,6 +743,10 @@ export class CommercialSeatMapController {
 
     _handleCanvasClick(event) {
         if (this.suppressNextClick) {
+            if (this.syntheticClickTimer !== null) {
+                window.clearTimeout(this.syntheticClickTimer);
+                this.syntheticClickTimer = null;
+            }
             this.suppressNextClick = false;
             return;
         }
@@ -751,6 +760,7 @@ export class CommercialSeatMapController {
 
     _handlePointerMove(event) {
         if (!this.layout) return;
+        if (event.pointerType === 'touch' && this._usesNativeTouchEvents()) return;
         if (event.pointerType === 'touch' && this.activePointers.has(event.pointerId)) {
             this._handleTouchMove(event);
             return;
@@ -778,17 +788,26 @@ export class CommercialSeatMapController {
     }
 
     _handlePointerDown(event) {
+        if (event.pointerType === 'touch' && this.view.mobile && this._usesNativeTouchEvents()) return;
         if (event.pointerType === 'touch' && this.view.mobile) {
             this._handleTouchDown(event);
             return;
         }
         if (event.button !== 0) return;
         const point = canvasPoint(this.canvas, event);
-        this.drag = { startX: point.x, startY: point.y, endX: point.x, endY: point.y, active: false };
+        this.drag = {
+            startX: point.x,
+            startY: point.y,
+            endX: point.x,
+            endY: point.y,
+            active: false,
+            mode: 'toggle'
+        };
         this.canvas.setPointerCapture(event.pointerId);
     }
 
     _handlePointerUp(event) {
+        if (event.pointerType === 'touch' && this.view.mobile && this._usesNativeTouchEvents()) return;
         if (event.pointerType === 'touch' && this.activePointers.has(event.pointerId)) {
             this._handleTouchEnd(event);
             return;
@@ -801,7 +820,7 @@ export class CommercialSeatMapController {
             const seatIds = seatsInsideRectangle(this.layout, drag)
                 .filter(seat => !this._isUnavailable(seat.id) && !['wheelchair', 'companion'].includes(seat.kind))
                 .map(seat => seat.id);
-            if (seatIds.length > 0) this.onSelectSeats(seatIds);
+            if (seatIds.length > 0) this.onSelectSeats(seatIds, { mode: drag.mode });
         }
         this._renderCanvas(this.getState(), readCanvasTheme(document.body));
     }
@@ -814,37 +833,135 @@ export class CommercialSeatMapController {
         };
     }
 
+    _layoutPointFromViewportPoint(point) {
+        if (!this.view.mobile) return point;
+        return {
+            x: (point.x - this.view.panX) / Math.max(this.view.scale, 0.001),
+            y: (point.y - this.view.panY) / Math.max(this.view.scale, 0.001)
+        };
+    }
+
+    _touchSeatAtViewportPoint(point) {
+        if (!this.layout || !this.view.mobile) return null;
+        const scale = Math.max(this.view.scale, 0.001);
+        const hitRadius = Math.max(18, Math.min(30, this.layout.columnStep * scale * 0.82));
+        const candidates = [];
+        for (const seat of this.layout.seats) {
+            const centerX = this.view.panX + seat.centerX * scale;
+            const centerY = this.view.panY + seat.centerY * scale;
+            const dx = point.x - centerX;
+            const dy = point.y - centerY;
+            const distance = Math.hypot(dx, dy);
+            if (distance <= hitRadius) {
+                candidates.push({ seat, distance });
+            }
+        }
+        candidates.sort((left, right) => left.distance - right.distance);
+        return candidates[0]?.seat || null;
+    }
+
+    _seatAtTouchPoint(point) {
+        const layoutPoint = this._layoutPointFromViewportPoint(point);
+        return this._touchSeatAtViewportPoint(point) ||
+            hitTestSeat(this.layout, layoutPoint.x, layoutPoint.y);
+    }
+
+    _usesNativeTouchEvents() {
+        return 'ontouchstart' in window;
+    }
+
+    _setActiveTouchPoints(touches) {
+        this.activePointers.clear();
+        [...touches].forEach(touch => {
+            this.activePointers.set(touch.identifier, this._pointerInViewport(touch));
+        });
+    }
+
+    _beginPinch() {
+        const [left, right] = [...this.activePointers.values()].slice(0, 2);
+        const midpoint = pointerMidpoint(left, right);
+        const hadTouchSelection = Boolean(this.touchSelect);
+        this.touchSelect = null;
+        this.pinch = {
+            distance: Math.max(1, pointerDistance(left, right)),
+            scale: this.view.scale,
+            anchorX: (midpoint.x - this.view.panX) / this.view.scale,
+            anchorY: (midpoint.y - this.view.panY) / this.view.scale
+        };
+        this.touchPan = null;
+        if (hadTouchSelection) this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+        this._suppressSyntheticClick();
+    }
+
+    _startSingleTouchGesture({ pointerId, viewportPoint }) {
+        const startSeat = this._seatAtTouchPoint(viewportPoint);
+        if (this._canStartTouchSelect(startSeat)) {
+            const mode = this._isSelected(startSeat.id) ? 'remove' : 'add';
+            this.touchSelect = {
+                pointerId,
+                mode,
+                startX: viewportPoint.x,
+                startY: viewportPoint.y,
+                lastX: viewportPoint.x,
+                lastY: viewportPoint.y,
+                startSeatId: startSeat.id,
+                seatIds: new Set([startSeat.id]),
+                active: false
+            };
+            this.lastFocusedSeatId = startSeat.id;
+            this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+            return true;
+        }
+
+        this.touchSelect = null;
+        this.touchPan = {
+            pointerId,
+            startX: viewportPoint.x,
+            startY: viewportPoint.y,
+            panX: this.view.panX,
+            panY: this.view.panY,
+            active: false
+        };
+        return false;
+    }
+
     _handleTouchDown(event) {
         this._stopViewAnimation();
-        const point = this._pointerInViewport(event);
-        this.activePointers.set(event.pointerId, point);
+        const viewportPoint = this._pointerInViewport(event);
+        this.activePointers.set(event.pointerId, viewportPoint);
         this.canvas.setPointerCapture(event.pointerId);
 
         if (this.activePointers.size >= 2) {
-            const [left, right] = [...this.activePointers.values()].slice(0, 2);
-            const midpoint = pointerMidpoint(left, right);
-            this.pinch = {
-                distance: Math.max(1, pointerDistance(left, right)),
-                scale: this.view.scale,
-                anchorX: (midpoint.x - this.view.panX) / this.view.scale,
-                anchorY: (midpoint.y - this.view.panY) / this.view.scale
-            };
-            this.touchPan = null;
-            this.suppressNextClick = true;
+            this._beginPinch();
             event.preventDefault();
             return;
         }
 
-        if (this.view.scale > this.view.minScale + 0.035) {
-            this.touchPan = {
-                pointerId: event.pointerId,
-                startX: point.x,
-                startY: point.y,
-                panX: this.view.panX,
-                panY: this.view.panY,
-                active: false
-            };
+        if (this._startSingleTouchGesture({
+            pointerId: event.pointerId,
+            viewportPoint
+        })) event.preventDefault();
+    }
+
+    _handleNativeTouchStart(event) {
+        if (!this.layout || !this.view.mobile) return;
+        this.nativeTouchActive = true;
+        event.preventDefault();
+        this._stopViewAnimation();
+        this._setActiveTouchPoints(event.touches);
+
+        if (event.touches.length >= 2) {
+            this._beginPinch();
+            return;
         }
+
+        const touch = event.changedTouches[0];
+        if (!touch) return;
+        const startedSelection = this._startSingleTouchGesture({
+            pointerId: touch.identifier,
+            viewportPoint: this._pointerInViewport(touch)
+        });
+        if (!startedSelection) this._suppressSyntheticClick();
     }
 
     _handleTouchMove(event) {
@@ -863,8 +980,16 @@ export class CommercialSeatMapController {
             }, { resist: true });
             Object.assign(this.view, next);
             this._applyViewTransform();
-            this.suppressNextClick = true;
+            this._suppressSyntheticClick();
             event.preventDefault();
+            return;
+        }
+
+        if (this.touchSelect && this.touchSelect.pointerId === event.pointerId) {
+            this._handleTouchSelectMove({
+                point,
+                preventDefault: () => event.preventDefault()
+            });
             return;
         }
 
@@ -873,7 +998,7 @@ export class CommercialSeatMapController {
         const deltaY = point.y - this.touchPan.startY;
         if (!this.touchPan.active && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
             this.touchPan.active = true;
-            this.suppressNextClick = true;
+            this._suppressSyntheticClick();
         }
         if (!this.touchPan.active) return;
         const next = this._constrainView({
@@ -886,11 +1011,132 @@ export class CommercialSeatMapController {
         event.preventDefault();
     }
 
+    _handleNativeTouchMove(event) {
+        if (!this.layout || !this.view.mobile) return;
+        event.preventDefault();
+        this._setActiveTouchPoints(event.touches);
+
+        if (event.touches.length >= 2) {
+            if (!this.pinch) this._beginPinch();
+            const [left, right] = [...this.activePointers.values()].slice(0, 2);
+            const midpoint = pointerMidpoint(left, right);
+            const nextScale = this.pinch.scale *
+                (pointerDistance(left, right) / this.pinch.distance);
+            const next = this._constrainView({
+                scale: nextScale,
+                panX: midpoint.x - this.pinch.anchorX * nextScale,
+                panY: midpoint.y - this.pinch.anchorY * nextScale
+            }, { resist: true });
+            Object.assign(this.view, next);
+            this._applyViewTransform();
+            this._suppressSyntheticClick();
+            return;
+        }
+
+        if (this.touchSelect) {
+            const touch = [...event.touches].find(item => item.identifier === this.touchSelect.pointerId);
+            if (!touch) return;
+            this._handleTouchSelectMove({
+                point: this._pointerInViewport(touch),
+                preventDefault: () => event.preventDefault()
+            });
+            return;
+        }
+
+        if (this.touchPan) {
+            const touch = [...event.touches].find(item => item.identifier === this.touchPan.pointerId);
+            if (!touch) return;
+            this._handleTouchPanMove({
+                point: this._pointerInViewport(touch),
+                preventDefault: () => event.preventDefault()
+            });
+        }
+    }
+
+    _handleTouchSelectMove({ point, preventDefault }) {
+        const deltaX = point.x - this.touchSelect.startX;
+        const deltaY = point.y - this.touchSelect.startY;
+        if (!this.touchSelect.active && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
+            this.touchSelect.active = true;
+            this._suppressSyntheticClick();
+        }
+        this._addTouchSeatsAlongPath({
+            from: { x: this.touchSelect.lastX, y: this.touchSelect.lastY },
+            to: point
+        });
+        this.touchSelect.lastX = point.x;
+        this.touchSelect.lastY = point.y;
+        if (this.touchSelect.active) preventDefault();
+    }
+
+    _addTouchSeatsAlongPath({ from, to }) {
+        const distance = Math.hypot(to.x - from.x, to.y - from.y);
+        const steps = Math.max(1, Math.ceil(distance / 7));
+        let changed = false;
+        for (let index = 0; index <= steps; index++) {
+            const amount = index / steps;
+            const point = {
+                x: from.x + (to.x - from.x) * amount,
+                y: from.y + (to.y - from.y) * amount
+            };
+            const seat = this._seatAtTouchPoint(point);
+            if (this._canAddTouchSelectedSeat(seat) && !this.touchSelect.seatIds.has(seat.id)) {
+                this.touchSelect.seatIds.add(seat.id);
+                this.lastFocusedSeatId = seat.id;
+                changed = true;
+            }
+        }
+        if (changed) this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+    }
+
+    _handleTouchPanMove({ point, preventDefault }) {
+        if (!this.touchPan) return;
+        const deltaX = point.x - this.touchPan.startX;
+        const deltaY = point.y - this.touchPan.startY;
+        if (!this.touchPan.active && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
+            this.touchPan.active = true;
+            this._suppressSyntheticClick();
+        }
+        if (!this.touchPan.active) return;
+        const next = this._constrainView({
+            ...this.view,
+            panX: this.touchPan.panX + deltaX,
+            panY: this.touchPan.panY + deltaY
+        }, { resist: true });
+        Object.assign(this.view, next);
+        this._applyViewTransform({ renderLabels: false });
+        preventDefault();
+    }
+
+    _finishTouchSelect() {
+        const touchSelect = this.touchSelect;
+        this.touchSelect = null;
+        if (!touchSelect) return false;
+
+        this._suppressSyntheticClick();
+        if (touchSelect.active || touchSelect.seatIds.size > 1) {
+            const seatIds = [...touchSelect.seatIds];
+            if (seatIds.length > 0) this.onSelectSeats(seatIds, { mode: touchSelect.mode });
+        } else if (touchSelect.startSeatId && !this._isUnavailable(touchSelect.startSeatId)) {
+            this.onToggleSeat(touchSelect.startSeatId);
+        } else {
+            this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+        }
+        return true;
+    }
+
     _handleTouchEnd(event) {
         if (this.canvas.hasPointerCapture(event.pointerId)) {
             this.canvas.releasePointerCapture(event.pointerId);
         }
         this.activePointers.delete(event.pointerId);
+
+        if (this.touchSelect?.pointerId === event.pointerId) {
+            this._finishTouchSelect();
+            if (this.activePointers.size === 0) this._animateViewTo(this._constrainView(this.view));
+            event.preventDefault();
+            return;
+        }
 
         if (this.activePointers.size === 1 && this.pinch) {
             const [pointerId, point] = [...this.activePointers.entries()][0];
@@ -909,9 +1155,52 @@ export class CommercialSeatMapController {
         if (this.activePointers.size === 0) {
             this.pinch = null;
             this.touchPan = null;
+            this.touchSelect = null;
             const target = this._constrainView(this.view);
             this._animateViewTo(target);
         }
+    }
+
+    _handleNativeTouchEnd(event) {
+        if (!this.layout || !this.view.mobile) return;
+        event.preventDefault();
+        const endedSelection = [...event.changedTouches]
+            .some(touch => touch.identifier === this.touchSelect?.pointerId);
+        this._setActiveTouchPoints(event.touches);
+
+        if (endedSelection) {
+            this._finishTouchSelect();
+        }
+
+        if (this.activePointers.size === 1 && this.pinch) {
+            const [pointerId, point] = [...this.activePointers.entries()][0];
+            this.pinch = null;
+            this.touchPan = {
+                pointerId,
+                startX: point.x,
+                startY: point.y,
+                panX: this.view.panX,
+                panY: this.view.panY,
+                active: true
+            };
+            return;
+        }
+
+        if (this.activePointers.size === 0) {
+            this.nativeTouchActive = false;
+            this.pinch = null;
+            this.touchPan = null;
+            this.touchSelect = null;
+            this._animateViewTo(this._constrainView(this.view));
+        }
+    }
+
+    _handleBrowserGesture(event) {
+        if (!this.view.mobile) return;
+        const inSeatViewport = event.target === this.viewport || this.viewport.contains(event.target);
+        if (!this.nativeTouchActive && !inSeatViewport) return;
+        event.preventDefault();
+        this._suppressSyntheticClick();
     }
 
     _handlePointerCancel(event) {
@@ -920,6 +1209,7 @@ export class CommercialSeatMapController {
             if (this.activePointers.size === 0) {
                 this.pinch = null;
                 this.touchPan = null;
+                this.touchSelect = null;
                 this._animateViewTo(this._constrainView(this.view));
             }
             return;
@@ -929,6 +1219,7 @@ export class CommercialSeatMapController {
 
     _cancelDrag() {
         this.drag = null;
+        this.touchSelect = null;
         this.suppressNextClick = false;
         this.render();
     }
@@ -1038,6 +1329,29 @@ export class CommercialSeatMapController {
     _isUnavailable(seatId) {
         const { inventory } = this.getState();
         return inventory.soldSeatIds.includes(seatId) || Boolean(inventory.holdIdsBySeatId[seatId]);
+    }
+
+    _canStartTouchSelect(seat) {
+        if (!seat || this._isUnavailable(seat.id)) return false;
+        if (['wheelchair', 'companion'].includes(seat.kind)) return false;
+        return true;
+    }
+
+    _canAddTouchSelectedSeat(seat) {
+        return this._canStartTouchSelect(seat);
+    }
+
+    _isSelected(seatId) {
+        return Boolean(seatId && this.getState().draft.selectedSeatIds.includes(seatId));
+    }
+
+    _suppressSyntheticClick() {
+        this.suppressNextClick = true;
+        if (this.syntheticClickTimer !== null) window.clearTimeout(this.syntheticClickTimer);
+        this.syntheticClickTimer = window.setTimeout(() => {
+            this.suppressNextClick = false;
+            this.syntheticClickTimer = null;
+        }, 450);
     }
 
     _firstAvailableSeatId() {

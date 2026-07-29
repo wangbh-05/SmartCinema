@@ -1484,6 +1484,11 @@ button:disabled {
         inset 0 1px 0 rgb(255 240 234 / 0.08),
         inset 0 0 0 1px rgb(0 0 0 / 0.18),
         0 14px 34px rgb(0 0 0 / 0.14);
+    overscroll-behavior: contain;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .seat-scroll {
@@ -1541,6 +1546,73 @@ button:disabled {
         inset 18px 0 28px -26px rgb(255 218 207 / 0.34),
         inset -18px 0 28px -26px rgb(255 218 207 / 0.34);
     pointer-events: none;
+}
+
+@media (pointer: coarse), (hover: none) {
+    .seat-zoom-controls {
+        display: flex;
+    }
+
+    .seat-viewport {
+        height: clamp(280px, 76vw, 340px);
+        touch-action: none;
+    }
+
+    .seat-scroll {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        padding: 0;
+        scrollbar-width: none;
+    }
+
+    .seat-scroll::-webkit-scrollbar {
+        display: none;
+    }
+
+    .canvas-seat-surface {
+        position: absolute;
+        top: 0;
+        left: 0;
+        margin: 0;
+        will-change: transform;
+    }
+
+    .seat-layout-canvas {
+        touch-action: none;
+    }
+
+    .seat-gesture-hint {
+        position: absolute;
+        bottom: 12px;
+        left: 50%;
+        z-index: 4;
+        display: block;
+        max-width: calc(100% - 28px);
+        padding: 6px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 999px;
+        background: rgb(17 21 28 / 0.86);
+        color: rgba(235, 239, 247, 0.74);
+        font-size: 9px;
+        font-weight: 640;
+        letter-spacing: 0.03em;
+        text-align: center;
+        white-space: nowrap;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+        transform: translateX(-50%);
+        transition:
+            opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
+            transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+        pointer-events: none;
+    }
+
+    .seat-viewport.is-zoomed .seat-gesture-hint {
+        opacity: 0;
+        transform: translateX(-50%) translateY(4px);
+    }
 }
 
 .canvas-seat-tooltip {
@@ -2972,6 +3044,7 @@ button:disabled {
         height: clamp(280px, 76vw, 340px);
         margin: 6px;
         border-radius: 21px;
+        touch-action: none;
     }
 
     .seat-scroll {
@@ -2997,10 +3070,6 @@ button:disabled {
     }
 
     .seat-layout-canvas {
-        touch-action: pan-y;
-    }
-
-    .seat-viewport.is-zoomed .seat-layout-canvas {
         touch-action: none;
     }
 

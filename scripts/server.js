@@ -82,7 +82,11 @@ const server = http.createServer((req, res) => {
             const mimeType = mimeTypes[ext] || 'text/plain';
 
             // 返回文件
-            res.writeHead(200, { 'Content-Type': mimeType });
+            const headers = { 'Content-Type': mimeType };
+            if (['.html', '.js', '.css'].includes(ext)) {
+                headers['Cache-Control'] = 'no-store';
+            }
+            res.writeHead(200, headers);
             res.end(data);
         });
     } else {

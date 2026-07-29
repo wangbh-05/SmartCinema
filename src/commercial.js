@@ -178,7 +178,7 @@ class CommercialBookingPage {
                 recommendedSeatIds: [...this.recommendedSeatIds]
             }),
             onToggleSeat: seatId => this.toggleSeat(seatId),
-            onSelectSeats: seatIds => this.selectSeatBlock(seatIds)
+            onSelectSeats: (seatIds, options) => this.selectSeatBlock(seatIds, options)
         });
     }
 
@@ -556,12 +556,73 @@ class CommercialBookingPage {
         this.announce(`${seat.label}${selected.has(seatId) ? '已选择' : '已取消'}`);
     }
 
-    selectSeatBlock(seatIds) {
+    selectSeatBlock(seatIds, { mode = 'add' } = {}) {
         const availableCandidates = seatIds
             .map(id => this.context.auditorium.seats.find(seat => seat.id === id))
             .filter(seat => seat && !this.isSeatUnavailable(seat.id));
         if (availableCandidates.length === 0) return;
         const selected = new Set(this.draft.selectedSeatIds);
+        if (mode === 'remove') {
+            const removals = availableCandidates.filter(seat => selected.has(seat.id));
+            if (removals.length === 0) return;
+            removals.forEach(seat => selected.delete(seat.id));
+            const replaced = this.booking.replaceSeats(this.draft, [...selected]);
+            if (!replaced.ok) return this.notify(replaced.error.message);
+            this.draft = replaced.value;
+            this.resetRecommendationSession('manual');
+            this.recommendedSeatIds.clear();
+            this.hideRecommendationFeedback();
+            this.seatMap.rememberFocus(removals[0].id);
+            this.hideSeatConflict();
+            this.updateQuote();
+            this.renderSeatMap();
+            this.renderSummary();
+            this.persistDraft();
+            this.announce(`已取消 ${removals.map(seat => seat.label).join('、')}`);
+            return;
+        }
+        if (mode === 'toggle') {
+            const initiallySelected = new Set(selected);
+            const removals = availableCandidates.filter(seat => initiallySelected.has(seat.id));
+            removals.forEach(seat => selected.delete(seat.id));
+            const selectedSeats = [...selected].map(id =>
+                this.context.auditorium.seats.find(seat => seat.id === id)
+            ).filter(Boolean);
+            const capacity = this.draft.ticketCount - selected.size;
+            const additions = [];
+            const candidates = [...availableCandidates]
+                .filter(seat => !initiallySelected.has(seat.id))
+                .sort((left, right) => left.rowIndex - right.rowIndex || left.columnIndex - right.columnIndex);
+            for (const seat of candidates) {
+                if (additions.length >= Math.max(0, capacity)) continue;
+                if (!canSelectSeatGroup([...selectedSeats, ...additions, seat])) continue;
+                additions.push(seat);
+            }
+            additions.forEach(seat => selected.add(seat.id));
+            if (removals.length === 0 && additions.length === 0) {
+                this.notify(`本单有 ${this.draft.ticketCount} 张票；请先取消座位再框选`);
+                return;
+            }
+            const replaced = this.booking.replaceSeats(this.draft, [...selected]);
+            if (!replaced.ok) return this.notify(replaced.error.message);
+            this.draft = replaced.value;
+            this.resetRecommendationSession('manual');
+            this.recommendedSeatIds.clear();
+            this.hideRecommendationFeedback();
+            this.seatMap.rememberFocus((additions[0] || removals[0]).id);
+            this.hideSeatConflict();
+            this.updateQuote();
+            this.renderSeatMap();
+            this.renderSummary();
+            this.persistDraft();
+            const skippedCount = candidates.length - additions.length;
+            if (skippedCount > 0) this.notify('部分座位因票数上限或连座规则未被选中');
+            const messages = [];
+            if (additions.length > 0) messages.push(`已选择 ${additions.map(seat => seat.label).join('、')}`);
+            if (removals.length > 0) messages.push(`已取消 ${removals.map(seat => seat.label).join('、')}`);
+            this.announce(messages.join('；'));
+            return;
+        }
         const selectedSeats = [...selected].map(id =>
             this.context.auditorium.seats.find(seat => seat.id === id)
         ).filter(Boolean);
