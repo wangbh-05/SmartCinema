@@ -86,6 +86,79 @@ export default class TestSeatMapController {
             this.assertNear(next.panY + controller.pinch.anchorY * next.scale, 150);
         });
 
+        this.test('边界阻尼松手时应围绕当前呈现锚点连续回弹', () => {
+            const controller = Object.create(CommercialSeatMapController.prototype);
+            controller.viewport = { clientWidth: 400, clientHeight: 300 };
+            controller.layout = { width: 200, height: 100 };
+            controller.view = {
+                scale: 2.2,
+                minScale: 1,
+                maxScale: 2,
+                panX: -20,
+                panY: 40
+            };
+            const point = { x: 200, y: 150 };
+            const anchorX = (point.x - controller.view.panX) / controller.view.scale;
+            const anchorY = (point.y - controller.view.panY) / controller.view.scale;
+
+            const target = controller._settledViewTarget(point);
+
+            this.assertNear(target.scale, 2);
+            this.assertNear(target.panX + anchorX * target.scale, point.x);
+            this.assertNear(target.panY + anchorY * target.scale, point.y);
+        });
+
+        this.test('双指转单指后平移约束不应再次改变阻尼 scale', () => {
+            const controller = Object.create(CommercialSeatMapController.prototype);
+            controller.viewport = { clientWidth: 400, clientHeight: 300 };
+            controller.layout = { width: 200, height: 100 };
+            controller.view = { minScale: 1, maxScale: 2 };
+
+            const next = controller._constrainPan({
+                scale: 2.2,
+                panX: -10,
+                panY: 40
+            }, { resist: true });
+
+            this.assertNear(next.scale, 2.2);
+        });
+
+        this.test('回弹应继承手势释放速度', () => {
+            const controller = Object.create(CommercialSeatMapController.prototype);
+            controller.viewGestureMoved = true;
+            controller.viewGestureSample = {};
+            controller.viewVelocity = { scale: 0.8, panX: 320, panY: -180 };
+            controller._settledViewTarget = () => ({ scale: 2, panX: 0, panY: 40 });
+            let inheritedVelocity = null;
+            controller._animateViewTo = (_target, options) => {
+                inheritedVelocity = options.initialVelocity;
+            };
+
+            controller._settleView({ x: 200, y: 150 });
+
+            this.assertEqual(inheritedVelocity.scale, 0.8);
+            this.assertEqual(inheritedVelocity.panX, 320);
+            this.assertEqual(inheritedVelocity.panY, -180);
+        });
+
+        this.test('未移动的轻触不应重新注入旧动画速度', () => {
+            const controller = Object.create(CommercialSeatMapController.prototype);
+            controller.viewGestureMoved = false;
+            controller.viewGestureSample = {};
+            controller.viewVelocity = { scale: 0.8, panX: 320, panY: -180 };
+            controller._settledViewTarget = () => ({ scale: 2, panX: 0, panY: 40 });
+            let inheritedVelocity = null;
+            controller._animateViewTo = (_target, options) => {
+                inheritedVelocity = options.initialVelocity;
+            };
+
+            controller._settleView();
+
+            this.assertEqual(inheritedVelocity.scale, 0);
+            this.assertEqual(inheritedVelocity.panX, 0);
+            this.assertEqual(inheritedVelocity.panY, 0);
+        });
+
         this.test('放大后的状态提示应明确需要双指拖动', () => {
             const controller = Object.create(CommercialSeatMapController.prototype);
             controller.view = { mobile: true, scale: 1.5, minScale: 1, maxScale: 2 };

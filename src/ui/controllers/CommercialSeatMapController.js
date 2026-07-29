@@ -29,6 +29,17 @@ function roundRect(context, x, y, width, height, radius) {
 const MOBILE_BREAKPOINT = 780;
 const VIEW_PADDING = 14;
 const PAN_THRESHOLD = 7;
+const VIEW_SPRING_STIFFNESS = 240;
+const VIEW_SPRING_DAMPING = 2 * Math.sqrt(VIEW_SPRING_STIFFNESS);
+const VIEW_VELOCITY_BLEND = 0.4;
+const MAX_SCALE_VELOCITY = 4;
+const MAX_PAN_VELOCITY = 2400;
+const VIEW_KEYS = ['scale', 'panX', 'panY'];
+const VIEW_VELOCITY_LIMITS = {
+    scale: MAX_SCALE_VELOCITY,
+    panX: MAX_PAN_VELOCITY,
+    panY: MAX_PAN_VELOCITY
+};
 
 function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, value));
@@ -108,6 +119,9 @@ export class CommercialSeatMapController {
         this.touchSelect = null;
         this.nativeTouchActive = false;
         this.viewAnimation = null;
+        this.viewGestureMoved = false;
+        this.viewGestureSample = null;
+        this.viewVelocity = { scale: 0, panX: 0, panY: 0 };
         this.resizeFrame = null;
         this.view = {
             auditoriumId: null,
@@ -329,12 +343,69 @@ export class CommercialSeatMapController {
     }
 
     _pinchViewAt(midpoint, rawScale) {
+        this.pinch.midpoint = midpoint;
         const scale = this._constrainScale(rawScale, { resist: true });
         return this._constrainPan({
             scale,
             panX: midpoint.x - this.pinch.anchorX * scale,
             panY: midpoint.y - this.pinch.anchorY * scale
         }, { resist: true });
+    }
+
+    _settledViewTarget(point = null) {
+        const scale = this._constrainScale(this.view.scale);
+        let panX = this.view.panX;
+        let panY = this.view.panY;
+        if (point && this.view.scale > 0) {
+            const anchorX = (point.x - this.view.panX) / this.view.scale;
+            const anchorY = (point.y - this.view.panY) / this.view.scale;
+            panX = point.x - anchorX * scale;
+            panY = point.y - anchorY * scale;
+        }
+        return this._constrainPan({ scale, panX, panY });
+    }
+
+    _beginViewGesture(timeStamp = performance.now()) {
+        this.viewGestureMoved = false;
+        this.viewGestureSample = {
+            timeStamp,
+            scale: this.view.scale,
+            panX: this.view.panX,
+            panY: this.view.panY
+        };
+    }
+
+    _trackViewGesture(next, timeStamp = performance.now()) {
+        const previous = this.viewGestureSample;
+        this.viewGestureSample = {
+            timeStamp,
+            scale: next.scale,
+            panX: next.panX,
+            panY: next.panY
+        };
+        if (!previous) return;
+        const elapsed = (timeStamp - previous.timeStamp) / 1000;
+        if (elapsed <= 0 || elapsed > 0.12) return;
+        this.viewGestureMoved = true;
+        for (const key of VIEW_KEYS) {
+            const instantaneous = clamp(
+                (next[key] - previous[key]) / elapsed,
+                -VIEW_VELOCITY_LIMITS[key],
+                VIEW_VELOCITY_LIMITS[key]
+            );
+            this.viewVelocity[key] +=
+                (instantaneous - this.viewVelocity[key]) * VIEW_VELOCITY_BLEND;
+        }
+    }
+
+    _settleView(point = null) {
+        const target = this._settledViewTarget(point);
+        const initialVelocity = this.viewGestureMoved ?
+            this.viewVelocity :
+            { scale: 0, panX: 0, panY: 0 };
+        this.viewGestureMoved = false;
+        this.viewGestureSample = null;
+        this._animateViewTo(target, { initialVelocity });
     }
 
     _applyViewTransform({ renderLabels = true } = {}) {
@@ -405,26 +476,29 @@ export class CommercialSeatMapController {
         this._animateViewTo(target, { immediate });
     }
 
-    _animateViewTo(target, { immediate = false } = {}) {
+    _animateViewTo(target, { immediate = false, initialVelocity = null } = {}) {
         const theme = readCanvasTheme(document.body);
         this._stopViewAnimation();
         if (immediate || theme.reduceMotion) {
             Object.assign(this.view, target);
+            this.viewVelocity = { scale: 0, panX: 0, panY: 0 };
             this._applyViewTransform();
             return;
         }
 
         let previousTime = performance.now();
-        const velocity = { scale: 0, panX: 0, panY: 0 };
-        const stiffness = 240;
-        const damping = 31;
+        const velocity = initialVelocity ?
+            { ...initialVelocity } :
+            { ...this.viewVelocity };
+        this.viewVelocity = velocity;
         const tick = now => {
             const delta = Math.min(0.032, Math.max(0.001, (now - previousTime) / 1000));
             previousTime = now;
             let settled = true;
-            for (const key of ['scale', 'panX', 'panY']) {
+            for (const key of VIEW_KEYS) {
                 const displacement = target[key] - this.view[key];
-                const acceleration = stiffness * displacement - damping * velocity[key];
+                const acceleration =
+                    VIEW_SPRING_STIFFNESS * displacement - VIEW_SPRING_DAMPING * velocity[key];
                 velocity[key] += acceleration * delta;
                 this.view[key] += velocity[key] * delta;
                 const tolerance = key === 'scale' ? 0.001 : 0.12;
@@ -435,6 +509,7 @@ export class CommercialSeatMapController {
             this._applyViewTransform();
             if (settled) {
                 Object.assign(this.view, target);
+                this.viewVelocity = { scale: 0, panX: 0, panY: 0 };
                 this._applyViewTransform();
                 this.viewAnimation = null;
                 return;
@@ -917,7 +992,8 @@ export class CommercialSeatMapController {
             distance: Math.max(1, pointerDistance(left, right)),
             scale: this.view.scale,
             anchorX: (midpoint.x - this.view.panX) / this.view.scale,
-            anchorY: (midpoint.y - this.view.panY) / this.view.scale
+            anchorY: (midpoint.y - this.view.panY) / this.view.scale,
+            midpoint
         };
         this.touchPan = null;
         if (hadTouchSelection) this._renderCanvas(this.getState(), readCanvasTheme(document.body));
@@ -951,6 +1027,8 @@ export class CommercialSeatMapController {
             pointerId,
             startX: viewportPoint.x,
             startY: viewportPoint.y,
+            lastX: viewportPoint.x,
+            lastY: viewportPoint.y,
             panX: this.view.panX,
             panY: this.view.panY,
             active: false
@@ -960,6 +1038,7 @@ export class CommercialSeatMapController {
 
     _handleTouchDown(event) {
         this._stopViewAnimation();
+        this._beginViewGesture(event.timeStamp);
         const viewportPoint = this._pointerInViewport(event);
         this.activePointers.set(event.pointerId, viewportPoint);
         this.canvas.setPointerCapture(event.pointerId);
@@ -981,6 +1060,7 @@ export class CommercialSeatMapController {
         this.nativeTouchActive = true;
         event.preventDefault();
         this._stopViewAnimation();
+        this._beginViewGesture(event.timeStamp);
         this._setActiveTouchPoints(event.touches);
 
         if (event.touches.length >= 2) {
@@ -1007,6 +1087,7 @@ export class CommercialSeatMapController {
             const nextScale = this.pinch.scale *
                 (pointerDistance(left, right) / this.pinch.distance);
             const next = this._pinchViewAt(midpoint, nextScale);
+            this._trackViewGesture(next, event.timeStamp);
             Object.assign(this.view, next);
             this._applyViewTransform();
             this._suppressSyntheticClick();
@@ -1023,21 +1104,11 @@ export class CommercialSeatMapController {
         }
 
         if (!this.touchPan || this.touchPan.pointerId !== event.pointerId) return;
-        const deltaX = point.x - this.touchPan.startX;
-        const deltaY = point.y - this.touchPan.startY;
-        if (!this.touchPan.active && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
-            this.touchPan.active = true;
-            this._suppressSyntheticClick();
-        }
-        if (!this.touchPan.active) return;
-        const next = this._constrainView({
-            ...this.view,
-            panX: this.touchPan.panX + deltaX,
-            panY: this.touchPan.panY + deltaY
-        }, { resist: true });
-        Object.assign(this.view, next);
-        this._applyViewTransform({ renderLabels: false });
-        event.preventDefault();
+        this._handleTouchPanMove({
+            point,
+            timeStamp: event.timeStamp,
+            preventDefault: () => event.preventDefault()
+        });
     }
 
     _handleNativeTouchMove(event) {
@@ -1052,6 +1123,7 @@ export class CommercialSeatMapController {
             const nextScale = this.pinch.scale *
                 (pointerDistance(left, right) / this.pinch.distance);
             const next = this._pinchViewAt(midpoint, nextScale);
+            this._trackViewGesture(next, event.timeStamp);
             Object.assign(this.view, next);
             this._applyViewTransform();
             this._suppressSyntheticClick();
@@ -1073,6 +1145,7 @@ export class CommercialSeatMapController {
             if (!touch) return;
             this._handleTouchPanMove({
                 point: this._pointerInViewport(touch),
+                timeStamp: event.timeStamp,
                 preventDefault: () => event.preventDefault()
             });
         }
@@ -1088,6 +1161,8 @@ export class CommercialSeatMapController {
                 pointerId: touchSelect.pointerId,
                 startX: touchSelect.startX,
                 startY: touchSelect.startY,
+                lastX: point.x,
+                lastY: point.y,
                 panX: this.view.panX,
                 panY: this.view.panY,
                 active: true
@@ -1130,7 +1205,7 @@ export class CommercialSeatMapController {
         if (changed) this._renderCanvas(this.getState(), readCanvasTheme(document.body));
     }
 
-    _handleTouchPanMove({ point, preventDefault }) {
+    _handleTouchPanMove({ point, preventDefault, timeStamp = performance.now() }) {
         if (!this.touchPan) return;
         const deltaX = point.x - this.touchPan.startX;
         const deltaY = point.y - this.touchPan.startY;
@@ -1139,11 +1214,14 @@ export class CommercialSeatMapController {
             this._suppressSyntheticClick();
         }
         if (!this.touchPan.active) return;
-        const next = this._constrainView({
-            ...this.view,
+        const next = this._constrainPan({
+            scale: this.view.scale,
             panX: this.touchPan.panX + deltaX,
             panY: this.touchPan.panY + deltaY
         }, { resist: true });
+        this.touchPan.lastX = point.x;
+        this.touchPan.lastY = point.y;
+        this._trackViewGesture(next, timeStamp);
         Object.assign(this.view, next);
         this._applyViewTransform({ renderLabels: false });
         preventDefault();
@@ -1174,7 +1252,7 @@ export class CommercialSeatMapController {
 
         if (this.touchSelect?.pointerId === event.pointerId) {
             this._finishTouchSelect();
-            if (this.activePointers.size === 0) this._animateViewTo(this._constrainView(this.view));
+            if (this.activePointers.size === 0) this._settleView();
             event.preventDefault();
             return;
         }
@@ -1186,6 +1264,8 @@ export class CommercialSeatMapController {
                 pointerId,
                 startX: point.x,
                 startY: point.y,
+                lastX: point.x,
+                lastY: point.y,
                 panX: this.view.panX,
                 panY: this.view.panY,
                 active: true
@@ -1194,11 +1274,12 @@ export class CommercialSeatMapController {
         }
 
         if (this.activePointers.size === 0) {
+            const settlePoint = this.pinch?.midpoint ||
+                (this.touchPan ? { x: this.touchPan.lastX, y: this.touchPan.lastY } : null);
             this.pinch = null;
             this.touchPan = null;
             this.touchSelect = null;
-            const target = this._constrainView(this.view);
-            this._animateViewTo(target);
+            this._settleView(settlePoint);
         }
     }
 
@@ -1220,6 +1301,8 @@ export class CommercialSeatMapController {
                 pointerId,
                 startX: point.x,
                 startY: point.y,
+                lastX: point.x,
+                lastY: point.y,
                 panX: this.view.panX,
                 panY: this.view.panY,
                 active: true
@@ -1229,10 +1312,12 @@ export class CommercialSeatMapController {
 
         if (this.activePointers.size === 0) {
             this.nativeTouchActive = false;
+            const settlePoint = this.pinch?.midpoint ||
+                (this.touchPan ? { x: this.touchPan.lastX, y: this.touchPan.lastY } : null);
             this.pinch = null;
             this.touchPan = null;
             this.touchSelect = null;
-            this._animateViewTo(this._constrainView(this.view));
+            this._settleView(settlePoint);
         }
     }
 
@@ -1248,10 +1333,12 @@ export class CommercialSeatMapController {
         if (event.pointerType === 'touch') {
             this.activePointers.delete(event.pointerId);
             if (this.activePointers.size === 0) {
+                const settlePoint = this.pinch?.midpoint ||
+                    (this.touchPan ? { x: this.touchPan.lastX, y: this.touchPan.lastY } : null);
                 this.pinch = null;
                 this.touchPan = null;
                 this.touchSelect = null;
-                this._animateViewTo(this._constrainView(this.view));
+                this._settleView(settlePoint);
             }
             return;
         }
