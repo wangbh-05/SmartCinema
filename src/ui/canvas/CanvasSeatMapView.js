@@ -209,19 +209,19 @@ export function readCanvasTheme(element = document.body) {
     const rootStyles = getComputedStyle(document.documentElement);
     const value = name => styles.getPropertyValue(name).trim() || rootStyles.getPropertyValue(name).trim();
     return Object.freeze({
-        stage: value('--commerce-stage') || '#101319',
-        stageMuted: value('--commerce-stage-muted') || '#262b34',
-        stageText: value('--commerce-stage-text') || '#f5f7fb',
-        accent: value('--commerce-accent') || '#d43f45',
-        premium: value('--commerce-premium') || '#e0b35b',
-        accessible: value('--commerce-accessible') || '#4e93c6',
+        stage: value('--seat-map-stage') || '#101319',
+        stageMuted: value('--seat-map-stage-muted') || '#262b34',
+        stageText: value('--seat-map-stage-text') || '#f5f7fb',
+        accent: value('--accent') || '#d43f45',
+        premium: value('--seat-premium') || '#e0b35b',
+        accessible: value('--seat-accessible') || '#4e93c6',
         heatCool: '#7eaee4',
         heatWarm: '#e7ba54',
         heatHot: '#ef8a72',
-        highContrast: element.classList.contains('commerce-high-contrast'),
-        colorblind: element.classList.contains('commerce-colorblind'),
-        readable: element.classList.contains('commerce-readable'),
-        reduceMotion: document.documentElement.dataset.commerceMotion === 'reduce' ||
+        highContrast: element.classList.contains('is-high-contrast'),
+        colorblind: element.classList.contains('is-colorblind-friendly'),
+        readable: element.classList.contains('is-readable'),
+        reduceMotion: document.documentElement.dataset.motionPreference === 'reduce' ||
             matchMedia('(prefers-reduced-motion: reduce)').matches
     });
 }

@@ -1,4 +1,4 @@
-import { createBrowserCommercialApplication } from '../src/bootstrapCommercial.js';
+import { createBrowserTicketingApplication } from '../src/bootstrapTicketing.js';
 import {
     bookableBusinessDateInTimeZone,
     businessDateInTimeZone
@@ -49,7 +49,7 @@ class SequenceIdGenerator {
     }
 }
 
-export default class TestCommercialComposition {
+export default class TestTicketingComposition {
     constructor() {
         this.passed = 0;
         this.failed = 0;
@@ -75,7 +75,7 @@ export default class TestCommercialComposition {
     }
 
     runAll() {
-        console.log('\n========== Commercial Composition 测试 ==========\n');
+        console.log('\n========== Ticketing Composition 测试 ==========\n');
 
         this.test('空白浏览器应连续初始化 v2、v3 与三日目录库存', () => {
             const deps = this._deps();
@@ -91,7 +91,7 @@ export default class TestCommercialComposition {
             this.assertEqual(businessDateInTimeZone('2026-07-18T13:59:00.000Z'), '2026-07-18');
             this.assertEqual(bookableBusinessDateInTimeZone('2026-07-18T13:59:00.000Z'), '2026-07-18');
             this.assertEqual(bookableBusinessDateInTimeZone('2026-07-18T14:00:00.000Z'), '2026-07-19');
-            const app = createBrowserCommercialApplication({
+            const app = createBrowserTicketingApplication({
                 localStorage: new MemoryWebStorage(),
                 sessionStorage: new MemoryWebStorage(),
                 clock: new FakeClock('2026-07-18T14:00:00.000Z'),
@@ -263,7 +263,7 @@ export default class TestCommercialComposition {
         clock = new FakeClock(),
         idGenerator = new SequenceIdGenerator()
     } = {}) {
-        const app = createBrowserCommercialApplication({
+        const app = createBrowserTicketingApplication({
             localStorage,
             sessionStorage,
             clock,

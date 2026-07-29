@@ -1,7 +1,7 @@
 import { createBookingDraft } from '../../domain/booking/BookingDraft.js';
 import { err, ok } from '../../shared/Result.js';
 
-export const BOOKING_DRAFT_STORAGE_KEY = 'smartcinema_commercial_booking_draft';
+export const BOOKING_DRAFT_STORAGE_KEY = 'smartcinema_booking_draft';
 
 export class SessionBookingDraftRepository {
     constructor({ storage, key = BOOKING_DRAFT_STORAGE_KEY }) {

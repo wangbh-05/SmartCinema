@@ -19,7 +19,7 @@ function requireIsoDate(value, fieldName) {
     return value;
 }
 
-export function createCommercialOrder({
+export function createTicketOrder({
     id,
     idempotencyKey,
     userId,
@@ -64,9 +64,9 @@ export function createCommercialOrder({
 
     const order = {
         schemaVersion: 3,
-        id: requireText(id, 'CommercialOrder.id'),
-        idempotencyKey: requireText(idempotencyKey, 'CommercialOrder.idempotencyKey'),
-        userId: requireText(userId, 'CommercialOrder.userId'),
+        id: requireText(id, 'TicketOrder.id'),
+        idempotencyKey: requireText(idempotencyKey, 'TicketOrder.idempotencyKey'),
+        userId: requireText(userId, 'TicketOrder.userId'),
         sourceHoldId: hold.id,
         legacySource: null,
         status: 'confirmed',
@@ -106,16 +106,16 @@ export function createCommercialOrder({
         seatSnapshots,
         pricingQuote: hold.pricingQuote,
         refundPolicySnapshot: cloneJson(refundPolicy),
-        ticketCode: requireText(ticketCode, 'CommercialOrder.ticketCode'),
-        qrPayload: requireText(qrPayload, 'CommercialOrder.qrPayload'),
-        confirmedAt: requireIsoDate(confirmedAt, 'CommercialOrder.confirmedAt'),
+        ticketCode: requireText(ticketCode, 'TicketOrder.ticketCode'),
+        qrPayload: requireText(qrPayload, 'TicketOrder.qrPayload'),
+        confirmedAt: requireIsoDate(confirmedAt, 'TicketOrder.confirmedAt'),
         cancelledAt: null,
         refund: null
     };
     return deepFreeze(order);
 }
 
-export function getCommercialCancellationEligibility(order, now) {
+export function getTicketOrderCancellationEligibility(order, now) {
     requireIsoDate(now, 'cancellation.now');
     if (order.status === 'cancelled') {
         return Object.freeze({
@@ -187,11 +187,11 @@ export function getCommercialCancellationEligibility(order, now) {
     });
 }
 
-export function cancelCommercialOrder(order, {
+export function cancelTicketOrder(order, {
     cancelledAt,
     reason = 'customer-requested'
 }) {
-    const eligibility = getCommercialCancellationEligibility(order, cancelledAt);
+    const eligibility = getTicketOrderCancellationEligibility(order, cancelledAt);
     if (!eligibility.eligible) {
         return err('REFUND_NOT_ELIGIBLE', eligibility.reason, {
             reasonCode: eligibility.code,
@@ -242,14 +242,14 @@ function rehydrateRefundPolicySnapshot(value) {
     return cloneJson(value);
 }
 
-export function rehydrateCommercialOrder(data) {
-    requireObject(data, 'CommercialOrder');
-    if (data.schemaVersion !== 3) throw new ValidationError('CommercialOrder.schemaVersion 必须为 3');
+export function rehydrateTicketOrder(data) {
+    requireObject(data, 'TicketOrder');
+    if (data.schemaVersion !== 3) throw new ValidationError('TicketOrder.schemaVersion 必须为 3');
     if (!['confirmed', 'cancelled'].includes(data.status)) {
-        throw new ValidationError('CommercialOrder.status 无效', { status: data.status });
+        throw new ValidationError('TicketOrder.status 无效', { status: data.status });
     }
     const legacySource = data.legacySource === null ? null : requireObject(data.legacySource, 'legacySource');
-    if (legacySource === null) requireText(data.sourceHoldId, 'CommercialOrder.sourceHoldId');
+    if (legacySource === null) requireText(data.sourceHoldId, 'TicketOrder.sourceHoldId');
     const movieSnapshot = cloneJson(requireObject(data.movieSnapshot, 'movieSnapshot'));
     const cinemaSnapshot = cloneJson(requireObject(data.cinemaSnapshot, 'cinemaSnapshot'));
     const auditoriumSnapshot = cloneJson(requireObject(data.auditoriumSnapshot, 'auditoriumSnapshot'));
@@ -263,34 +263,34 @@ export function rehydrateCommercialOrder(data) {
     requireText(showtimeSnapshot.id, 'showtimeSnapshot.id');
 
     if (!Array.isArray(data.ticketItems) || data.ticketItems.length === 0) {
-        throw new ValidationError('CommercialOrder.ticketItems 必须是非空数组');
+        throw new ValidationError('TicketOrder.ticketItems 必须是非空数组');
     }
     if (!Array.isArray(data.seatSnapshots) || data.seatSnapshots.length === 0) {
-        throw new ValidationError('CommercialOrder.seatSnapshots 必须是非空数组');
+        throw new ValidationError('TicketOrder.seatSnapshots 必须是非空数组');
     }
     const seatIds = new Set();
     const seatSnapshots = data.seatSnapshots.map(seat => {
         requireObject(seat, 'seatSnapshot');
         const id = requireText(seat.id, 'seatSnapshot.id');
-        if (seatIds.has(id)) throw new ValidationError('CommercialOrder 座位不得重复', { seatId: id });
+        if (seatIds.has(id)) throw new ValidationError('TicketOrder 座位不得重复', { seatId: id });
         seatIds.add(id);
         return cloneJson(seat);
     });
     const pricingQuote = rehydratePricingQuote(data.pricingQuote);
-    const confirmedAt = requireIsoDate(data.confirmedAt, 'CommercialOrder.confirmedAt');
+    const confirmedAt = requireIsoDate(data.confirmedAt, 'TicketOrder.confirmedAt');
     let cancelledAt = null;
     let refund = null;
     if (data.status === 'cancelled') {
-        cancelledAt = requireIsoDate(data.cancelledAt, 'CommercialOrder.cancelledAt');
-        requireObject(data.refund, 'CommercialOrder.refund');
+        cancelledAt = requireIsoDate(data.cancelledAt, 'TicketOrder.cancelledAt');
+        requireObject(data.refund, 'TicketOrder.refund');
         if (!['pending', 'refunded'].includes(data.refund.status)) {
-            throw new ValidationError('CommercialOrder.refund.status 无效');
+            throw new ValidationError('TicketOrder.refund.status 无效');
         }
         const amount = createMoney(data.refund.amount.amount, data.refund.amount.currency);
         const fee = createMoney(data.refund.fee.amount, data.refund.fee.currency);
         if (amount.currency !== pricingQuote.currency || fee.currency !== pricingQuote.currency ||
             amount.amount + fee.amount !== pricingQuote.total.amount) {
-            throw new ValidationError('CommercialOrder.refund 金额无效');
+            throw new ValidationError('TicketOrder.refund 金额无效');
         }
         refund = {
             status: data.refund.status,
@@ -303,7 +303,7 @@ export function rehydrateCommercialOrder(data) {
         };
         if ((refund.status === 'pending' && refund.processedAt !== null) ||
             (refund.status === 'refunded' && refund.processedAt === null)) {
-            throw new ValidationError('CommercialOrder.refund 处理状态与时间不一致');
+            throw new ValidationError('TicketOrder.refund 处理状态与时间不一致');
         }
     } else if (data.cancelledAt !== null || data.refund !== null) {
         throw new ValidationError('confirmed 订单不得包含取消或退款信息');
@@ -311,9 +311,9 @@ export function rehydrateCommercialOrder(data) {
 
     return deepFreeze({
         schemaVersion: 3,
-        id: requireText(data.id, 'CommercialOrder.id'),
-        idempotencyKey: requireText(data.idempotencyKey, 'CommercialOrder.idempotencyKey'),
-        userId: requireText(data.userId, 'CommercialOrder.userId'),
+        id: requireText(data.id, 'TicketOrder.id'),
+        idempotencyKey: requireText(data.idempotencyKey, 'TicketOrder.idempotencyKey'),
+        userId: requireText(data.userId, 'TicketOrder.userId'),
         sourceHoldId: data.sourceHoldId === null ? null : requireText(data.sourceHoldId, 'sourceHoldId'),
         legacySource: legacySource === null ? null : cloneJson(legacySource),
         status: data.status,
@@ -325,8 +325,8 @@ export function rehydrateCommercialOrder(data) {
         seatSnapshots,
         pricingQuote,
         refundPolicySnapshot: rehydrateRefundPolicySnapshot(data.refundPolicySnapshot),
-        ticketCode: requireText(data.ticketCode, 'CommercialOrder.ticketCode'),
-        qrPayload: requireText(data.qrPayload, 'CommercialOrder.qrPayload'),
+        ticketCode: requireText(data.ticketCode, 'TicketOrder.ticketCode'),
+        qrPayload: requireText(data.qrPayload, 'TicketOrder.qrPayload'),
         confirmedAt,
         cancelledAt,
         refund

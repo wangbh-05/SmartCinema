@@ -4,13 +4,13 @@ import {
     formatDate,
     formatMoney,
     formatTime
-} from '../commercial/CommerceView.js';
+} from '../views/ViewHelpers.js';
 
 function element(id) {
     return document.getElementById(id);
 }
 
-export class CommercialCheckoutController {
+export class CheckoutController {
     constructor({
         booking,
         account,
@@ -262,4 +262,4 @@ export class CommercialCheckoutController {
     }
 }
 
-export default CommercialCheckoutController;
+export default CheckoutController;

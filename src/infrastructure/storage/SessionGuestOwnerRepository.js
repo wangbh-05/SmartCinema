@@ -1,4 +1,4 @@
-export const GUEST_OWNER_STORAGE_KEY = 'smartcinema_commercial_guest_owner';
+export const GUEST_OWNER_STORAGE_KEY = 'smartcinema_guest_owner';
 
 export class SessionGuestOwnerRepository {
     constructor({ storage, idGenerator }) {

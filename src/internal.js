@@ -1,8 +1,8 @@
 import { createBrowserInternalApplication } from './bootstrapInternal.js';
-import { CommercialOperationsController } from './ui/controllers/CommercialOperationsController.js';
+import { OperationsController } from './ui/controllers/OperationsController.js';
 
 const application = createBrowserInternalApplication();
-const page = new CommercialOperationsController({
+const page = new OperationsController({
     application,
     operations: application.operations,
     account: application.account

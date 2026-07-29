@@ -1,4 +1,4 @@
-import { formatDate, formatMoney, formatTime } from '../commercial/CommerceView.js';
+import { formatDate, formatMoney, formatTime } from '../views/ViewHelpers.js';
 import { DialogController } from '../components/DialogController.js';
 
 function element(id) {
@@ -17,7 +17,7 @@ function formatDateTime(value) {
     return value ? `${formatDate(value, true)} ${formatTime(value)}` : '—';
 }
 
-export class CommercialOperationsController {
+export class OperationsController {
     constructor({ application, operations, account }) {
         this.application = application;
         this.operations = operations;
@@ -408,4 +408,4 @@ export class CommercialOperationsController {
     }
 }
 
-export default CommercialOperationsController;
+export default OperationsController;

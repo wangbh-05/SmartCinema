@@ -1,4 +1,4 @@
-export const COMMERCE_TIME_ZONE = 'Asia/Shanghai';
+export const DISPLAY_TIME_ZONE = 'Asia/Shanghai';
 
 export function formatMoney(money) {
     if (!money) return '—';
@@ -17,7 +17,7 @@ export function formatAmount(amount, currency = 'CNY') {
 export function formatTime(isoString) {
     if (!isoString) return '时间待确认';
     return new Intl.DateTimeFormat('zh-CN', {
-        timeZone: COMMERCE_TIME_ZONE,
+        timeZone: DISPLAY_TIME_ZONE,
         hour: '2-digit',
         minute: '2-digit',
         hour12: false
@@ -27,7 +27,7 @@ export function formatTime(isoString) {
 export function formatDate(isoString, includeYear = false) {
     if (!isoString) return '日期待确认';
     return new Intl.DateTimeFormat('zh-CN', {
-        timeZone: COMMERCE_TIME_ZONE,
+        timeZone: DISPLAY_TIME_ZONE,
         year: includeYear ? 'numeric' : undefined,
         month: 'long',
         day: 'numeric',

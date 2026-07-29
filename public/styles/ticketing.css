@@ -1,29 +1,28 @@
 :root {
-    --commerce-page: #f7f5f2;
-    --commerce-panel: #ffffff;
-    --commerce-panel-muted: #f3f1ed;
-    --commerce-ink: #181817;
-    --commerce-muted: #6f6c66;
-    --commerce-border: #e5e1da;
-    --commerce-accent: #d43f45;
-    --commerce-accent-strong: #b92f36;
-    --commerce-accent-soft: #fff0f0;
-    --commerce-stage: #101319;
-    --commerce-stage-muted: #262b34;
-    --commerce-stage-text: #f5f7fb;
-    --commerce-premium: #e0b35b;
-    --commerce-accessible: #4e93c6;
-    --commerce-success: #237a55;
-    --commerce-shadow: 0 12px 36px rgba(37, 31, 24, 0.07);
-    --commerce-shadow-raised: 0 20px 60px rgba(25, 22, 18, 0.14);
-    --commerce-glass-fill: linear-gradient(
+    /* Consumer ticketing theme overrides shared semantic tokens from variables.css. */
+    --surface-page: #f7f5f2;
+    --surface-panel: #ffffff;
+    --surface-subtle: #f3f1ed;
+    --text-primary: #181817;
+    --text-secondary: #6f6c66;
+    --border-color: #e5e1da;
+    --accent: #d43f45;
+    --accent-strong: #b92f36;
+    --accent-soft: #fff0f0;
+    --focus-ring: color-mix(in srgb, #4f72e8 30%, transparent);
+    --success: #237a55;
+    --shadow-md: 0 12px 36px rgba(37, 31, 24, 0.07);
+    --shadow-lg: 0 20px 60px rgba(25, 22, 18, 0.14);
+
+    /* Ticketing shell material. */
+    --ticketing-glass-fill: linear-gradient(
         145deg,
         rgb(255 255 255 / 0.7) 0%,
         rgb(255 255 255 / 0.38) 42%,
         rgb(247 243 239 / 0.24) 68%,
         rgb(255 255 255 / 0.52) 100%
     );
-    --commerce-glass-edge: linear-gradient(
+    --ticketing-glass-edge: linear-gradient(
         140deg,
         rgb(255 255 255 / 0.96),
         rgb(255 255 255 / 0.42) 28%,
@@ -31,16 +30,23 @@
         rgb(255 255 255 / 0.72) 84%,
         rgb(201 191 183 / 0.2)
     );
-    --commerce-glass-filter:
+    --ticketing-glass-filter:
         blur(22px)
         saturate(112%)
         contrast(104%)
         brightness(103%);
-    --commerce-glass-shadow:
+    --ticketing-glass-shadow:
         0 24px 60px rgb(67 53 43 / 0.09),
         0 5px 16px rgb(67 53 43 / 0.045),
         inset 0 1px 0 rgb(255 255 255 / 0.78),
         inset 0 -1px 0 rgb(255 255 255 / 0.28);
+
+    /* Seat-map presentation and interaction geometry. */
+    --seat-map-stage: #101319;
+    --seat-map-stage-muted: #262b34;
+    --seat-map-stage-text: #f5f7fb;
+    --seat-premium: #e0b35b;
+    --seat-accessible: #4e93c6;
     --seat-glass-primary-text: rgb(255 255 255 / 0.94);
     --seat-glass-secondary-text: rgb(255 245 240 / 0.62);
     --seat-glass-border: rgb(255 240 234 / 0.2);
@@ -50,7 +56,7 @@
 }
 
 html {
-    background: var(--commerce-page);
+    background: var(--surface-page);
 }
 
 body {
@@ -60,7 +66,7 @@ body {
         radial-gradient(circle at 76% -8%, rgb(185 111 103 / 0.1), transparent 31rem),
         radial-gradient(circle at 5% 18%, rgb(116 133 145 / 0.075), transparent 27rem),
         linear-gradient(145deg, #f2f2f0 0%, #f8f5f1 48%, #efeeeb 100%);
-    color: var(--commerce-ink);
+    color: var(--text-primary);
     font-family: var(--font-sans);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -83,7 +89,7 @@ button:disabled {
     display: none !important;
 }
 
-.commerce-header {
+.site-header {
     position: sticky;
     top: 0;
     z-index: var(--z-header);
@@ -110,7 +116,7 @@ button:disabled {
     justify-content: space-between;
 }
 
-.commerce-brand,
+.brand-link,
 .header-actions,
 .header-link,
 .account-button {
@@ -118,7 +124,7 @@ button:disabled {
     align-items: center;
 }
 
-.commerce-brand {
+.brand-link {
     gap: 11px;
 }
 
@@ -129,7 +135,7 @@ button:disabled {
     width: 36px;
     height: 36px;
     border-radius: 11px;
-    background: var(--commerce-ink);
+    background: var(--text-primary);
     color: #fff;
     font: 700 18px/1 Georgia, serif;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
@@ -147,7 +153,7 @@ button:disabled {
 
 .brand-copy span {
     margin-top: 4px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     letter-spacing: 0.08em;
 }
@@ -170,7 +176,7 @@ button:disabled {
 .account-button {
     margin-left: 4px;
     padding-inline: 17px;
-    background: var(--commerce-ink);
+    background: var(--text-primary);
     color: #fff;
 }
 
@@ -178,7 +184,7 @@ button:disabled {
     max-width: 160px;
     margin-left: 4px;
     overflow: hidden;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 13px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -197,8 +203,8 @@ button:disabled {
     border: 1px solid transparent;
     border-radius: 999px;
     background:
-        var(--commerce-glass-fill) padding-box,
-        var(--commerce-glass-edge) border-box;
+        var(--ticketing-glass-fill) padding-box,
+        var(--ticketing-glass-edge) border-box;
     box-shadow:
         0 10px 28px rgb(67 53 43 / 0.055),
         inset 0 1px 0 rgb(255 255 255 / 0.72);
@@ -225,7 +231,7 @@ button:disabled {
     width: 48px;
     height: 1px;
     margin: 0 12px;
-    background: var(--commerce-border);
+    background: var(--border-color);
     content: '';
 }
 
@@ -235,24 +241,24 @@ button:disabled {
     width: 22px;
     height: 22px;
     margin-right: 7px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 50%;
     font-size: 11px;
 }
 
 .booking-progress .is-complete,
 .booking-progress .is-current {
-    color: var(--commerce-ink);
+    color: var(--text-primary);
 }
 
 .booking-progress .is-complete span {
-    border-color: var(--commerce-success);
-    background: var(--commerce-success);
+    border-color: var(--success);
+    background: var(--success);
     color: #fff;
 }
 
 .booking-progress .is-current span {
-    border-color: var(--commerce-ink);
+    border-color: var(--text-primary);
 }
 
 .catalog-picker {
@@ -261,11 +267,11 @@ button:disabled {
     border: 1px solid transparent;
     border-radius: 24px;
     background:
-        var(--commerce-glass-fill) padding-box,
-        var(--commerce-glass-edge) border-box;
-    box-shadow: var(--commerce-glass-shadow);
-    -webkit-backdrop-filter: var(--commerce-glass-filter);
-    backdrop-filter: var(--commerce-glass-filter);
+        var(--ticketing-glass-fill) padding-box,
+        var(--ticketing-glass-edge) border-box;
+    box-shadow: var(--ticketing-glass-shadow);
+    -webkit-backdrop-filter: var(--ticketing-glass-filter);
+    backdrop-filter: var(--ticketing-glass-filter);
 }
 
 .catalog-heading {
@@ -284,7 +290,7 @@ button:disabled {
 
 .catalog-heading p {
     margin: 0;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
@@ -309,13 +315,13 @@ button:disabled {
 .catalog-label {
     display: block;
     margin-bottom: 7px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 720;
 }
 
 .catalog-carousel-status {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 9px;
     font-variant-numeric: tabular-nums;
 }
@@ -338,10 +344,10 @@ button:disabled {
 .catalog-carousel-button {
     min-width: 0;
     padding: 0;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
-    background: var(--commerce-panel);
-    color: var(--commerce-ink);
+    background: var(--surface-panel);
+    color: var(--text-primary);
     font-size: 15px;
     transition: border-color 140ms ease,
         background-color 140ms ease,
@@ -415,9 +421,9 @@ button:disabled {
     align-content: center;
     gap: 2px;
     padding: 8px 10px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 11px;
-    background: var(--commerce-panel);
+    background: var(--surface-panel);
     text-align: left;
     transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1),
         border-color 150ms ease,
@@ -440,14 +446,14 @@ button:disabled {
 }
 
 .catalog-option small {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 9px;
     transition: color 150ms ease;
 }
 
 .catalog-option[aria-pressed="true"] {
-    border-color: var(--commerce-ink);
-    background: var(--commerce-ink);
+    border-color: var(--text-primary);
+    background: var(--text-primary);
     color: #fff;
 }
 
@@ -470,7 +476,7 @@ button:disabled {
 
 .catalog-disclosure {
     margin: 12px 0 0;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 9px;
 }
 
@@ -494,7 +500,7 @@ button:disabled {
         radial-gradient(circle at 25% 10%, rgba(102, 124, 156, 0.22), transparent 35%),
         linear-gradient(125deg, #171a20 0%, #24262a 58%, #1a1818 100%);
     color: #fff;
-    box-shadow: var(--commerce-shadow);
+    box-shadow: var(--shadow-md);
 }
 
 .movie-context::after {
@@ -660,7 +666,7 @@ button:disabled {
 .dialog-eyebrow {
     display: block;
     margin-bottom: 7px;
-    color: var(--commerce-accent);
+    color: var(--accent);
     font-size: 11px;
     font-weight: 750;
     letter-spacing: 0.12em;
@@ -773,10 +779,10 @@ button:disabled {
 .showtime-section,
 .booking-card,
 .summary-sticky {
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 18px;
-    background: var(--commerce-panel);
-    box-shadow: var(--commerce-shadow);
+    background: var(--surface-panel);
+    box-shadow: var(--shadow-md);
 }
 
 .showtime-section {
@@ -790,11 +796,11 @@ button:disabled {
     border-color: transparent;
     border-radius: 24px;
     background:
-        var(--commerce-glass-fill) padding-box,
-        var(--commerce-glass-edge) border-box;
-    box-shadow: var(--commerce-glass-shadow);
-    -webkit-backdrop-filter: var(--commerce-glass-filter);
-    backdrop-filter: var(--commerce-glass-filter);
+        var(--ticketing-glass-fill) padding-box,
+        var(--ticketing-glass-edge) border-box;
+    box-shadow: var(--ticketing-glass-shadow);
+    -webkit-backdrop-filter: var(--ticketing-glass-filter);
+    backdrop-filter: var(--ticketing-glass-filter);
 }
 
 .seat-card {
@@ -816,7 +822,7 @@ button:disabled {
 
 .section-heading h2,
 .summary-heading h2,
-.commerce-dialog h2 {
+.dialog-surface h2 {
     margin: 0;
     font-size: 19px;
     font-weight: 700;
@@ -826,7 +832,7 @@ button:disabled {
 
 .section-heading > p {
     margin-top: 20px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 12px;
 }
 
@@ -854,7 +860,7 @@ button:disabled {
     align-items: center;
     gap: 3px 10px;
     padding: 10px 12px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     background: #fff;
     text-align: left;
@@ -867,21 +873,21 @@ button:disabled {
 
 .showtime-option small {
     grid-column: 1;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
 }
 
 .showtime-option .showtime-price {
     grid-column: 2;
     grid-row: 1 / 3;
-    color: var(--commerce-accent);
+    color: var(--accent);
     font-size: 11px;
     font-weight: 700;
 }
 
 .showtime-option[aria-pressed="true"] {
-    border-color: var(--commerce-ink);
-    background: var(--commerce-ink);
+    border-color: var(--text-primary);
+    background: var(--text-primary);
     color: #fff;
     box-shadow: 0 8px 20px rgba(24, 24, 23, 0.16);
 }
@@ -927,9 +933,9 @@ button:disabled {
     gap: 10px;
     margin-top: 18px;
     padding: 16px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
-    background: var(--commerce-panel-muted);
+    background: var(--surface-subtle);
 }
 
 .party-selector > div:first-child {
@@ -940,13 +946,13 @@ button:disabled {
 }
 
 .party-selector strong {
-    color: var(--commerce-ink);
+    color: var(--text-primary);
     font-size: 12px;
 }
 
 .party-selector span,
 .party-selector p {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
     line-height: 1.5;
 }
@@ -959,18 +965,18 @@ button:disabled {
 
 .party-type-options button {
     min-height: 36px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 9px;
     background: #fff;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 650;
 }
 
 .party-type-options button[aria-pressed="true"] {
-    border-color: var(--commerce-accent);
-    background: var(--commerce-accent-soft);
-    color: var(--commerce-accent-strong);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
 }
 
 .party-type-options button:disabled {
@@ -986,7 +992,7 @@ button:disabled {
     align-items: center;
     gap: 12px;
     padding: 13px 14px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     background: #fff;
 }
@@ -1004,7 +1010,7 @@ button:disabled {
 .ticket-copy small {
     display: block;
     margin-top: 3px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
@@ -1018,7 +1024,7 @@ button:disabled {
     display: grid;
     grid-template-columns: 30px 28px 30px;
     align-items: center;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 9px;
     overflow: hidden;
 }
@@ -1026,7 +1032,7 @@ button:disabled {
 .ticket-stepper button {
     width: 30px;
     height: 32px;
-    background: var(--commerce-panel-muted);
+    background: var(--surface-subtle);
     font-size: 17px;
 }
 
@@ -1042,7 +1048,7 @@ button:disabled {
 
 .ticket-footnote {
     margin-top: 14px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
@@ -1064,7 +1070,7 @@ button:disabled {
 }
 
 .seat-heading > p strong {
-    color: var(--commerce-accent);
+    color: var(--accent);
 }
 
 .seat-tools {
@@ -1074,7 +1080,7 @@ button:disabled {
     gap: 16px;
     margin-bottom: 18px;
     padding-top: 16px;
-    border-top: 1px solid var(--commerce-border);
+    border-top: 1px solid var(--border-color);
 }
 
 .recommend-button {
@@ -1082,8 +1088,8 @@ button:disabled {
     min-height: 36px;
     padding: 0 13px;
     border-radius: 9px;
-    background: var(--commerce-accent-soft);
-    color: var(--commerce-accent-strong);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
     font-size: 12px;
     font-weight: 700;
     transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -1106,7 +1112,7 @@ button:disabled {
 
 .recommendation-count {
     align-self: center;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
 }
@@ -1114,10 +1120,10 @@ button:disabled {
 .seat-guide-toggle {
     min-height: 36px;
     padding: 0 12px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 9px;
     background: #fff;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     font-weight: 650;
 }
@@ -1138,17 +1144,17 @@ button:disabled {
 .preference-chips button {
     min-height: 32px;
     padding: 0 11px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 999px;
     background: #fff;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
 .preference-chips button[aria-pressed="true"] {
     border-color: #c9c4bb;
-    background: var(--commerce-panel-muted);
-    color: var(--commerce-ink);
+    background: var(--surface-subtle);
+    color: var(--text-primary);
     font-weight: 700;
 }
 
@@ -1162,7 +1168,7 @@ button:disabled {
     border: 1px solid #cfc9b8;
     border-radius: 10px;
     background: #fbfaf6;
-    color: var(--commerce-ink);
+    color: var(--text-primary);
 }
 
 .recommendation-feedback[hidden] {
@@ -1179,7 +1185,7 @@ button:disabled {
 }
 
 .recommendation-feedback span {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     line-height: 1.55;
 }
@@ -1195,10 +1201,10 @@ button:disabled {
 .recommendation-feedback-actions button {
     min-height: 32px;
     padding: 0 10px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     background: #fff;
-    color: var(--commerce-ink);
+    color: var(--text-primary);
     font-size: 11px;
     font-weight: 700;
     transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -1231,8 +1237,8 @@ button:disabled {
     padding: 12px 14px;
     border: 1px solid #e7b6b8;
     border-radius: 10px;
-    background: var(--commerce-accent-soft);
-    color: var(--commerce-accent-strong);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
 }
 
 .seat-conflict[hidden] {
@@ -1260,7 +1266,7 @@ button:disabled {
     border: 1px solid #dda0a3;
     border-radius: 8px;
     background: #fff;
-    color: var(--commerce-accent-strong);
+    color: var(--accent-strong);
     font-size: 10px;
     font-weight: 750;
 }
@@ -1274,7 +1280,7 @@ button:disabled {
     background:
         radial-gradient(circle at 72% 18%, rgb(212 63 69 / 0.1), transparent 25%),
         linear-gradient(145deg, #4a4441 0%, #302d2d 46%, #18191c 100%);
-    color: var(--commerce-stage-text);
+    color: var(--seat-map-stage-text);
 }
 
 .seat-stage::before,
@@ -1688,8 +1694,8 @@ button:disabled {
     width: 22px;
     flex: 0 0 22px;
     color: #697281;
-    background: var(--commerce-stage);
-    box-shadow: -16px 0 0 16px var(--commerce-stage), 8px 0 8px var(--commerce-stage);
+    background: var(--seat-map-stage);
+    box-shadow: -16px 0 0 16px var(--seat-map-stage), 8px 0 8px var(--seat-map-stage);
     font-size: 10px;
     text-align: center;
 }
@@ -1751,12 +1757,12 @@ button:disabled {
 
 .seat-button.is-premium {
     border-color: #a78443;
-    color: var(--commerce-premium);
+    color: var(--seat-premium);
 }
 
 .seat-button.is-selected {
-    border-color: var(--commerce-accent);
-    background: var(--commerce-accent);
+    border-color: var(--accent);
+    background: var(--accent);
     color: #fff;
 }
 
@@ -1769,13 +1775,13 @@ button:disabled {
 }
 
 .seat-button.is-accessible {
-    border-color: var(--commerce-accessible);
+    border-color: var(--seat-accessible);
     color: #8bc1e7;
     font-size: 11px;
 }
 
 .seat-button.is-accessible.is-selected {
-    background: var(--commerce-accessible);
+    background: var(--seat-accessible);
     color: #fff;
 }
 
@@ -1808,7 +1814,7 @@ button:disabled {
     width: 16px;
     height: 16px;
     margin-top: 1px;
-    accent-color: var(--commerce-accessible);
+    accent-color: var(--seat-accessible);
 }
 
 .seat-legend {
@@ -1818,7 +1824,7 @@ button:disabled {
     gap: 12px 20px;
     margin-top: 18px;
     margin-bottom: 22px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
 }
 
@@ -1830,10 +1836,10 @@ button:disabled {
     gap: 8px 14px;
     margin: -6px 24px 20px;
     padding: 11px 13px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
-    background: var(--commerce-panel-muted);
-    color: var(--commerce-muted);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
     font-size: 10px;
 }
 
@@ -1847,7 +1853,7 @@ button:disabled {
     width: 84px;
     height: 7px;
     border-radius: 999px;
-    background: linear-gradient(90deg, #7eaee4, #e7ba54 58%, #ef8a72 82%, var(--commerce-accent));
+    background: linear-gradient(90deg, #7eaee4, #e7ba54 58%, #ef8a72 82%, var(--accent));
     box-shadow: 0 0 12px rgba(239, 138, 114, 0.2);
 }
 
@@ -1856,9 +1862,9 @@ button:disabled {
     align-items: center;
     gap: 4px;
     padding: 3px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
-    background: var(--commerce-panel-muted);
+    background: var(--surface-subtle);
 }
 
 .heat-period-controls button {
@@ -1868,7 +1874,7 @@ button:disabled {
     border: 0;
     border-radius: 7px;
     background: transparent;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
     font-weight: 700;
     transition: color 140ms ease, background-color 140ms ease,
@@ -1876,9 +1882,9 @@ button:disabled {
 }
 
 .heat-period-controls button[aria-pressed="true"] {
-    background: var(--commerce-panel);
+    background: var(--surface-panel);
     box-shadow: 0 1px 4px rgba(30, 27, 22, 0.1);
-    color: var(--commerce-accent-strong);
+    color: var(--accent-strong);
 }
 
 .heat-period-controls button:active {
@@ -1887,7 +1893,7 @@ button:disabled {
 
 @media (hover: hover) and (pointer: fine) {
     .heat-period-controls button:hover:not([aria-pressed="true"]) {
-        color: var(--commerce-ink);
+        color: var(--text-primary);
         background: rgba(255, 255, 255, 0.56);
     }
 }
@@ -1897,7 +1903,7 @@ button:disabled {
 }
 
 .popularity-legend strong {
-    color: var(--commerce-ink);
+    color: var(--text-primary);
 }
 
 .popularity-legend span {
@@ -1930,7 +1936,7 @@ button:disabled {
 .seat-decision-guide {
     margin: 0 24px 24px;
     padding: 16px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     background: #fff;
 }
@@ -1948,18 +1954,18 @@ button:disabled {
 }
 
 .decision-guide-heading span {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 9px;
 }
 
 .decision-guide-heading h3 {
     margin-top: 2px;
-    color: var(--commerce-ink);
+    color: var(--text-primary);
     font-size: 15px;
 }
 
 .decision-guide-heading > strong {
-    color: var(--commerce-accent-strong);
+    color: var(--accent-strong);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
 }
@@ -1975,25 +1981,25 @@ button:disabled {
     grid-template-columns: 62px minmax(40px, 1fr) 24px;
     align-items: center;
     gap: 7px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
 }
 
 .decision-metrics meter {
     width: 100%;
     height: 5px;
-    accent-color: var(--commerce-accent);
+    accent-color: var(--accent);
 }
 
 .decision-metrics strong {
-    color: var(--commerce-ink);
+    color: var(--text-primary);
     font-variant-numeric: tabular-nums;
     text-align: right;
 }
 
 .seat-decision-guide > p {
     margin-top: 12px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
     line-height: 1.5;
 }
@@ -2018,8 +2024,8 @@ button:disabled {
 }
 
 .legend-seat.is-selected {
-    border-color: var(--commerce-accent);
-    background: var(--commerce-accent);
+    border-color: var(--accent);
+    background: var(--accent);
     color: #fff;
 }
 
@@ -2035,8 +2041,8 @@ button:disabled {
 }
 
 .legend-seat.is-accessible {
-    border-color: var(--commerce-accessible);
-    color: var(--commerce-accessible);
+    border-color: var(--seat-accessible);
+    color: var(--seat-accessible);
 }
 
 .summary-sticky {
@@ -2047,7 +2053,7 @@ button:disabled {
 
 .summary-heading {
     padding-bottom: 17px;
-    border-bottom: 1px solid var(--commerce-border);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .summary-showtime {
@@ -2055,7 +2061,7 @@ button:disabled {
     align-items: center;
     gap: 14px;
     padding: 18px 0;
-    border-bottom: 1px solid var(--commerce-border);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .summary-showtime time {
@@ -2075,13 +2081,13 @@ button:disabled {
 }
 
 .summary-showtime span {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
 .summary-section {
     padding: 17px 0;
-    border-bottom: 1px solid var(--commerce-border);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .summary-row,
@@ -2104,15 +2110,15 @@ button:disabled {
 }
 
 .selected-seat-list p {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
 .seat-chip {
     padding: 5px 8px;
     border-radius: 7px;
-    background: var(--commerce-accent-soft);
-    color: var(--commerce-accent-strong);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
     font-size: 11px;
     font-weight: 700;
 }
@@ -2121,7 +2127,7 @@ button:disabled {
     display: grid;
     gap: 8px;
     padding: 16px 0 12px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
@@ -2136,14 +2142,14 @@ button:disabled {
 }
 
 .summary-total strong {
-    color: var(--commerce-accent);
+    color: var(--accent);
     font-size: 26px;
     letter-spacing: -0.035em;
 }
 
 .refund-note,
 .hold-note {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
     line-height: 1.55;
 }
@@ -2152,7 +2158,7 @@ button:disabled {
     margin-bottom: 13px;
     padding: 10px 11px;
     border-radius: 8px;
-    background: var(--commerce-panel-muted);
+    background: var(--surface-subtle);
 }
 
 .hold-note {
@@ -2169,7 +2175,7 @@ button:disabled {
     gap: 10px;
     padding: 0 16px;
     border-radius: 11px;
-    background: var(--commerce-accent);
+    background: var(--accent);
     color: #fff;
     font-size: 13px;
     font-weight: 750;
@@ -2218,7 +2224,7 @@ button:disabled {
     pointer-events: auto;
 }
 
-.commerce-dialog {
+.dialog-surface {
     position: relative;
     width: min(100%, 430px);
     max-height: calc(100vh - 40px);
@@ -2227,8 +2233,8 @@ button:disabled {
     border: 1px solid transparent;
     border-radius: 28px;
     background:
-        var(--commerce-glass-fill) padding-box,
-        var(--commerce-glass-edge) border-box;
+        var(--ticketing-glass-fill) padding-box,
+        var(--ticketing-glass-edge) border-box;
     box-shadow:
         0 34px 90px rgb(18 15 13 / 0.24),
         0 8px 24px rgb(18 15 13 / 0.1),
@@ -2240,7 +2246,7 @@ button:disabled {
     transition: opacity 160ms ease-out, transform 160ms ease-out;
 }
 
-.dialog-overlay.active .commerce-dialog {
+.dialog-overlay.active .dialog-surface {
     opacity: 1;
     transform: translateY(0) scale(1);
 }
@@ -2253,8 +2259,8 @@ button:disabled {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--commerce-panel-muted);
-    color: var(--commerce-muted);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
     font-size: 24px;
     font-weight: 300;
     line-height: 1;
@@ -2270,7 +2276,7 @@ button:disabled {
 
 .dialog-intro {
     margin: 9px 42px 22px 0;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 12px;
 }
 
@@ -2286,7 +2292,7 @@ button:disabled {
 }
 
 .form-field label span {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-weight: 400;
 }
 
@@ -2294,14 +2300,14 @@ button:disabled {
     width: 100%;
     height: 44px;
     padding: 0 12px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 10px;
     background: #fff;
     font-size: 14px;
 }
 
 .form-field input:focus {
-    border-color: var(--commerce-ink);
+    border-color: var(--text-primary);
 }
 
 .preferences-dialog {
@@ -2319,9 +2325,9 @@ button:disabled {
     justify-content: space-between;
     gap: 18px;
     padding: 14px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 11px;
-    background: var(--commerce-panel);
+    background: var(--surface-panel);
     cursor: pointer;
 }
 
@@ -2335,7 +2341,7 @@ button:disabled {
 }
 
 .preference-setting small {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
 }
 
@@ -2343,13 +2349,13 @@ button:disabled {
     width: 19px;
     height: 19px;
     flex: 0 0 auto;
-    accent-color: var(--commerce-accent);
+    accent-color: var(--accent);
 }
 
 .auth-error {
     display: none;
     margin: 2px 0 12px;
-    color: var(--commerce-accent-strong);
+    color: var(--accent-strong);
     font-size: 12px;
 }
 
@@ -2362,7 +2368,7 @@ button:disabled {
     min-height: 40px;
     margin-top: 8px;
     background: transparent;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 650;
 }
@@ -2375,7 +2381,7 @@ button:disabled {
     margin: -30px -30px 24px;
     padding: 30px;
     border-radius: 20px 20px 0 0;
-    background: var(--commerce-stage);
+    background: var(--seat-map-stage);
     color: #fff;
 }
 
@@ -2409,7 +2415,7 @@ button:disabled {
 }
 
 .checkout-detail-row span:first-child {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
 }
 
 .checkout-detail-row strong {
@@ -2419,12 +2425,12 @@ button:disabled {
 
 .checkout-total {
     padding-top: 14px;
-    border-top: 1px solid var(--commerce-border);
+    border-top: 1px solid var(--border-color);
     font-size: 15px;
 }
 
 .checkout-total strong {
-    color: var(--commerce-accent);
+    color: var(--accent);
     font-size: 21px;
 }
 
@@ -2432,8 +2438,8 @@ button:disabled {
     margin: 14px 0 10px;
     padding: 11px 12px;
     border-radius: 9px;
-    background: var(--commerce-panel-muted);
-    color: var(--commerce-muted);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
@@ -2453,14 +2459,14 @@ button:disabled {
     margin: 4px auto 16px;
     border-radius: 50%;
     background: #e9f6ef;
-    color: var(--commerce-success);
+    color: var(--success);
     font-size: 24px;
     font-weight: 800;
 }
 
 .success-ticket p {
     margin-top: 7px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 12px;
 }
 
@@ -2469,7 +2475,7 @@ button:disabled {
     padding: 15px;
     border: 1px dashed #c9c4bb;
     border-radius: 11px;
-    background: var(--commerce-panel-muted);
+    background: var(--surface-subtle);
 }
 
 .ticket-code span,
@@ -2478,7 +2484,7 @@ button:disabled {
 }
 
 .ticket-code span {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
 }
 
@@ -2500,12 +2506,12 @@ button:disabled {
 
 .order-card {
     padding: 16px;
-    border: 1px solid var(--commerce-border);
+    border: 1px solid var(--border-color);
     border-radius: 11px;
 }
 
 .order-card.is-cancelled {
-    background: var(--commerce-panel-muted);
+    background: var(--surface-subtle);
 }
 
 .order-card-header,
@@ -2520,18 +2526,18 @@ button:disabled {
 }
 
 .order-card-header span {
-    color: var(--commerce-success);
+    color: var(--success);
     font-size: 10px;
     font-weight: 700;
 }
 
 .order-card-header span.is-cancelled {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
 }
 
 .order-card p {
     margin: 7px 0 12px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
@@ -2540,7 +2546,7 @@ button:disabled {
 }
 
 .order-card-footer strong {
-    color: var(--commerce-accent);
+    color: var(--accent);
 }
 
 .order-ticket-code {
@@ -2551,19 +2557,19 @@ button:disabled {
     margin-top: 12px;
     padding: 9px 10px;
     border-radius: 8px;
-    background: var(--commerce-panel-muted);
-    color: var(--commerce-muted);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
     font-size: 10px;
 }
 
 .order-ticket-code strong {
-    color: var(--commerce-ink);
+    color: var(--text-primary);
     font-size: 12px;
     letter-spacing: 0.07em;
 }
 
 .order-card.is-cancelled .order-ticket-code strong {
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     text-decoration: line-through;
 }
 
@@ -2572,8 +2578,8 @@ button:disabled {
     gap: 5px;
     margin: 13px 0 0;
     padding: 12px 0 0;
-    border-top: 1px solid var(--commerce-border);
-    color: var(--commerce-muted);
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
     font-size: 10px;
     list-style: none;
 }
@@ -2584,18 +2590,18 @@ button:disabled {
     height: 5px;
     margin: 0 8px 1px 1px;
     border-radius: 50%;
-    background: var(--commerce-success);
+    background: var(--success);
     content: '';
 }
 
 .order-timeline li.is-refund::before {
-    background: var(--commerce-accent);
+    background: var(--accent);
 }
 
 .order-policy {
     margin-bottom: 0 !important;
     padding-top: 10px;
-    border-top: 1px dashed var(--commerce-border);
+    border-top: 1px dashed var(--border-color);
 }
 
 .order-refund-action {
@@ -2604,8 +2610,8 @@ button:disabled {
     margin-top: 12px;
     border: 1px solid #e5b8ba;
     border-radius: 9px;
-    background: var(--commerce-accent-soft);
-    color: var(--commerce-accent-strong);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
     font-size: 11px;
     font-weight: 750;
 }
@@ -2614,13 +2620,13 @@ button:disabled {
 .order-refund-state {
     display: block;
     margin-top: 10px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 10px;
     line-height: 1.5;
 }
 
 .order-refund-state {
-    color: var(--commerce-accent-strong);
+    color: var(--accent-strong);
     font-weight: 700;
 }
 
@@ -2638,34 +2644,34 @@ button:disabled {
     margin: 18px 0;
     padding: 15px;
     border-radius: 11px;
-    background: var(--commerce-panel-muted);
+    background: var(--surface-subtle);
 }
 
 .refund-summary div {
     display: flex;
     justify-content: space-between;
     gap: 20px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
 }
 
 .refund-summary strong {
-    color: var(--commerce-ink);
+    color: var(--text-primary);
     text-align: right;
 }
 
 .refund-warning {
     margin-bottom: 18px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 11px;
     line-height: 1.6;
 }
 
 .empty-state {
     padding: 34px 16px;
-    border: 1px dashed var(--commerce-border);
+    border: 1px dashed var(--border-color);
     border-radius: 12px;
-    color: var(--commerce-muted);
+    color: var(--text-secondary);
     font-size: 12px;
     text-align: center;
 }
@@ -2699,7 +2705,7 @@ button:disabled {
     .dialog-close:hover,
     .order-refund-action:hover {
         background: #ebe8e2;
-        color: var(--commerce-ink);
+        color: var(--text-primary);
     }
 
     .account-button:hover {
@@ -2718,7 +2724,7 @@ button:disabled {
     }
 
     .primary-action:not(:disabled):hover {
-        background: var(--commerce-accent-strong);
+        background: var(--accent-strong);
     }
 
     .recommend-button:hover {
@@ -2772,7 +2778,7 @@ button:disabled {
         --seat-gap: 5px;
     }
 
-    .commerce-header {
+    .site-header {
         height: 60px;
     }
 
@@ -3148,12 +3154,12 @@ button:disabled {
     }
 
     .mobile-booking-bar span {
-        color: var(--commerce-muted);
+        color: var(--text-secondary);
         font-size: 10px;
     }
 
     .mobile-booking-bar strong {
-        color: var(--commerce-accent);
+        color: var(--accent);
         font-size: 19px;
     }
 
@@ -3162,7 +3168,7 @@ button:disabled {
         min-height: 46px;
         padding: 0 18px;
         border-radius: 11px;
-        background: var(--commerce-accent);
+        background: var(--accent);
         color: #fff;
         font-size: 13px;
         font-weight: 750;
@@ -3178,7 +3184,7 @@ button:disabled {
         padding: 12px;
     }
 
-    .commerce-dialog {
+    .dialog-surface {
         width: 100%;
         max-height: calc(100vh - 24px);
         padding: 26px 22px;
@@ -3247,12 +3253,12 @@ button:disabled {
     (backdrop-filter: blur(1px)) or
     (-webkit-backdrop-filter: blur(1px))
 ) {
-    .commerce-header,
+    .site-header,
     .catalog-picker,
     .showtime-section,
     .ticket-card,
     .summary-sticky,
-    .commerce-dialog,
+    .dialog-surface,
     .mobile-booking-bar {
         background: rgb(255 255 255 / 0.96);
     }
@@ -3275,12 +3281,12 @@ button:disabled {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-    .commerce-header,
+    .site-header,
     .catalog-picker,
     .showtime-section,
     .ticket-card,
     .summary-sticky,
-    .commerce-dialog,
+    .dialog-surface,
     .mobile-booking-bar,
     .booking-progress {
         background: #fff;
@@ -3295,7 +3301,7 @@ button:disabled {
     }
 
     .toast {
-        background: var(--commerce-ink);
+        background: var(--text-primary);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
     }
@@ -3317,15 +3323,15 @@ button:disabled {
 }
 
 @media (prefers-contrast: more) {
-    .commerce-header,
+    .site-header,
     .catalog-picker,
     .showtime-section,
     .ticket-card,
     .summary-sticky,
-    .commerce-dialog,
+    .dialog-surface,
     .mobile-booking-bar,
     .booking-progress {
-        border-color: var(--commerce-ink);
+        border-color: var(--text-primary);
         background: #fff;
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
@@ -3361,7 +3367,7 @@ button:disabled {
 
 @media (prefers-reduced-motion: reduce) {
     .dialog-overlay,
-    .commerce-dialog,
+    .dialog-surface,
     .catalog-carousel-button,
     .catalog-option,
     .catalog-option small,
@@ -3376,13 +3382,13 @@ button:disabled {
     }
 }
 
-html[data-commerce-motion="reduce"] .catalog-carousel-button,
-html[data-commerce-motion="reduce"] .catalog-option,
-html[data-commerce-motion="reduce"] .catalog-option small {
+html[data-motion-preference="reduce"] .catalog-carousel-button,
+html[data-motion-preference="reduce"] .catalog-option,
+html[data-motion-preference="reduce"] .catalog-option small {
     transition: none;
 }
 
-html[data-commerce-motion="reduce"] .catalog-carousel-button:active:not(:disabled),
-html[data-commerce-motion="reduce"] .catalog-option:active {
+html[data-motion-preference="reduce"] .catalog-carousel-button:active:not(:disabled),
+html[data-motion-preference="reduce"] .catalog-option:active {
     transform: none;
 }

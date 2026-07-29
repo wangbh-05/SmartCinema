@@ -1,7 +1,7 @@
 import { updateSettings } from '../settings/UpdateSettings.js';
 import { err, ok } from '../../shared/Result.js';
 
-export class CommercialPreferencesService {
+export class PreferencesService {
     constructor({ stateRepository }) {
         this.stateRepository = stateRepository;
     }
@@ -19,4 +19,4 @@ export class CommercialPreferencesService {
     }
 }
 
-export default CommercialPreferencesService;
+export default PreferencesService;

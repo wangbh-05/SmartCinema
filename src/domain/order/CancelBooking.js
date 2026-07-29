@@ -1,12 +1,12 @@
 import { releaseSoldSeats } from '../booking/ShowtimeInventory.js';
 import { err, ok } from '../../shared/Result.js';
-import { cancelCommercialOrder } from './CommercialOrder.js';
+import { cancelTicketOrder } from './TicketOrder.js';
 
-export function cancelCommercialBooking({ order, inventory }, cancellation) {
+export function cancelBooking({ order, inventory }, cancellation) {
     if (!inventory || inventory.showtimeId !== order.showtimeSnapshot.id) {
         return err('SOLD_INVENTORY_MISMATCH', '订单缺少对应的场次库存');
     }
-    const cancelled = cancelCommercialOrder(order, cancellation);
+    const cancelled = cancelTicketOrder(order, cancellation);
     if (!cancelled.ok) return cancelled;
     const released = releaseSoldSeats(inventory, {
         seatIds: order.seatSnapshots.map(seat => seat.id),
@@ -19,4 +19,4 @@ export function cancelCommercialBooking({ order, inventory }, cancellation) {
     }));
 }
 
-export default cancelCommercialBooking;
+export default cancelBooking;

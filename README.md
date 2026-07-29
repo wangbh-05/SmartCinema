@@ -47,7 +47,7 @@ SmartCinema/
 ├── index.html                         # 商业购票生产入口
 ├── internal.html                      # noindex v3 放映运维入口
 ├── public/styles/
-│   ├── commercial.css                 # 新交易外壳、Canvas 座位和响应式
+│   ├── ticketing.css                  # 交易外壳、Canvas 座位和响应式
 │   ├── operations.css                 # 内部运维、表格和危险操作
 │   ├── variables.css                  # 共享 tokens
 │   └── accessibility.css              # 焦点、高对比与 reduced-motion
@@ -55,10 +55,10 @@ SmartCinema/
 │   ├── domain/
 │   │   ├── catalog/                   # Movie/Cinema/Auditorium/Showtime/票价政策
 │   │   ├── booking/                   # BookingDraft/Inventory/SeatHold/推荐与座位决策规则
-│   │   ├── order/                     # v3 不可变商业订单快照
+│   │   ├── order/                     # v3 不可变票务订单快照
 │   │   └── user/                      # 用户与设置
 │   ├── application/
-│   │   └── commercial/                # 购票、账户、推荐、偏好和运维用例
+│   │   └── ticketing/                 # 购票、账户、推荐、偏好和运维用例
 │   ├── infrastructure/
 │   │   ├── catalog/                   # 演示目录与确定性库存
 │   │   ├── storage/                   # Storage v2/v3、迁移和 session owner
@@ -66,9 +66,9 @@ SmartCinema/
 │   ├── ui/
 │   │   ├── canvas/                    # 弧形坐标、命中检测、连续热力场和高分屏适配
 │   │   └── controllers/               # Canvas 座位、结算、订单、偏好与运维 controller
-│   ├── commercial.js                  # 新生产页面交易编排
+│   ├── ticketing.js                   # 消费者购票页面编排
 │   ├── internal.js                    # v3 运维页面启动
-│   ├── bootstrapCommercial.js         # v3 生产组合根
+│   ├── bootstrapTicketing.js          # 票务应用组合根
 │   └── bootstrapInternal.js           # v3 运维组合根
 ├── tests/                             # Node 契约与真实浏览器流程
 ```

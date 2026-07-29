@@ -1,6 +1,6 @@
 import { createMoney } from '../../domain/Money.js';
 import { createShowtimeInventory } from '../../domain/booking/ShowtimeInventory.js';
-import { rehydrateCommercialOrder } from '../../domain/order/CommercialOrder.js';
+import { rehydrateTicketOrder } from '../../domain/order/TicketOrder.js';
 import { formatSeatLabel, parseSeatKey } from '../../domain/cinema/Seat.js';
 import { parseShowtimeId } from '../../domain/cinema/Showtime.js';
 import { err, ok } from '../../shared/Result.js';
@@ -139,7 +139,7 @@ function mapOrder(order) {
             reason: order.cancelReason || 'legacy-cancellation'
         } : null
     };
-    return rehydrateCommercialOrder(migrated);
+    return rehydrateTicketOrder(migrated);
 }
 
 export class MigrateV2ToV3 {

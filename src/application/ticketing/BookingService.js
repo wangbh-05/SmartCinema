@@ -18,12 +18,12 @@ import {
     createSeatPopularityMap,
     evaluateSeatDecision
 } from '../../domain/booking/SeatDecisionGuide.js';
-import { createCommercialOrder } from '../../domain/order/CommercialOrder.js';
-import { getCommercialCancellationEligibility } from '../../domain/order/CommercialOrder.js';
-import { cancelCommercialBooking } from '../../domain/order/CancelCommercialBooking.js';
+import { createTicketOrder } from '../../domain/order/TicketOrder.js';
+import { getTicketOrderCancellationEligibility } from '../../domain/order/TicketOrder.js';
+import { cancelBooking } from '../../domain/order/CancelBooking.js';
 import { err, ok } from '../../shared/Result.js';
 
-export class CommercialBookingService {
+export class BookingService {
     constructor({ catalogRepository, stateRepository, clock, idGenerator }) {
         this.catalogRepository = catalogRepository;
         this.stateRepository = stateRepository;
@@ -205,7 +205,7 @@ export class CommercialBookingService {
         const order = current.value.ordersById[orderId];
         if (!order) return err('ORDER_NOT_FOUND', '订单不存在', { orderId });
         if (order.userId !== actorUserId) return err('FORBIDDEN', '不能查看其他用户的退票资格');
-        return ok(getCommercialCancellationEligibility(order, this.clock.now()));
+        return ok(getTicketOrderCancellationEligibility(order, this.clock.now()));
     }
 
     cancelOrder({ orderId, actorUserId, reason = 'customer-requested' }) {
@@ -218,7 +218,7 @@ export class CommercialBookingService {
             return ok({ order, state: current.value, idempotent: true });
         }
         const inventory = current.value.inventoriesByShowtime[order.showtimeSnapshot.id];
-        const cancelled = cancelCommercialBooking({ order, inventory }, {
+        const cancelled = cancelBooking({ order, inventory }, {
             cancelledAt: this.clock.now(),
             reason
         });
@@ -433,7 +433,7 @@ export class CommercialBookingService {
         if (!consumed.ok) return consumed;
         let order;
         try {
-            order = createCommercialOrder({
+            order = createTicketOrder({
                 id: orderId,
                 idempotencyKey: hold.idempotencyKey,
                 userId,
@@ -615,4 +615,4 @@ export class CommercialBookingService {
     }
 }
 
-export default CommercialBookingService;
+export default BookingService;

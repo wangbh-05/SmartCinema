@@ -4,13 +4,13 @@ import {
     formatDate,
     formatMoney,
     formatTime
-} from '../commercial/CommerceView.js';
+} from '../views/ViewHelpers.js';
 
 function element(id) {
     return document.getElementById(id);
 }
 
-export class CommercialOrdersController {
+export class OrdersController {
     constructor({
         booking,
         account,
@@ -221,4 +221,4 @@ export class CommercialOrdersController {
     }
 }
 
-export default CommercialOrdersController;
+export default OrdersController;

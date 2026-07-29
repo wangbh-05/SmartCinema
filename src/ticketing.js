@@ -1,19 +1,19 @@
-import { createBrowserCommercialApplication } from './bootstrapCommercial.js';
+import { createBrowserTicketingApplication } from './bootstrapTicketing.js';
 import { AuthViewAdapter } from './ui/adapters/AuthViewAdapter.js';
 import { AuthDialogController } from './ui/controllers/AuthDialogController.js';
-import { CommercialCheckoutController } from './ui/controllers/CommercialCheckoutController.js';
-import { CommercialCatalogController } from './ui/controllers/CommercialCatalogController.js';
-import { CommercialDecisionSupportController } from './ui/controllers/CommercialDecisionSupportController.js';
-import { CommercialOrdersController } from './ui/controllers/CommercialOrdersController.js';
-import { CommercialPreferencesController } from './ui/controllers/CommercialPreferencesController.js';
-import { CommercialSeatMapController } from './ui/controllers/CommercialSeatMapController.js';
+import { CheckoutController } from './ui/controllers/CheckoutController.js';
+import { CatalogController } from './ui/controllers/CatalogController.js';
+import { DecisionSupportController } from './ui/controllers/DecisionSupportController.js';
+import { OrdersController } from './ui/controllers/OrdersController.js';
+import { PreferencesController } from './ui/controllers/PreferencesController.js';
+import { SeatMapController } from './ui/controllers/SeatMapController.js';
 import {
     appendText,
     formatAmount,
     formatDate,
     formatMoney,
     formatTime
-} from './ui/commercial/CommerceView.js';
+} from './ui/views/ViewHelpers.js';
 
 function element(id) {
     return document.getElementById(id);
@@ -43,7 +43,7 @@ function audienceSeatWarning(draft, seats, auditorium) {
     return warnings.length > 0 ? `${warnings.join('；')}，你仍可继续购票。` : '';
 }
 
-class CommercialBookingPage {
+class BookingPage {
     constructor(app) {
         this.app = app;
         this.booking = app.booking;
@@ -99,7 +99,7 @@ class CommercialBookingPage {
             return;
         }
         this.allShowtimes = showtimes.value;
-        this.catalogController = new CommercialCatalogController({
+        this.catalogController = new CatalogController({
             navigation: navigation.value,
             showtimes: this.allShowtimes,
             onSelect: selection => this.selectCatalogValue(selection)
@@ -121,7 +121,7 @@ class CommercialBookingPage {
             onNotify: message => this.notify(message)
         });
 
-        this.checkout = new CommercialCheckoutController({
+        this.checkout = new CheckoutController({
             booking: this.booking,
             account: this.app.account,
             bookingDrafts: this.app.bookingDrafts,
@@ -134,7 +134,7 @@ class CommercialBookingPage {
             onCheckoutCompleted: () => this.rebuildDraft({ preserveSeats: false, persist: false })
         });
 
-        this.ordersController = new CommercialOrdersController({
+        this.ordersController = new OrdersController({
             booking: this.booking,
             account: this.app.account,
             onNotify: message => this.notify(message),
@@ -143,7 +143,7 @@ class CommercialBookingPage {
                 if (showtimeId === this.context?.showtime.id) this.refreshInventory();
             }
         });
-        this.preferencesController = new CommercialPreferencesController({
+        this.preferencesController = new PreferencesController({
             preferences: this.app.preferences,
             account: this.app.account,
             onNotify: message => this.notify(message),
@@ -152,7 +152,7 @@ class CommercialBookingPage {
     }
 
     setupSeatMap() {
-        this.seatMap = new CommercialSeatMapController({
+        this.seatMap = new SeatMapController({
             map: element('seat-map'),
             scroller: element('seat-scroll'),
             viewport: element('seat-viewport'),
@@ -183,7 +183,7 @@ class CommercialBookingPage {
     }
 
     setupDecisionSupport() {
-        this.decisionSupport = new CommercialDecisionSupportController({
+        this.decisionSupport = new DecisionSupportController({
             booking: this.booking,
             onPartyTypeChange: partyType => this.changePartyType(partyType),
             onPopularityToggle: () => this.togglePopularity()
@@ -1276,5 +1276,5 @@ class CommercialBookingPage {
     }
 }
 
-const page = new CommercialBookingPage(createBrowserCommercialApplication());
+const page = new BookingPage(createBrowserTicketingApplication());
 page.start();

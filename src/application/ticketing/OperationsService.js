@@ -7,7 +7,7 @@ function money(amount, currency = 'CNY') {
     return Object.freeze({ amount, currency });
 }
 
-export class CommercialOperationsService {
+export class OperationsService {
     constructor({
         stateRepository,
         booking,
@@ -180,4 +180,4 @@ export class CommercialOperationsService {
     }
 }
 
-export default CommercialOperationsService;
+export default OperationsService;

@@ -923,7 +923,7 @@ async function run() {
             movieList.scrollTo({ left: 0, behavior: 'auto' });
             await delay(35);
             observedBehavior = null;
-            doc.documentElement.dataset.commerceMotion = 'reduce';
+            doc.documentElement.dataset.motionPreference = 'reduce';
             movieNext.dispatchEvent(new win.MouseEvent('click', {
                 bubbles: true,
                 detail: 1
@@ -933,7 +933,7 @@ async function run() {
             movieList.scrollTo({ left: 0, behavior: 'auto' });
             await delay(35);
             observedBehavior = null;
-            doc.documentElement.dataset.commerceMotion = 'system';
+            doc.documentElement.dataset.motionPreference = 'system';
             Object.defineProperty(win, 'matchMedia', {
                 configurable: true,
                 value: query => query.includes('prefers-reduced-motion') ?
@@ -1074,18 +1074,18 @@ async function run() {
                 input.checked = true;
                 input.dispatchEvent(new win.Event('change', { bubbles: true }));
             });
-            assertContract(doc.body.classList.contains('commerce-readable'), '大字体未即时应用');
-            assertContract(doc.body.classList.contains('commerce-high-contrast'), '高对比度未即时应用');
-            assertContract(doc.body.classList.contains('commerce-colorblind'), '色觉友好模式未即时应用');
-            assertContract(doc.documentElement.dataset.commerceMotion === 'reduce', '减少动态效果未即时应用');
+            assertContract(doc.body.classList.contains('is-readable'), '大字体未即时应用');
+            assertContract(doc.body.classList.contains('is-high-contrast'), '高对比度未即时应用');
+            assertContract(doc.body.classList.contains('is-colorblind-friendly'), '色觉友好模式未即时应用');
+            assertContract(doc.documentElement.dataset.motionPreference === 'reduce', '减少动态效果未即时应用');
 
             disposeFrame(frame);
             frame = await createAppFrame(1200, true);
             doc = frame.contentDocument;
-            assertContract(doc.body.classList.contains('commerce-readable'), '刷新后丢失大字体偏好');
-            assertContract(doc.body.classList.contains('commerce-high-contrast'), '刷新后丢失高对比度偏好');
-            assertContract(doc.body.classList.contains('commerce-colorblind'), '刷新后丢失色觉友好偏好');
-            assertContract(doc.documentElement.dataset.commerceMotion === 'reduce', '刷新后丢失动态偏好');
+            assertContract(doc.body.classList.contains('is-readable'), '刷新后丢失大字体偏好');
+            assertContract(doc.body.classList.contains('is-high-contrast'), '刷新后丢失高对比度偏好');
+            assertContract(doc.body.classList.contains('is-colorblind-friendly'), '刷新后丢失色觉友好偏好');
+            assertContract(doc.documentElement.dataset.motionPreference === 'reduce', '刷新后丢失动态偏好');
         } finally {
             disposeFrame(frame);
         }

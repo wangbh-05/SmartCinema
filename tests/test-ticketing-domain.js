@@ -28,10 +28,10 @@ import {
     reserveSeats
 } from '../src/domain/booking/ShowtimeInventory.js';
 import {
-    createCommercialOrder,
-    getCommercialCancellationEligibility
-} from '../src/domain/order/CommercialOrder.js';
-import { cancelCommercialBooking } from '../src/domain/order/CancelCommercialBooking.js';
+    createTicketOrder,
+    getTicketOrderCancellationEligibility
+} from '../src/domain/order/TicketOrder.js';
+import { cancelBooking } from '../src/domain/order/CancelBooking.js';
 import {
     createDemoCatalog,
     DemoCatalogRepository
@@ -47,7 +47,7 @@ import {
 const NOW = '2026-07-18T10:00:00.000Z';
 const LATER = '2026-07-18T10:10:00.000Z';
 
-class TestCommercialDomain {
+class TestTicketingDomain {
     constructor() {
         this.passed = 0;
         this.failed = 0;
@@ -87,7 +87,7 @@ class TestCommercialDomain {
     }
 
     runAll() {
-        console.log('\n========== Commercial Booking Domain 测试 ==========\n');
+        console.log('\n========== Ticketing Domain 测试 ==========\n');
 
         this.test('Money 应只接受非负整数分', () => {
             const money = createMoney(6800, 'CNY');
@@ -464,7 +464,7 @@ class TestCommercialDomain {
             this.assertEqual(consumed.value.inventory.soldSeatIds.length, 2);
             this.assertEqual(Object.keys(consumed.value.inventory.holdIdsBySeatId).length, 0);
 
-            const order = createCommercialOrder({
+            const order = createTicketOrder({
                 id: 'order-1',
                 idempotencyKey: consumed.value.hold.idempotencyKey,
                 userId: 'user-1',
@@ -486,13 +486,13 @@ class TestCommercialDomain {
 
         this.test('退票资格应使用订单政策快照计算截止时间、手续费与退款额', () => {
             const booking = this._confirmedBooking();
-            const eligible = getCommercialCancellationEligibility(booking.order, NOW);
+            const eligible = getTicketOrderCancellationEligibility(booking.order, NOW);
             this.assertTrue(eligible.eligible);
             this.assertEqual(eligible.cutoffAt, '2026-07-18T10:30:00.000Z');
             this.assertEqual(eligible.fee.amount, 500);
             this.assertEqual(eligible.refundAmount.amount, 11600);
 
-            const late = getCommercialCancellationEligibility(
+            const late = getTicketOrderCancellationEligibility(
                 booking.order,
                 '2026-07-18T10:31:00.000Z'
             );
@@ -502,7 +502,7 @@ class TestCommercialDomain {
 
         this.test('取消商业订单应同时发起退款并释放整组已售座位', () => {
             const booking = this._confirmedBooking();
-            const cancelled = cancelCommercialBooking(booking, {
+            const cancelled = cancelBooking(booking, {
                 cancelledAt: NOW,
                 reason: 'customer-requested'
             });
@@ -517,7 +517,7 @@ class TestCommercialDomain {
 
         this.test('超过退票截止时间不得改变订单或已售库存', () => {
             const booking = this._confirmedBooking();
-            const cancelled = cancelCommercialBooking(booking, {
+            const cancelled = cancelBooking(booking, {
                 cancelledAt: '2026-07-18T10:31:00.000Z',
                 reason: 'customer-requested'
             });
@@ -638,7 +638,7 @@ class TestCommercialDomain {
             orderId: 'order-cancel-1',
             consumedAt: '2026-07-18T10:04:00.000Z'
         }).value;
-        const order = createCommercialOrder({
+        const order = createTicketOrder({
             id: 'order-cancel-1',
             idempotencyKey: consumed.hold.idempotencyKey,
             userId: 'user-1',
@@ -774,4 +774,4 @@ class TestCommercialDomain {
     }
 }
 
-export default TestCommercialDomain;
+export default TestTicketingDomain;

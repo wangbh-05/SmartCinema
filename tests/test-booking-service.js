@@ -1,8 +1,8 @@
-import { CommercialBookingService } from '../src/application/commercial/CommercialBookingService.js';
+import { BookingService } from '../src/application/ticketing/BookingService.js';
 import {
     recommendSeatBlock,
     recommendSeatBlocks
-} from '../src/application/commercial/RecommendSeatBlock.js';
+} from '../src/application/ticketing/RecommendSeatBlock.js';
 import { createBookingDraft } from '../src/domain/booking/BookingDraft.js';
 import { createShowtimeInventory } from '../src/domain/booking/ShowtimeInventory.js';
 import { createSettings } from '../src/domain/user/Settings.js';
@@ -55,7 +55,7 @@ class SequenceIdGenerator {
     }
 }
 
-class TestCommercialApplication {
+class TestBookingService {
     constructor() {
         this.passed = 0;
         this.failed = 0;
@@ -85,7 +85,7 @@ class TestCommercialApplication {
     }
 
     runAll() {
-        console.log('\n========== Commercial Booking Application 测试 ==========\n');
+        console.log('\n========== Booking Service 测试 ==========\n');
 
         this.test('场次上下文应组合电影、影院、影厅、价格与退改政策', () => {
             const deps = this._deps();
@@ -749,7 +749,7 @@ class TestCommercialApplication {
         const catalog = createDemoCatalog('2026-07-18');
         const catalogRepository = new DemoCatalogRepository(catalog);
         const showtimeId = 'showtime:c0-a0-s1-m1:2026-07-18';
-        const service = new CommercialBookingService({
+        const service = new BookingService({
             catalogRepository,
             stateRepository: repository,
             clock,
@@ -767,4 +767,4 @@ class TestCommercialApplication {
     }
 }
 
-export default TestCommercialApplication;
+export default TestBookingService;

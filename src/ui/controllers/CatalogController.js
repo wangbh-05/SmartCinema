@@ -40,7 +40,7 @@ function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, value));
 }
 
-export class CommercialCatalogController {
+export class CatalogController {
     constructor({ navigation, showtimes, onSelect }) {
         this.navigation = navigation;
         this.showtimes = showtimes;
@@ -374,7 +374,7 @@ export class CommercialCatalogController {
     }
 
     _shouldReduceMotion() {
-        return document.documentElement.dataset.commerceMotion === 'reduce' ||
+        return document.documentElement.dataset.motionPreference === 'reduce' ||
             window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }
 
@@ -464,4 +464,4 @@ export class CommercialCatalogController {
     }
 }
 
-export default CommercialCatalogController;
+export default CatalogController;

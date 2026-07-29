@@ -1,7 +1,7 @@
 import { ok } from '../../shared/Result.js';
 import { ensureDemoInventories } from '../../infrastructure/catalog/DemoInventorySeeder.js';
 
-export class CommercialApplication {
+export class TicketingApplication {
     constructor({
         v2Migration,
         v3Migration,
@@ -60,4 +60,4 @@ export class CommercialApplication {
     }
 }
 
-export default CommercialApplication;
+export default TicketingApplication;

@@ -6,11 +6,11 @@
 import TestDomainContracts from './test-domain-contracts.js';
 import TestStorageV2 from './test-storage-v2.js';
 import TestMigrationV2 from './test-migration-v2.js';
-import TestCommercialDomain from './test-commercial-domain.js';
+import TestTicketingDomain from './test-ticketing-domain.js';
 import TestStorageV3 from './test-storage-v3.js';
-import TestCommercialApplication from './test-commercial-application.js';
-import TestCommercialComposition from './test-commercial-composition.js';
-import TestCommercialOperations from './test-commercial-operations.js';
+import TestBookingService from './test-booking-service.js';
+import TestTicketingComposition from './test-ticketing-composition.js';
+import TestOperationsService from './test-operations-service.js';
 import TestArchitectureBoundaries from './test-architecture-boundaries.js';
 import TestSeatMapController from './test-seat-map-controller.js';
 
@@ -43,9 +43,9 @@ class TestRunner {
         this.results.push({ name: 'MigrationV2', ...migrationV2Result });
 
         // 商业购票 v3：目录、票种、座位规则、价格、锁座与订单快照
-        const commercialDomainTest = new TestCommercialDomain();
-        const commercialDomainResult = commercialDomainTest.runAll();
-        this.results.push({ name: 'CommercialDomain', ...commercialDomainResult });
+        const ticketingDomainTest = new TestTicketingDomain();
+        const ticketingDomainResult = ticketingDomainTest.runAll();
+        this.results.push({ name: 'TicketingDomain', ...ticketingDomainResult });
 
         // Storage v3 校验、revision 与冻结 v2 fixture 迁移
         const storageV3Test = new TestStorageV3();
@@ -53,19 +53,19 @@ class TestRunner {
         this.results.push({ name: 'StorageV3', ...storageV3Result });
 
         // v3 应用用例：场次上下文、草稿、原子锁座、释放、过期与确认
-        const commercialApplicationTest = new TestCommercialApplication();
-        const commercialApplicationResult = commercialApplicationTest.runAll();
-        this.results.push({ name: 'CommercialApp', ...commercialApplicationResult });
+        const bookingServiceTest = new TestBookingService();
+        const bookingServiceResult = bookingServiceTest.runAll();
+        this.results.push({ name: 'BookingService', ...bookingServiceResult });
 
         // 生产 composition root：连续迁移、演示库存、v3 账户和推荐报价
-        const commercialCompositionTest = new TestCommercialComposition();
-        const commercialCompositionResult = commercialCompositionTest.runAll();
-        this.results.push({ name: 'CommercialComposition', ...commercialCompositionResult });
+        const ticketingCompositionTest = new TestTicketingComposition();
+        const ticketingCompositionResult = ticketingCompositionTest.runAll();
+        this.results.push({ name: 'TicketingComposition', ...ticketingCompositionResult });
 
         // v3 内部运维：权限、指标、锁座释放与安全恢复
-        const commercialOperationsTest = new TestCommercialOperations();
-        const commercialOperationsResult = commercialOperationsTest.runAll();
-        this.results.push({ name: 'CommercialOperations', ...commercialOperationsResult });
+        const operationsServiceTest = new TestOperationsService();
+        const operationsServiceResult = operationsServiceTest.runAll();
+        this.results.push({ name: 'OperationsService', ...operationsServiceResult });
 
         // 防止已退役 UI 链、跨入口依赖和浏览器全局重新污染分层
         const architectureTest = new TestArchitectureBoundaries();

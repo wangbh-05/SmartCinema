@@ -1,5 +1,5 @@
-import { CommercialOperationsService } from '../src/application/commercial/CommercialOperationsService.js';
-import { createBrowserCommercialApplication } from '../src/bootstrapCommercial.js';
+import { OperationsService } from '../src/application/ticketing/OperationsService.js';
+import { createBrowserTicketingApplication } from '../src/bootstrapTicketing.js';
 import {
     IMPORT_ROLLBACK_KEY_V3,
     StateBackupServiceV3
@@ -50,7 +50,7 @@ class SequenceIdGenerator {
     }
 }
 
-export default class TestCommercialOperations {
+export default class TestOperationsService {
     constructor() {
         this.passed = 0;
         this.failed = 0;
@@ -76,7 +76,7 @@ export default class TestCommercialOperations {
     }
 
     runAll() {
-        console.log('\n========== Commercial Operations 测试 ==========\n');
+        console.log('\n========== Operations Service 测试 ==========\n');
 
         this.test('未登录用户不得读取运维仪表盘', () => {
             const deps = this._deps();
@@ -191,7 +191,7 @@ export default class TestCommercialOperations {
         const sessionStorage = new MemoryWebStorage();
         const clock = new FakeClock();
         const idGenerator = new SequenceIdGenerator();
-        const app = createBrowserCommercialApplication({
+        const app = createBrowserTicketingApplication({
             localStorage,
             sessionStorage,
             clock,
@@ -203,7 +203,7 @@ export default class TestCommercialOperations {
             storage: localStorage,
             clock
         });
-        const operations = new CommercialOperationsService({
+        const operations = new OperationsService({
             stateRepository: app.stateRepository,
             booking: app.booking,
             backup,

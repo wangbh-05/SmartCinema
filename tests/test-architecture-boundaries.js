@@ -59,10 +59,10 @@ export default class TestArchitectureBoundaries {
         this.test('消费者与运维入口必须使用各自的薄启动脚本', () => {
             const consumer = read('index.html');
             const operations = read('internal.html');
-            this.assertTrue(consumer.includes('src/commercial.js'), '消费者入口未使用 commercial.js');
+            this.assertTrue(consumer.includes('src/ticketing.js'), '消费者入口未使用 ticketing.js');
             this.assertTrue(!consumer.includes('src/internal.js'), '消费者入口加载了运维脚本');
             this.assertTrue(operations.includes('src/internal.js'), '运维入口未使用 internal.js');
-            this.assertTrue(!operations.includes('src/commercial.js'), '运维入口加载了消费者脚本');
+            this.assertTrue(!operations.includes('src/ticketing.js'), '运维入口加载了消费者脚本');
         });
 
         this.test('消费者页面不得提供内部工具导航', () => {
@@ -94,7 +94,7 @@ export default class TestArchitectureBoundaries {
             );
             this.assertTrue(violations.length === 0, `仍存在旧链：${violations.join('、')}`);
             const consumer = read('index.html');
-            const controller = read('src/ui/controllers/CommercialSeatMapController.js');
+            const controller = read('src/ui/controllers/SeatMapController.js');
             this.assertTrue(consumer.includes('seat-layout-canvas'), '消费者入口缺少 Canvas 座位图');
             this.assertTrue(consumer.includes('seat-heat-canvas'), '消费者入口缺少 Canvas 热度层');
             this.assertTrue(controller.includes("getContext('2d')") ||

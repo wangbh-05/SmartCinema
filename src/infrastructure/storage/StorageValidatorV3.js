@@ -1,6 +1,6 @@
 import { createShowtimeInventory } from '../../domain/booking/ShowtimeInventory.js';
 import { rehydrateSeatHold } from '../../domain/booking/SeatHold.js';
-import { rehydrateCommercialOrder } from '../../domain/order/CommercialOrder.js';
+import { rehydrateTicketOrder } from '../../domain/order/TicketOrder.js';
 import { createSettings } from '../../domain/user/Settings.js';
 import { createUser } from '../../domain/user/User.js';
 import { err, ok } from '../../shared/Result.js';
@@ -131,7 +131,7 @@ export function validateStateEnvelopeV3(input) {
         const ordersById = {};
         const orderIdempotencyKeys = new Set();
         Object.entries(requirePlainMap(data.ordersById, 'ordersById')).forEach(([key, orderData]) => {
-            const order = rehydrateCommercialOrder(orderData);
+            const order = rehydrateTicketOrder(orderData);
             if (key !== order.id) throw new ValidationError('ordersById key 与 order.id 不一致', { key });
             if (!usersById[order.userId]) throw new ValidationError('订单引用不存在的 userId', { orderId: order.id });
             if (orderIdempotencyKeys.has(order.idempotencyKey)) {

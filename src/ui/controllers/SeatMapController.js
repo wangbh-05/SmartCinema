@@ -1,4 +1,4 @@
-import { formatAmount } from '../commercial/CommerceView.js';
+import { formatAmount } from '../views/ViewHelpers.js';
 import {
     canvasPoint,
     centerTextMetricsInRectangle,
@@ -62,7 +62,7 @@ function rubberband(value, minimum, maximum) {
     return value;
 }
 
-export class CommercialSeatMapController {
+export class SeatMapController {
     constructor({
         map,
         scroller,
@@ -175,7 +175,7 @@ export class CommercialSeatMapController {
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         observer.observe(document.documentElement, {
             attributes: true,
-            attributeFilter: ['data-commerce-motion']
+            attributeFilter: ['data-motion-preference']
         });
         this.preferenceObserver = observer;
         window.addEventListener('resize', () => {
@@ -1499,4 +1499,4 @@ export class CommercialSeatMapController {
     }
 }
 
-export default CommercialSeatMapController;
+export default SeatMapController;

@@ -9,7 +9,7 @@ import {
 import { validateStateEnvelopeV3 } from '../src/infrastructure/storage/StorageValidatorV3.js';
 
 const NOW = '2026-07-18T12:00:00.000Z';
-const FIXTURE_PATH = fileURLToPath(new URL('./fixtures/state-v2-commercial-migration.json', import.meta.url));
+const FIXTURE_PATH = fileURLToPath(new URL('./fixtures/state-v2-to-v3-migration.json', import.meta.url));
 const V2_FIXTURE_RAW = readFileSync(FIXTURE_PATH, 'utf8');
 
 class MemoryWebStorage {

@@ -4,7 +4,7 @@ import { logoutUser } from '../auth/Logout.js';
 import { registerUser } from '../auth/Register.js';
 import { sanitizeUser } from '../../domain/user/User.js';
 
-export class CommercialAccountService {
+export class AccountService {
     constructor({ stateRepository, clock, idGenerator }) {
         this.stateRepository = stateRepository;
         this.clock = clock;
@@ -51,4 +51,4 @@ export class CommercialAccountService {
     }
 }
 
-export default CommercialAccountService;
+export default AccountService;

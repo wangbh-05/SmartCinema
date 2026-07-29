@@ -1,10 +1,10 @@
-import { appendText } from '../commercial/CommerceView.js';
+import { appendText } from '../views/ViewHelpers.js';
 
 function element(id) {
     return document.getElementById(id);
 }
 
-export class CommercialDecisionSupportController {
+export class DecisionSupportController {
     constructor({
         booking,
         onPartyTypeChange,
@@ -93,4 +93,4 @@ export class CommercialDecisionSupportController {
     }
 }
 
-export default CommercialDecisionSupportController;
+export default DecisionSupportController;

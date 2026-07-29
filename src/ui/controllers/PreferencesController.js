@@ -4,7 +4,7 @@ function element(id) {
     return document.getElementById(id);
 }
 
-export class CommercialPreferencesController {
+export class PreferencesController {
     constructor({ preferences, account, onNotify = () => {}, onAnnounce = () => {} }) {
         this.preferences = preferences;
         this.account = account;
@@ -76,11 +76,11 @@ export class CommercialPreferencesController {
     }
 
     _apply(settings) {
-        document.body.classList.toggle('commerce-readable', settings.accessibilityMode);
-        document.body.classList.toggle('commerce-high-contrast', settings.highContrastMode);
-        document.body.classList.toggle('commerce-colorblind', settings.colorblindMode);
-        document.documentElement.dataset.commerceMotion = settings.reducedMotion;
+        document.body.classList.toggle('is-readable', settings.accessibilityMode);
+        document.body.classList.toggle('is-high-contrast', settings.highContrastMode);
+        document.body.classList.toggle('is-colorblind-friendly', settings.colorblindMode);
+        document.documentElement.dataset.motionPreference = settings.reducedMotion;
     }
 }
 
-export default CommercialPreferencesController;
+export default PreferencesController;

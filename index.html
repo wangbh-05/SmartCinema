@@ -9,14 +9,14 @@
     <link rel="stylesheet" href="public/styles/reset.css">
     <link rel="stylesheet" href="public/styles/variables.css">
     <link rel="stylesheet" href="public/styles/accessibility.css">
-    <link rel="stylesheet" href="public/styles/commercial.css">
+    <link rel="stylesheet" href="public/styles/ticketing.css">
 </head>
 <body>
     <a class="skip-link" href="#booking-main">跳到购票区域</a>
 
-    <header class="commerce-header">
+    <header class="site-header">
         <div class="header-inner">
-            <a class="commerce-brand" href="index.html" aria-label="SmartCinema 首页">
+            <a class="brand-link" href="index.html" aria-label="SmartCinema 首页">
                 <span class="brand-mark" aria-hidden="true">S</span>
                 <span class="brand-copy">
                     <strong>SmartCinema</strong>
@@ -333,7 +333,7 @@
     </div>
 
     <div class="dialog-overlay auth-modal-overlay" id="auth-modal" aria-hidden="true">
-        <div class="commerce-dialog auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" tabindex="-1">
+        <div class="dialog-surface auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title" tabindex="-1">
             <button class="dialog-close modal-close" id="auth-modal-close" type="button" aria-label="关闭登录注册对话框">×</button>
             <div class="dialog-brand" aria-hidden="true">S</div>
             <p class="dialog-eyebrow">SmartCinema 会员</p>
@@ -366,7 +366,7 @@
     </div>
 
     <div class="dialog-overlay preferences-overlay" id="preferences-dialog" aria-hidden="true">
-        <div class="commerce-dialog preferences-dialog" role="dialog" aria-modal="true" aria-labelledby="preferences-title" tabindex="-1">
+        <div class="dialog-surface preferences-dialog" role="dialog" aria-modal="true" aria-labelledby="preferences-title" tabindex="-1">
             <button class="dialog-close" id="preferences-close" type="button" aria-label="关闭账户与辅助功能">×</button>
             <p class="dialog-eyebrow">账户偏好</p>
             <h2 id="preferences-title">辅助功能</h2>
@@ -393,14 +393,14 @@
     </div>
 
     <div class="dialog-overlay checkout-overlay" id="checkout-dialog" aria-hidden="true">
-        <div class="commerce-dialog checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title" tabindex="-1">
+        <div class="dialog-surface checkout-dialog" role="dialog" aria-modal="true" aria-labelledby="checkout-title" tabindex="-1">
             <button class="dialog-close" id="checkout-close" type="button" aria-label="关闭订单确认对话框">×</button>
             <div id="checkout-content"></div>
         </div>
     </div>
 
     <div class="dialog-overlay orders-overlay" id="orders-dialog" aria-hidden="true">
-        <div class="commerce-dialog orders-dialog" role="dialog" aria-modal="true" aria-labelledby="orders-title" tabindex="-1">
+        <div class="dialog-surface orders-dialog" role="dialog" aria-modal="true" aria-labelledby="orders-title" tabindex="-1">
             <button class="dialog-close" id="orders-close" type="button" aria-label="关闭我的订单">×</button>
             <p class="dialog-eyebrow">账户</p>
             <h2 id="orders-title">我的订单</h2>
@@ -409,7 +409,7 @@
     </div>
 
     <div class="dialog-overlay refund-overlay" id="refund-dialog" aria-hidden="true">
-        <div class="commerce-dialog refund-dialog" role="dialog" aria-modal="true" aria-labelledby="refund-title" tabindex="-1">
+        <div class="dialog-surface refund-dialog" role="dialog" aria-modal="true" aria-labelledby="refund-title" tabindex="-1">
             <button class="dialog-close" id="refund-close" type="button" aria-label="关闭退票确认">×</button>
             <p class="dialog-eyebrow">订单售后</p>
             <h2 id="refund-title">确认取消整笔订单？</h2>
@@ -421,6 +421,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
     <div class="sr-only" id="live-region" aria-live="polite"></div>
-    <script type="module" src="src/commercial.js"></script>
+    <script type="module" src="src/ticketing.js"></script>
 </body>
 </html>

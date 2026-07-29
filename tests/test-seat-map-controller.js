@@ -1,4 +1,4 @@
-import { CommercialSeatMapController } from '../src/ui/controllers/CommercialSeatMapController.js';
+import { SeatMapController } from '../src/ui/controllers/SeatMapController.js';
 
 export default class TestSeatMapController {
     constructor() {
@@ -31,7 +31,7 @@ export default class TestSeatMapController {
         console.log('\n========== Seat Map Controller 测试 ==========\n');
 
         this.test('无障碍座位应允许触摸点按但禁止滑动连选', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller._isUnavailable = () => false;
             for (const kind of ['wheelchair', 'companion']) {
                 const seat = { id: `seat-${kind}`, kind };
@@ -42,13 +42,13 @@ export default class TestSeatMapController {
         });
 
         this.test('不可用座位不应允许触摸点按', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller._isUnavailable = () => true;
             this.assertEqual(controller._canTapTouchSeat({ id: 'sold-seat', kind: 'wheelchair' }), false);
         });
 
         this.test('仅点按手势结束时应交给单座切换规则', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             let toggledSeatId = null;
             let selectedAsBlock = false;
             controller.touchSelect = {
@@ -73,7 +73,7 @@ export default class TestSeatMapController {
         });
 
         this.test('超过最大缩放时应使用有效 scale 保持双指锚点', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller.viewport = { clientWidth: 400, clientHeight: 300 };
             controller.layout = { width: 200, height: 100 };
             controller.view = { minScale: 1, maxScale: 2 };
@@ -87,7 +87,7 @@ export default class TestSeatMapController {
         });
 
         this.test('边界阻尼松手时应围绕当前呈现锚点连续回弹', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller.viewport = { clientWidth: 400, clientHeight: 300 };
             controller.layout = { width: 200, height: 100 };
             controller.view = {
@@ -109,7 +109,7 @@ export default class TestSeatMapController {
         });
 
         this.test('双指转单指后平移约束不应再次改变阻尼 scale', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller.viewport = { clientWidth: 400, clientHeight: 300 };
             controller.layout = { width: 200, height: 100 };
             controller.view = { minScale: 1, maxScale: 2 };
@@ -124,7 +124,7 @@ export default class TestSeatMapController {
         });
 
         this.test('回弹应继承手势释放速度', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller.viewGestureMoved = true;
             controller.viewGestureSample = {};
             controller.viewVelocity = { scale: 0.8, panX: 320, panY: -180 };
@@ -142,7 +142,7 @@ export default class TestSeatMapController {
         });
 
         this.test('未移动的轻触不应重新注入旧动画速度', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller.viewGestureMoved = false;
             controller.viewGestureSample = {};
             controller.viewVelocity = { scale: 0.8, panX: 320, panY: -180 };
@@ -160,7 +160,7 @@ export default class TestSeatMapController {
         });
 
         this.test('放大后的状态提示应明确需要双指拖动', () => {
-            const controller = Object.create(CommercialSeatMapController.prototype);
+            const controller = Object.create(SeatMapController.prototype);
             controller.view = { mobile: true, scale: 1.5, minScale: 1, maxScale: 2 };
             controller.zoomStatus = { textContent: '' };
             controller.zoomOutButton = {};
