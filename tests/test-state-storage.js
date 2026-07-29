@@ -76,7 +76,7 @@ export default class TestStateStorage {
             const result = deps.initializer.run();
             this.assertTrue(result.ok);
             this.assertTrue(result.value.initialized);
-            this.assertEqual(result.value.state.schemaVersion, 3);
+            this.assertEqual(result.value.state.schemaVersion, 4);
             this.assertEqual(result.value.state.usersById.admin_001.username, 'admin');
             this.assertTrue(Boolean(deps.storage.getItem(STATE_STORAGE_KEY)));
             this.assertEqual(deps.storage.data.size, 1);
@@ -91,6 +91,21 @@ export default class TestStateStorage {
             this.assertFalse(second.value.initialized);
             this.assertEqual(deps.storage.getItem(STATE_STORAGE_KEY), raw);
             this.assertEqual(second.value.state.revision, 0);
+        });
+
+        this.test('并发页面抢先初始化时应复用已写入状态', () => {
+            const deps = this._deps();
+            const initialize = deps.repository.initialize.bind(deps.repository);
+            deps.repository.initialize = state => {
+                const winner = initialize(state);
+                this.assertTrue(winner.ok);
+                return initialize(state);
+            };
+            const result = deps.initializer.run();
+            this.assertTrue(result.ok);
+            this.assertFalse(result.value.initialized);
+            this.assertEqual(result.value.state.usersById.admin_001.username, 'admin');
+            this.assertEqual(deps.storage.data.size, 1);
         });
 
         this.test('损坏 JSON 不得被初始化流程覆盖', () => {

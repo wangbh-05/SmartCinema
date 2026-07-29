@@ -1,6 +1,7 @@
 import { OperationsService } from '../src/application/ticketing/OperationsService.js';
 import { createBrowserTicketingApplication } from '../src/bootstrapTicketing.js';
 import {
+    BACKUP_VERSION,
     IMPORT_ROLLBACK_KEY,
     StateBackupService
 } from '../src/infrastructure/storage/StateBackupService.js';
@@ -165,12 +166,26 @@ export default class TestOperationsService {
             this.assertTrue(imported.value.state.revision > exported.value.payload.state.revision);
         });
 
+        this.test('旧版恢复备份应在替换状态前被明确拒绝', () => {
+            const deps = this._adminDeps();
+            const exported = deps.operations.exportBackup({ includeCredentials: true });
+            const payload = {
+                ...exported.value.payload,
+                exportVersion: BACKUP_VERSION - 1
+            };
+            const before = deps.app.stateRepository.read().value;
+            const imported = deps.operations.importBackup(JSON.stringify(payload));
+            this.assertEqual(imported.ok, false);
+            this.assertEqual(imported.error.code, 'BACKUP_UNSUPPORTED');
+            this.assertEqual(deps.app.stateRepository.read().value.revision, before.revision);
+        });
+
         this.test('损坏或含未知字段的备份不得改变当前 state', () => {
             const deps = this._adminDeps();
             const before = deps.app.stateRepository.read().value;
             const imported = deps.operations.importBackup(JSON.stringify({
                 exportFormat: 'smartcinema-backup',
-                exportVersion: 3,
+                exportVersion: BACKUP_VERSION,
                 exportedAt: NOW,
                 credentialPolicy: 'included-demo-plaintext',
                 restorable: true,

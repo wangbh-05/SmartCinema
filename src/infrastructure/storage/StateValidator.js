@@ -7,7 +7,7 @@ import { err, ok } from '../../shared/Result.js';
 import { ValidationError } from '../../shared/ValidationError.js';
 import { cloneJson, deepFreeze, isPlainObject } from '../../shared/objects.js';
 
-export const STATE_SCHEMA_VERSION = 3;
+export const STATE_SCHEMA_VERSION = 4;
 
 function requireIsoDate(value, fieldName) {
     if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
@@ -26,7 +26,7 @@ export function validateState(input) {
         const data = cloneJson(input);
         requirePlainMap(data, 'state');
         if (data.schemaVersion !== STATE_SCHEMA_VERSION) {
-            throw new ValidationError('state schemaVersion 必须为 3');
+            throw new ValidationError(`state schemaVersion 必须为 ${STATE_SCHEMA_VERSION}`);
         }
         if (!Number.isInteger(data.revision) || data.revision < 0) {
             throw new ValidationError('state revision 必须是非负整数');

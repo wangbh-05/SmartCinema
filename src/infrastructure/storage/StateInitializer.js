@@ -17,7 +17,12 @@ export class StateInitializer {
         if (current.error.code !== 'STATE_NOT_INITIALIZED') return current;
 
         const initialized = this.stateRepository.initialize(createDefaultState(this.clock.now()));
-        if (!initialized.ok) return initialized;
+        if (!initialized.ok) {
+            if (initialized.error.code !== 'STATE_CONFLICT') return initialized;
+            const concurrent = this.stateRepository.read();
+            if (!concurrent.ok) return concurrent;
+            return ok({ state: concurrent.value, initialized: false });
+        }
         return ok({ state: initialized.value, initialized: true });
     }
 }

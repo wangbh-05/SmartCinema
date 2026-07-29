@@ -116,7 +116,7 @@ Node 全量：
 
 ```bash
 npm test
-# 79/79 PASS
+# 81/81 PASS
 ```
 
 启动服务后，以独立 origin 打开浏览器契约：
