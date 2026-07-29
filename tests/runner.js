@@ -12,6 +12,7 @@ import TestCommercialApplication from './test-commercial-application.js';
 import TestCommercialComposition from './test-commercial-composition.js';
 import TestCommercialOperations from './test-commercial-operations.js';
 import TestArchitectureBoundaries from './test-architecture-boundaries.js';
+import TestSeatMapController from './test-seat-map-controller.js';
 
 class TestRunner {
     constructor() {
@@ -70,6 +71,11 @@ class TestRunner {
         const architectureTest = new TestArchitectureBoundaries();
         const architectureResult = architectureTest.runAll();
         this.results.push({ name: 'ArchitectureBoundaries', ...architectureResult });
+
+        // Canvas 座位图触摸点按与滑动手势边界
+        const seatMapControllerTest = new TestSeatMapController();
+        const seatMapControllerResult = seatMapControllerTest.runAll();
+        this.results.push({ name: 'SeatMapController', ...seatMapControllerResult });
 
         // 打印总摘要
         this.printGlobalSummary();

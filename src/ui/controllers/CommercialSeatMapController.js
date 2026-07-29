@@ -909,11 +909,13 @@ export class CommercialSeatMapController {
 
     _startSingleTouchGesture({ pointerId, viewportPoint }) {
         const startSeat = this._seatAtTouchPoint(viewportPoint);
-        if (this._canStartTouchSelect(startSeat)) {
+        if (this._canTapTouchSeat(startSeat)) {
+            const tapOnly = ['wheelchair', 'companion'].includes(startSeat.kind);
             const mode = this._isSelected(startSeat.id) ? 'remove' : 'add';
             this.touchSelect = {
                 pointerId,
                 mode,
+                tapOnly,
                 startX: viewportPoint.x,
                 startY: viewportPoint.y,
                 lastX: viewportPoint.x,
@@ -1068,19 +1070,35 @@ export class CommercialSeatMapController {
     }
 
     _handleTouchSelectMove({ point, preventDefault }) {
-        const deltaX = point.x - this.touchSelect.startX;
-        const deltaY = point.y - this.touchSelect.startY;
-        if (!this.touchSelect.active && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
-            this.touchSelect.active = true;
+        const touchSelect = this.touchSelect;
+        const deltaX = point.x - touchSelect.startX;
+        const deltaY = point.y - touchSelect.startY;
+        if (touchSelect.tapOnly && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
+            this.touchSelect = null;
+            this.touchPan = {
+                pointerId: touchSelect.pointerId,
+                startX: touchSelect.startX,
+                startY: touchSelect.startY,
+                panX: this.view.panX,
+                panY: this.view.panY,
+                active: true
+            };
+            this._suppressSyntheticClick();
+            this._renderCanvas(this.getState(), readCanvasTheme(document.body));
+            this._handleTouchPanMove({ point, preventDefault });
+            return;
+        }
+        if (!touchSelect.active && Math.hypot(deltaX, deltaY) >= PAN_THRESHOLD) {
+            touchSelect.active = true;
             this._suppressSyntheticClick();
         }
         this._addTouchSeatsAlongPath({
-            from: { x: this.touchSelect.lastX, y: this.touchSelect.lastY },
+            from: { x: touchSelect.lastX, y: touchSelect.lastY },
             to: point
         });
-        this.touchSelect.lastX = point.x;
-        this.touchSelect.lastY = point.y;
-        if (this.touchSelect.active) preventDefault();
+        touchSelect.lastX = point.x;
+        touchSelect.lastY = point.y;
+        if (touchSelect.active) preventDefault();
     }
 
     _addTouchSeatsAlongPath({ from, to }) {
@@ -1346,9 +1364,13 @@ export class CommercialSeatMapController {
     }
 
     _canStartTouchSelect(seat) {
-        if (!seat || this._isUnavailable(seat.id)) return false;
+        if (!this._canTapTouchSeat(seat)) return false;
         if (['wheelchair', 'companion'].includes(seat.kind)) return false;
         return true;
+    }
+
+    _canTapTouchSeat(seat) {
+        return Boolean(seat && !this._isUnavailable(seat.id));
     }
 
     _canAddTouchSelectedSeat(seat) {
