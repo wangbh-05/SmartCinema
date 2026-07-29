@@ -1,6 +1,7 @@
 import { formatAmount } from '../commercial/CommerceView.js';
 import {
     canvasPoint,
+    centerTextMetricsInRectangle,
     createCurvedSeatLayout,
     createHeatmapBitmap,
     heatScoreForPeriod,
@@ -599,11 +600,13 @@ export class CommercialSeatMapController {
         context.quadraticCurveTo(centerX, 30, startX + screenWidth, 45);
         context.stroke();
         context.restore();
+        context.save();
         context.fillStyle = 'rgba(174, 182, 196, 0.62)';
         context.font = '9px ui-sans-serif, system-ui, sans-serif';
         context.textAlign = 'center';
         context.letterSpacing = '2px';
         context.fillText('银幕方向', centerX, 70);
+        context.restore();
     }
 
     _drawSeat(context, seat, theme, state) {
@@ -687,9 +690,20 @@ export class CommercialSeatMapController {
             const fontSize = theme.readable ? 9 :
                 (this.view.mobile ? mobileFontSize : (seat.kind === 'wheelchair' ? 10 : 8));
             context.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
-            context.textAlign = 'center';
-            context.textBaseline = 'middle';
-            context.fillText(label, seat.width / 2, backHeight / 2);
+            context.letterSpacing = '0px';
+            context.textAlign = 'left';
+            context.textBaseline = 'alphabetic';
+            const metrics = context.measureText(label);
+            const placement = centerTextMetricsInRectangle(metrics, {
+                x: 0,
+                y: 0,
+                width: seat.width,
+                height: backHeight
+            }, {
+                fallbackAscent: fontSize * 0.72,
+                fallbackDescent: fontSize * 0.2
+            });
+            context.fillText(label, placement.x, placement.baselineY);
         }
 
         if (state.focused) {
