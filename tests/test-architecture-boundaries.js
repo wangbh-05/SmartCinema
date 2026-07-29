@@ -50,7 +50,21 @@ export default class TestArchitectureBoundaries {
                 'src/bootstrap.js',
                 'public/styles/app.css',
                 'public/styles/order.css',
-                'public/styles/internal-tools.css'
+                'public/styles/internal-tools.css',
+                'src/domain/cinema/Hall.js',
+                'src/domain/cinema/Seat.js',
+                'src/domain/cinema/SeatInventory.js',
+                'src/domain/cinema/Showtime.js',
+                'src/domain/order/CheckoutIntent.js',
+                'src/domain/order/Order.js',
+                'src/domain/order/OrderStatus.js',
+                'src/infrastructure/storage/LocalStateRepositoryV3.js',
+                'src/infrastructure/storage/MigrateV1ToV2.js',
+                'src/infrastructure/storage/MigrateV2ToV3.js',
+                'src/infrastructure/storage/SessionCheckoutIntentRepository.js',
+                'src/infrastructure/storage/StateBackupServiceV3.js',
+                'src/infrastructure/storage/StorageValidator.js',
+                'src/infrastructure/storage/StorageValidatorV3.js'
             ];
             const present = retired.filter(relativePath => existsSync(join(ROOT, relativePath)));
             this.assertTrue(present.length === 0, `仍存在：${present.join('、')}`);

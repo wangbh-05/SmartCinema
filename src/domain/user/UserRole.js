@@ -1,7 +1,6 @@
 export const USER_ROLE = Object.freeze({
     MEMBER: 'member',
-    ADMIN: 'admin',
-    SYSTEM: 'system'
+    ADMIN: 'admin'
 });
 
 export function isUserRole(value) {

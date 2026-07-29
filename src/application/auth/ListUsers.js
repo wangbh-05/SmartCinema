@@ -10,7 +10,6 @@ export function listUsers({ stateRepository }) {
     if (currentUser?.role !== 'admin') return err('FORBIDDEN', '无权查看用户列表');
 
     const users = Object.values(current.value.usersById)
-        .filter(user => user.role !== 'system')
         .map(sanitizeUser)
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
     return ok(Object.freeze(users));

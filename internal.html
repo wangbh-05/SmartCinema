@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="SmartCinema v3 内部放映运维工具">
+    <meta name="description" content="SmartCinema 内部放映运维工具">
     <meta name="robots" content="noindex,nofollow">
     <title>SmartCinema · 放映运维</title>
     <link rel="stylesheet" href="public/styles/reset.css">
@@ -54,7 +54,7 @@
         <div class="operations-dashboard" id="operations-dashboard" hidden>
             <section class="operations-hero" aria-labelledby="operations-title">
                 <div>
-                    <span class="eyebrow">内部运维 · Storage v3</span>
+                    <span class="eyebrow">内部放映运维</span>
                 <h1 id="operations-title">未来放映概览</h1>
                     <p id="operations-sync-meta">正在读取库存…</p>
                 </div>
@@ -95,7 +95,7 @@
                         <span class="eyebrow">实时库存</span>
                         <h2 id="showtime-operations-title">场次与上座情况</h2>
                     </div>
-                    <p>数据来自与消费者购票相同的 v3 事实源。</p>
+                    <p>数据来自与消费者购票相同的状态事实源。</p>
                 </div>
                 <div class="table-scroll">
                     <table class="operations-table">
@@ -182,7 +182,7 @@
                     </article>
                     <article class="danger-zone">
                         <h3>替换当前数据</h3>
-                        <p>仅接受完整 v3 恢复备份；脱敏快照会被拒绝。</p>
+                        <p>仅接受与当前状态格式一致的完整恢复备份；脱敏快照会被拒绝。</p>
                         <button class="danger-button" id="operations-import" type="button">选择恢复备份</button>
                         <input id="operations-import-file" type="file" accept="application/json,.json" hidden>
                     </article>

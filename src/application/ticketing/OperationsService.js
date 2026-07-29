@@ -70,7 +70,6 @@ export class OperationsService {
         const pendingRefundAmount = cancelledOrders.reduce((total, order) =>
             total + (order.refund?.status === 'pending' ? order.refund.amount.amount : 0), 0);
         const users = Object.values(state.usersById)
-            .filter(user => user.role !== 'system')
             .map(sanitizeUser)
             .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 
@@ -93,8 +92,7 @@ export class OperationsService {
             holds: Object.freeze(holds),
             activeHolds: Object.freeze(activeHolds),
             recentOrders: Object.freeze(orders.slice(0, 8)),
-            users: Object.freeze(users),
-            migration: state.migration
+            users: Object.freeze(users)
         }));
     }
 
@@ -158,9 +156,9 @@ export class OperationsService {
     _holdView(hold, state, showtimeLabels, now) {
         const user = state.usersById[hold.ownerId];
         const showtime = showtimeLabels.get(hold.showtimeId) || {
-            movieTitle: '历史场次',
-            cinemaName: '影院未记录',
-            auditoriumName: '影厅未记录',
+            movieTitle: '场次已不在当前目录',
+            cinemaName: '影院信息不可用',
+            auditoriumName: '影厅信息不可用',
             startsAt: null
         };
         return Object.freeze({

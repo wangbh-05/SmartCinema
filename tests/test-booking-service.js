@@ -11,8 +11,8 @@ import {
     createDemoCatalog,
     DemoCatalogRepository
 } from '../src/infrastructure/catalog/DemoCatalogRepository.js';
-import { LocalStateRepositoryV3 } from '../src/infrastructure/storage/LocalStateRepositoryV3.js';
-import { createDefaultStateV3 } from '../src/infrastructure/storage/StorageValidatorV3.js';
+import { LocalStateRepository } from '../src/infrastructure/storage/LocalStateRepository.js';
+import { createDefaultState } from '../src/infrastructure/storage/InitialState.js';
 
 const NOW = '2026-07-18T02:00:00.000Z';
 
@@ -740,10 +740,10 @@ class TestBookingService {
             role: 'member',
             createdAt: NOW
         });
-        const state = JSON.parse(JSON.stringify(createDefaultStateV3(NOW, admin)));
+        const state = JSON.parse(JSON.stringify(createDefaultState(NOW, admin)));
         state.usersById[user.id] = user;
         state.settingsByUser[user.id] = createSettings();
-        const repository = new LocalStateRepositoryV3({ storage, clock });
+        const repository = new LocalStateRepository({ storage, clock });
         const initialized = repository.initialize(state);
         this.assertTrue(initialized.ok);
         const catalog = createDemoCatalog('2026-07-18');

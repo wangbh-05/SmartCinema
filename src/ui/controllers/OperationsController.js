@@ -162,9 +162,6 @@ export class OperationsController {
         if (dashboard.summary.staleHoldCount > 0) {
             messages.push(`${dashboard.summary.staleHoldCount} 个锁座已超过到期时间，请执行清理`);
         }
-        if (dashboard.migration.warnings.length > 0) {
-            messages.push(`迁移报告有 ${dashboard.migration.warnings.length} 条提示`);
-        }
         alert.hidden = messages.length === 0;
         alert.textContent = messages.join('；');
     }
@@ -329,7 +326,7 @@ export class OperationsController {
         const result = this.operations.exportBackup({ includeCredentials });
         if (!result.ok) return this._notify(result.error.message);
         const suffix = includeCredentials ? 'recovery' : 'diagnostic';
-        this._downloadJson(result.value.json, `smartcinema-v3-${suffix}-${Date.now()}.json`);
+        this._downloadJson(result.value.json, `smartcinema-${suffix}-${Date.now()}.json`);
         this._notify(includeCredentials ? '完整恢复备份已下载' : '脱敏诊断快照已下载');
     }
 
@@ -348,7 +345,7 @@ export class OperationsController {
             trigger: element('operations-import'),
             eyebrow: '破坏性数据替换',
             title: '用备份替换当前数据？',
-            message: `将导入“${file.name}”。系统会先保存回滚快照，再替换 v3 状态并退出当前账号。`,
+            message: `将导入“${file.name}”。系统会先保存回滚快照，再替换当前状态并退出当前账号。`,
             actionLabel: '确认替换'
         });
     }

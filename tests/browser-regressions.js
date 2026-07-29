@@ -344,7 +344,7 @@ async function run() {
             let doc = frame.contentDocument;
             openHold(doc);
             await waitFor(() => doc.getElementById('checkout-dialog').classList.contains('active'), '锁座确认页');
-            const stateBefore = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const stateBefore = JSON.parse(localStorage.getItem('smartcinema_state'));
             const held = Object.values(stateBefore.holdsById).find(item => item.status === 'held');
             if (!held) throw new Error('测试准备失败：没有创建 held SeatHold');
 
@@ -355,7 +355,7 @@ async function run() {
                 () => doc.getElementById('checkout-dialog').classList.contains('active'),
                 '刷新后恢复锁座确认页'
             );
-            const stateRestored = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const stateRestored = JSON.parse(localStorage.getItem('smartcinema_state'));
             assertContract(stateRestored.holdsById[held.id].status === 'held', '刷新后有效 hold 未保持 held');
             assertContract(
                 doc.getElementById('hold-countdown')?.textContent.startsWith('剩余'),
@@ -363,7 +363,7 @@ async function run() {
             );
             doc.getElementById('checkout-close').click();
             await delay();
-            const stateAfter = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const stateAfter = JSON.parse(localStorage.getItem('smartcinema_state'));
             const released = stateAfter.holdsById[held.id];
             const inventory = stateAfter.inventoriesByShowtime[held.showtimeId];
             assertContract(released.status === 'released', `关闭后的 hold 状态为 ${released.status}`);
@@ -397,8 +397,8 @@ async function run() {
             confirm.click();
             confirm.click();
             await delay();
-            const stateV3 = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
-            assertContract(Object.keys(stateV3.ordersById).length === 1, '重复确认创建了多个订单');
+            const state = JSON.parse(localStorage.getItem('smartcinema_state'));
+            assertContract(Object.keys(state.ordersById).length === 1, '重复确认创建了多个订单');
             assertContract(doc.querySelector('#checkout-content h2')?.textContent === '购票成功', '未显示购票成功凭证');
         } finally {
             disposeFrame(frame);
@@ -538,9 +538,9 @@ async function run() {
             );
             doc.getElementById('refund-confirm').click();
             await delay();
-            const stateV3 = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
-            const cancelled = Object.values(stateV3.ordersById)[0];
-            const inventory = stateV3.inventoriesByShowtime[cancelled.showtimeSnapshot.id];
+            const state = JSON.parse(localStorage.getItem('smartcinema_state'));
+            const cancelled = Object.values(state.ordersById)[0];
+            const inventory = state.inventoriesByShowtime[cancelled.showtimeSnapshot.id];
             assertContract(cancelled.status === 'cancelled', `取消后订单状态为 ${cancelled.status}`);
             assertContract(cancelled.refund.status === 'pending', '退款申请未进入 pending');
             assertContract(
@@ -565,15 +565,15 @@ async function run() {
             const selectedIds = [...doc.querySelectorAll('.seat-button.is-selected')]
                 .map(button => button.dataset.seatId);
             assertContract(selectedIds.length === 2, '测试准备失败：未形成两个推荐座位');
-            const stateV3 = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const state = JSON.parse(localStorage.getItem('smartcinema_state'));
             const showtimeId = doc.querySelector('[data-showtime-id][aria-pressed="true"]').dataset.showtimeId;
-            const inventory = stateV3.inventoriesByShowtime[showtimeId];
+            const inventory = state.inventoriesByShowtime[showtimeId];
             inventory.soldSeatIds = [...new Set([...inventory.soldSeatIds, ...selectedIds])];
             inventory.revision++;
             inventory.updatedAt = new Date().toISOString();
-            stateV3.revision++;
-            stateV3.updatedAt = inventory.updatedAt;
-            localStorage.setItem('smartcinema_state_v3', JSON.stringify(stateV3));
+            state.revision++;
+            state.updatedAt = inventory.updatedAt;
+            localStorage.setItem('smartcinema_state', JSON.stringify(state));
 
             doc.getElementById('continue-booking').click();
             const repaired = await waitFor(
@@ -1174,7 +1174,7 @@ async function run() {
         let frame = await createAppFrame();
         try {
             openHold(frame.contentDocument);
-            const before = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const before = JSON.parse(localStorage.getItem('smartcinema_state'));
             const hold = Object.values(before.holdsById).find(item => item.status === 'held');
             assertContract(Boolean(hold), '消费者入口没有创建有效锁座');
             disposeFrame(frame);
@@ -1196,11 +1196,11 @@ async function run() {
                 '破坏性库存操作没有二次确认');
             doc.getElementById('operations-confirm-action').click();
             await waitFor(() => {
-                const current = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+                const current = JSON.parse(localStorage.getItem('smartcinema_state'));
                 return current.holdsById[hold.id]?.status === 'released';
             }, '锁座释放完成');
 
-            const after = JSON.parse(localStorage.getItem('smartcinema_state_v3'));
+            const after = JSON.parse(localStorage.getItem('smartcinema_state'));
             const inventory = after.inventoriesByShowtime[hold.showtimeId];
             assertContract(hold.seatIds.every(seatId => !inventory.holdIdsBySeatId[seatId]),
                 '锁座记录已释放但库存映射仍占用座位');

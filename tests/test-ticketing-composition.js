@@ -77,14 +77,15 @@ export default class TestTicketingComposition {
     runAll() {
         console.log('\n========== Ticketing Composition 测试 ==========\n');
 
-        this.test('空白浏览器应连续初始化 v2、v3 与三日目录库存', () => {
+        this.test('空白浏览器应初始化唯一状态与三日目录库存', () => {
             const deps = this._deps();
             const initialized = deps.app.initialize();
             this.assertTrue(initialized.ok);
             this.assertEqual(initialized.value.createdInventories, 108);
             this.assertEqual(Object.keys(initialized.value.state.inventoriesByShowtime).length, 108);
-            this.assertTrue(deps.localStorage.getItem('smartcinema_state_v2') !== null);
-            this.assertTrue(deps.localStorage.getItem('smartcinema_state_v3') !== null);
+            this.assertTrue(initialized.value.storageInitialized);
+            this.assertTrue(deps.localStorage.getItem('smartcinema_state') !== null);
+            this.assertEqual(deps.localStorage.data.size, 1);
         });
 
         this.test('日期工具应使用北京时间，应用目录始终从本地当天开始', () => {
@@ -101,7 +102,7 @@ export default class TestTicketingComposition {
             this.assertEqual(app.booking.getCatalogNavigation().value.businessDates[0], '2026-07-18');
         });
 
-        this.test('v3 账户服务应完成注册、退出与登录且保持单一状态源', () => {
+        this.test('账户服务应完成注册、退出与登录且保持单一状态源', () => {
             const deps = this._deps();
             this.assertTrue(deps.app.initialize().ok);
             const registered = deps.app.account.register({

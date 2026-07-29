@@ -1,8 +1,8 @@
 import { err, ok } from '../../shared/Result.js';
 import { cloneJson } from '../../shared/objects.js';
-import { validateStateEnvelope } from './StorageValidator.js';
+import { STATE_SCHEMA_VERSION, validateState } from './StateValidator.js';
 
-export const STATE_STORAGE_KEY = 'smartcinema_state_v2';
+export const STATE_STORAGE_KEY = 'smartcinema_state';
 
 export class LocalStateRepository {
     constructor({ storage, clock, key = STATE_STORAGE_KEY }) {
@@ -19,20 +19,17 @@ export class LocalStateRepository {
 
     read() {
         const raw = this.storage.getItem(this.key);
-        if (raw === null) return err('MIGRATION_REQUIRED', 'v2 state 尚未初始化');
-
+        if (raw === null) return err('STATE_NOT_INITIALIZED', 'state 尚未初始化');
         try {
-            return validateStateEnvelope(JSON.parse(raw));
+            return validateState(JSON.parse(raw));
         } catch (error) {
-            return err('STORAGE_CORRUPTED', 'v2 state JSON 无法解析', { reason: error.message });
+            return err('STORAGE_CORRUPTED', 'state JSON 无法解析', { reason: error.message });
         }
     }
 
     initialize(state) {
-        if (this.storage.getItem(this.key) !== null) {
-            return err('STATE_CONFLICT', 'v2 state 已存在');
-        }
-        const validated = validateStateEnvelope(state);
+        if (this.storage.getItem(this.key) !== null) return err('STATE_CONFLICT', 'state 已存在');
+        const validated = validateState(state);
         if (!validated.ok) return validated;
         return this._write(validated.value);
     }
@@ -47,15 +44,14 @@ export class LocalStateRepository {
             });
         }
         if (typeof mutate !== 'function') return err('VALIDATION_ERROR', 'mutate 必须是函数');
-
         try {
             const draft = cloneJson(current.value);
             const replacement = mutate(draft);
             const candidate = replacement === undefined ? draft : replacement;
-            candidate.schemaVersion = 2;
+            candidate.schemaVersion = STATE_SCHEMA_VERSION;
             candidate.revision = current.value.revision + 1;
             candidate.updatedAt = this.clock.now();
-            const validated = validateStateEnvelope(candidate);
+            const validated = validateState(candidate);
             if (!validated.ok) return validated;
             return this._write(validated.value);
         } catch (error) {
@@ -63,7 +59,7 @@ export class LocalStateRepository {
         }
     }
 
-    replace(expectedRevision, replacement) {
+    replace(expectedRevision, state) {
         const current = this.read();
         if (!current.ok) return current;
         if (current.value.revision !== expectedRevision) {
@@ -73,12 +69,11 @@ export class LocalStateRepository {
             });
         }
         try {
-            const candidate = cloneJson(replacement);
-            candidate.schemaVersion = 2;
+            const candidate = cloneJson(state);
+            candidate.schemaVersion = STATE_SCHEMA_VERSION;
             candidate.revision = current.value.revision + 1;
             candidate.updatedAt = this.clock.now();
-            candidate.session = null;
-            const validated = validateStateEnvelope(candidate);
+            const validated = validateState(candidate);
             if (!validated.ok) return validated;
             return this._write(validated.value);
         } catch (error) {
@@ -91,13 +86,12 @@ export class LocalStateRepository {
         try {
             this.storage.setItem(this.key, json);
         } catch (error) {
-            return err('STORAGE_WRITE_FAILED', '无法写入 v2 state', { reason: error.message });
+            return err('STORAGE_WRITE_FAILED', '无法写入 state', { reason: error.message });
         }
-
         const readBack = this.read();
         if (!readBack.ok) return readBack;
         if (JSON.stringify(readBack.value) !== json) {
-            return err('STORAGE_CORRUPTED', 'v2 state 写入后读回不一致');
+            return err('STORAGE_CORRUPTED', 'state 写入后读回不一致');
         }
         return ok(readBack.value);
     }

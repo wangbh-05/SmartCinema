@@ -1,8 +1,8 @@
 # SmartCinema
 
-SmartCinema 是一个无运行时依赖的原生 JavaScript 商业影院购票演示。生产入口遵循“场次 → 票种/票数 → 座位 → 锁座 → 身份 → 订单”的交易漏斗，使用 Storage v3 保存场次库存、有效锁座和不可变订单快照。
+SmartCinema 是一个无运行时依赖的原生 JavaScript 商业影院购票演示。生产入口遵循“场次 → 票种/票数 → 座位 → 锁座 → 身份 → 订单”的交易漏斗，使用单一状态存储保存场次库存、有效锁座和不可变订单快照。
 
-当前重构在 `zcjx/smart_cinema` 分支进行。`internal.html` 是受管理员权限保护的 v3 放映运维入口；唯一消费者入口是 `index.html`，且消费者导航不暴露任何内部工具。消费者座位图使用原生 Canvas 2D 绘制，业务状态、推荐、锁座和订单仍保持分层架构。
+当前重构在 `zcjx/smart_cinema` 分支进行。`internal.html` 是受管理员权限保护的放映运维入口；唯一消费者入口是 `index.html`，且消费者导航不暴露任何内部工具。消费者座位图使用原生 Canvas 2D 绘制，业务状态、推荐、锁座和订单仍保持分层架构。
 
 ## 快速开始
 
@@ -45,7 +45,7 @@ npm test
 ```text
 SmartCinema/
 ├── index.html                         # 商业购票生产入口
-├── internal.html                      # noindex v3 放映运维入口
+├── internal.html                      # noindex 放映运维入口
 ├── public/styles/
 │   ├── ticketing.css                  # 交易外壳、Canvas 座位和响应式
 │   ├── operations.css                 # 内部运维、表格和危险操作
@@ -55,21 +55,21 @@ SmartCinema/
 │   ├── domain/
 │   │   ├── catalog/                   # Movie/Cinema/Auditorium/Showtime/票价政策
 │   │   ├── booking/                   # BookingDraft/Inventory/SeatHold/推荐与座位决策规则
-│   │   ├── order/                     # v3 不可变票务订单快照
+│   │   ├── order/                     # 不可变票务订单快照
 │   │   └── user/                      # 用户与设置
 │   ├── application/
 │   │   └── ticketing/                 # 购票、账户、推荐、偏好和运维用例
 │   ├── infrastructure/
 │   │   ├── catalog/                   # 演示目录与确定性库存
-│   │   ├── storage/                   # Storage v2/v3、迁移和 session owner
+│   │   ├── storage/                   # 状态仓储、校验、初始化、备份和 session 数据
 │   │   └── browser/                   # Clock、IdGenerator、营业日
 │   ├── ui/
 │   │   ├── canvas/                    # 弧形坐标、命中检测、连续热力场和高分屏适配
 │   │   └── controllers/               # Canvas 座位、结算、订单、偏好与运维 controller
 │   ├── ticketing.js                   # 消费者购票页面编排
-│   ├── internal.js                    # v3 运维页面启动
+│   ├── internal.js                    # 运维页面启动
 │   ├── bootstrapTicketing.js          # 票务应用组合根
-│   └── bootstrapInternal.js           # v3 运维组合根
+│   └── bootstrapInternal.js           # 运维组合根
 ├── tests/                             # Node 契约与真实浏览器流程
 ```
 
@@ -82,18 +82,18 @@ Infrastructure ───────────┘
 
 领域和应用层不访问 DOM、LocalStorage、系统时间或随机源；基础设施通过组合根注入，生产 UI 不直接读写 Web Storage。
 
-## 状态与迁移
+## 状态存储
 
-当前生产事实源是 `smartcinema_state_v3`：
+当前生产事实源是 `smartcinema_state`：
 
 - `usersById` / `session`；
-- `ordersById`：商业订单与 legacy 订单快照；
+- `ordersById`：不可变票务订单快照；
 - `inventoriesByShowtime`：已售座位和 hold 映射；
 - `holdsById`：pending/held/expired/released/consumed；
 - `settingsByUser`；
-- revision、更新时间和 migration 报告。
+- revision 与更新时间。
 
-启动会先保证 v2 存在，再幂等执行 v2→v3 迁移。原 v2 key 不删除，并在 `smartcinema_state_v2_before_v3` 保存迁移前备份；旧订单缺少的电影、影院和具体时间使用显式 `legacy-*`/`unknown`，不会编造事实。
+首次启动会直接创建当前状态，后续启动验证并复用同一状态。恢复备份前会在 `smartcinema_import_rollback` 保存回滚快照；备份格式版本用于验证兼容性，不参与运行时迁移。
 
 > 这是本地演示，不是生产认证或支付系统。演示密码仍以明文凭据保存在本机浏览器，请勿录入真实密码或个人数据。
 
@@ -116,7 +116,7 @@ Node 全量：
 
 ```bash
 npm test
-# 95/95 PASS
+# 79/79 PASS
 ```
 
 启动服务后，以独立 origin 打开浏览器契约：
@@ -130,7 +130,7 @@ http://127.0.0.1:8080/tests/browser-regressions.html
 
 ## 当前边界
 
-真实支付、支付渠道退款回调、二维码验票、完整账户资料、卖品和会员营销不属于本地项目范围；“确认订单”是明确标注的本地演示确认。热度星期数据为基于当前热度基线的确定性本地演示，不代表真实商业统计。真实读屏仍需在目标设备上进行人工验收。v2 validator、迁移 fixture 与旧订单模型只承担历史数据兼容，不构成第二套产品 UI。
+真实支付、支付渠道退款回调、二维码验票、完整账户资料、卖品和会员营销不属于本地项目范围；“确认订单”是明确标注的本地演示确认。热度星期数据为基于当前热度基线的确定性本地演示，不代表真实商业统计。真实读屏仍需在目标设备上进行人工验收。
 
 ## 许可证
 

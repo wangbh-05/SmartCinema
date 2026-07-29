@@ -1,9 +1,9 @@
 import { OperationsService } from '../src/application/ticketing/OperationsService.js';
 import { createBrowserTicketingApplication } from '../src/bootstrapTicketing.js';
 import {
-    IMPORT_ROLLBACK_KEY_V3,
-    StateBackupServiceV3
-} from '../src/infrastructure/storage/StateBackupServiceV3.js';
+    IMPORT_ROLLBACK_KEY,
+    StateBackupService
+} from '../src/infrastructure/storage/StateBackupService.js';
 
 const NOW = '2026-07-18T02:00:00.000Z';
 
@@ -161,7 +161,7 @@ export default class TestOperationsService {
             this.assertTrue(imported.ok, imported.error?.message);
             this.assertEqual(imported.value.state.session, null);
             this.assertEqual(Object.keys(imported.value.state.holdsById).length, 0);
-            this.assertTrue(deps.localStorage.getItem(IMPORT_ROLLBACK_KEY_V3) !== null);
+            this.assertTrue(deps.localStorage.getItem(IMPORT_ROLLBACK_KEY) !== null);
             this.assertTrue(imported.value.state.revision > exported.value.payload.state.revision);
         });
 
@@ -198,7 +198,7 @@ export default class TestOperationsService {
             idGenerator,
             businessDate: '2026-07-18'
         });
-        const backup = new StateBackupServiceV3({
+        const backup = new StateBackupService({
             stateRepository: app.stateRepository,
             storage: localStorage,
             clock

@@ -3,8 +3,7 @@ import { ensureDemoInventories } from '../../infrastructure/catalog/DemoInventor
 
 export class TicketingApplication {
     constructor({
-        v2Migration,
-        v3Migration,
+        stateInitializer,
         booking,
         account,
         preferences,
@@ -14,8 +13,7 @@ export class TicketingApplication {
         catalogRepository,
         clock
     }) {
-        this.v2Migration = v2Migration;
-        this.v3Migration = v3Migration;
+        this.stateInitializer = stateInitializer;
         this.booking = booking;
         this.account = account;
         this.preferences = preferences;
@@ -27,10 +25,8 @@ export class TicketingApplication {
     }
 
     initialize() {
-        const v2 = this.v2Migration.run();
-        if (!v2.ok) return v2;
-        const v3 = this.v3Migration.run();
-        if (!v3.ok) return v3;
+        const initialized = this.stateInitializer.run();
+        if (!initialized.ok) return initialized;
         const seeded = ensureDemoInventories({
             stateRepository: this.stateRepository,
             catalogRepository: this.catalogRepository,
@@ -43,10 +39,7 @@ export class TicketingApplication {
             state: swept.value.state,
             createdInventories: seeded.value.created,
             expiredHolds: swept.value.expiredCount,
-            migrations: {
-                v2: { migrated: v2.value.migrated, report: v2.value.report },
-                v3: { migrated: v3.value.migrated, report: v3.value.report }
-            }
+            storageInitialized: initialized.value.initialized
         });
     }
 

@@ -3,11 +3,8 @@
  * 运行所有测试并生成报告
  */
 
-import TestDomainContracts from './test-domain-contracts.js';
-import TestStorageV2 from './test-storage-v2.js';
-import TestMigrationV2 from './test-migration-v2.js';
 import TestTicketingDomain from './test-ticketing-domain.js';
-import TestStorageV3 from './test-storage-v3.js';
+import TestStateStorage from './test-state-storage.js';
 import TestBookingService from './test-booking-service.js';
 import TestTicketingComposition from './test-ticketing-composition.js';
 import TestOperationsService from './test-operations-service.js';
@@ -27,42 +24,27 @@ class TestRunner {
         console.log('║     SmartCinema 自动化测试套件       ║');
         console.log('╚════════════════════════════════════════╝\n');
 
-        // v2 迁移兼容领域：标识、库存、订单与用户
-        const domainTest = new TestDomainContracts();
-        const domainResult = domainTest.runAll();
-        this.results.push({ name: 'DomainContracts', ...domainResult });
-
-        // Storage v2 validator、revision repository 与 CheckoutIntent
-        const storageV2Test = new TestStorageV2();
-        const storageV2Result = storageV2Test.runAll();
-        this.results.push({ name: 'StorageV2', ...storageV2Result });
-
-        // v1 备份、校验、quarantine 与 v2 提交
-        const migrationV2Test = new TestMigrationV2();
-        const migrationV2Result = migrationV2Test.runAll();
-        this.results.push({ name: 'MigrationV2', ...migrationV2Result });
-
-        // 商业购票 v3：目录、票种、座位规则、价格、锁座与订单快照
+        // 当前购票领域：目录、票种、座位规则、价格、锁座与订单快照
         const ticketingDomainTest = new TestTicketingDomain();
         const ticketingDomainResult = ticketingDomainTest.runAll();
         this.results.push({ name: 'TicketingDomain', ...ticketingDomainResult });
 
-        // Storage v3 校验、revision 与冻结 v2 fixture 迁移
-        const storageV3Test = new TestStorageV3();
-        const storageV3Result = storageV3Test.runAll();
-        this.results.push({ name: 'StorageV3', ...storageV3Result });
+        // 当前状态初始化、校验与 revision 并发控制
+        const stateStorageTest = new TestStateStorage();
+        const stateStorageResult = stateStorageTest.runAll();
+        this.results.push({ name: 'StateStorage', ...stateStorageResult });
 
-        // v3 应用用例：场次上下文、草稿、原子锁座、释放、过期与确认
+        // 应用用例：场次上下文、草稿、原子锁座、释放、过期与确认
         const bookingServiceTest = new TestBookingService();
         const bookingServiceResult = bookingServiceTest.runAll();
         this.results.push({ name: 'BookingService', ...bookingServiceResult });
 
-        // 生产 composition root：连续迁移、演示库存、v3 账户和推荐报价
+        // 生产 composition root：状态初始化、演示库存、账户和推荐报价
         const ticketingCompositionTest = new TestTicketingComposition();
         const ticketingCompositionResult = ticketingCompositionTest.runAll();
         this.results.push({ name: 'TicketingComposition', ...ticketingCompositionResult });
 
-        // v3 内部运维：权限、指标、锁座释放与安全恢复
+        // 内部运维：权限、指标、锁座释放与安全恢复
         const operationsServiceTest = new TestOperationsService();
         const operationsServiceResult = operationsServiceTest.runAll();
         this.results.push({ name: 'OperationsService', ...operationsServiceResult });

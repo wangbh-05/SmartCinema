@@ -87,9 +87,8 @@ export class OrdersController {
         const status = appendText(header, 'span', order.status === 'confirmed' ? '已确认' : '已取消');
         if (order.status === 'cancelled') status.classList.add('is-cancelled');
         card.append(header);
-        const showtime = order.showtimeSnapshot.startsAt ?
-            `${formatDate(order.showtimeSnapshot.startsAt, true)} ${formatTime(order.showtimeSnapshot.startsAt)}` :
-            '历史场次时间未记录';
+        const showtime =
+            `${formatDate(order.showtimeSnapshot.startsAt, true)} ${formatTime(order.showtimeSnapshot.startsAt)}`;
         appendText(card, 'p', `${showtime} · ${order.auditoriumSnapshot.name}`);
         const footer = document.createElement('div');
         footer.className = 'order-card-footer';

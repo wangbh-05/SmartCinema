@@ -7,7 +7,7 @@ import { err, ok } from '../../shared/Result.js';
 import { ValidationError } from '../../shared/ValidationError.js';
 import { cloneJson, deepFreeze, isPlainObject } from '../../shared/objects.js';
 
-export const STATE_SCHEMA_VERSION_V3 = 3;
+export const STATE_SCHEMA_VERSION = 3;
 
 function requireIsoDate(value, fieldName) {
     if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
@@ -21,55 +21,11 @@ function requirePlainMap(value, fieldName) {
     return value;
 }
 
-function validateMigration(value) {
-    requirePlainMap(value, 'migration');
-    if (value.fromVersion !== null && value.fromVersion !== 2) {
-        throw new ValidationError('migration.fromVersion 无效');
-    }
-    if (value.completedAt !== null) requireIsoDate(value.completedAt, 'migration.completedAt');
-    if (!Array.isArray(value.warnings) || value.warnings.some(item => typeof item !== 'string')) {
-        throw new ValidationError('migration.warnings 必须是字符串数组');
-    }
-    if (value.sourceBackupKey !== null &&
-        (typeof value.sourceBackupKey !== 'string' || value.sourceBackupKey.trim().length === 0)) {
-        throw new ValidationError('migration.sourceBackupKey 无效');
-    }
-    return Object.freeze({
-        fromVersion: value.fromVersion,
-        completedAt: value.completedAt,
-        warnings: Object.freeze([...value.warnings]),
-        sourceBackupKey: value.sourceBackupKey
-    });
-}
-
-export function createDefaultStateV3(now, admin) {
-    const state = {
-        schemaVersion: STATE_SCHEMA_VERSION_V3,
-        revision: 0,
-        updatedAt: now,
-        usersById: { [admin.id]: admin },
-        session: null,
-        ordersById: {},
-        inventoriesByShowtime: {},
-        holdsById: {},
-        settingsByUser: { guest: createSettings() },
-        migration: {
-            fromVersion: null,
-            completedAt: null,
-            warnings: [],
-            sourceBackupKey: null
-        }
-    };
-    const validated = validateStateEnvelopeV3(state);
-    if (!validated.ok) throw new ValidationError(validated.error.message, validated.error.details);
-    return validated.value;
-}
-
-export function validateStateEnvelopeV3(input) {
+export function validateState(input) {
     try {
         const data = cloneJson(input);
         requirePlainMap(data, 'state');
-        if (data.schemaVersion !== STATE_SCHEMA_VERSION_V3) {
+        if (data.schemaVersion !== STATE_SCHEMA_VERSION) {
             throw new ValidationError('state schemaVersion 必须为 3');
         }
         if (!Number.isInteger(data.revision) || data.revision < 0) {
@@ -91,9 +47,7 @@ export function validateStateEnvelopeV3(input) {
         let session = null;
         if (data.session !== null) {
             requirePlainMap(data.session, 'session');
-            if (!usersById[data.session.userId] || usersById[data.session.userId].role === 'system') {
-                throw new ValidationError('session.userId 未引用可登录用户');
-            }
+            if (!usersById[data.session.userId]) throw new ValidationError('session.userId 未引用用户');
             session = Object.freeze({
                 userId: data.session.userId,
                 loginAt: requireIsoDate(data.session.loginAt, 'session.loginAt')
@@ -193,7 +147,7 @@ export function validateStateEnvelopeV3(input) {
         });
 
         return ok(deepFreeze({
-            schemaVersion: STATE_SCHEMA_VERSION_V3,
+            schemaVersion: STATE_SCHEMA_VERSION,
             revision: data.revision,
             updatedAt: data.updatedAt,
             usersById,
@@ -201,8 +155,7 @@ export function validateStateEnvelopeV3(input) {
             ordersById,
             inventoriesByShowtime,
             holdsById,
-            settingsByUser,
-            migration: validateMigration(data.migration)
+            settingsByUser
         }));
     } catch (error) {
         const details = error instanceof ValidationError ? error.details : {};

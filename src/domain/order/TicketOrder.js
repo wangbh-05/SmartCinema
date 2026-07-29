@@ -68,7 +68,6 @@ export function createTicketOrder({
         idempotencyKey: requireText(idempotencyKey, 'TicketOrder.idempotencyKey'),
         userId: requireText(userId, 'TicketOrder.userId'),
         sourceHoldId: hold.id,
-        legacySource: null,
         status: 'confirmed',
         movieSnapshot: {
             id: movie.id,
@@ -128,16 +127,6 @@ export function getTicketOrderCancellationEligibility(order, now) {
         });
     }
     const policy = order.refundPolicySnapshot;
-    if (!policy || policy.refundable === null || !order.showtimeSnapshot.startsAt) {
-        return Object.freeze({
-            eligible: false,
-            code: 'POLICY_UNKNOWN',
-            reason: '该历史订单的退票规则无法确认，请联系影院处理',
-            cutoffAt: null,
-            refundAmount: null,
-            fee: null
-        });
-    }
     if (!policy.refundable) {
         return Object.freeze({
             eligible: false,
@@ -226,14 +215,8 @@ function requireObject(value, fieldName) {
 
 function rehydrateRefundPolicySnapshot(value) {
     requireObject(value, 'refundPolicySnapshot');
-    if (value.refundable === null) {
-        if (value.cutoffMinutesBeforeShowtime !== null || value.feeAmount !== null) {
-            throw new ValidationError('未知退改政策不得包含推测的截止时间或费用');
-        }
-        return cloneJson(value);
-    }
     if (typeof value.refundable !== 'boolean') {
-        throw new ValidationError('refundPolicySnapshot.refundable 必须是 boolean 或 null');
+        throw new ValidationError('refundPolicySnapshot.refundable 必须是 boolean');
     }
     if (!Number.isInteger(value.cutoffMinutesBeforeShowtime) || value.cutoffMinutesBeforeShowtime < 0 ||
         !Number.isInteger(value.feeAmount) || value.feeAmount < 0) {
@@ -248,8 +231,7 @@ export function rehydrateTicketOrder(data) {
     if (!['confirmed', 'cancelled'].includes(data.status)) {
         throw new ValidationError('TicketOrder.status 无效', { status: data.status });
     }
-    const legacySource = data.legacySource === null ? null : requireObject(data.legacySource, 'legacySource');
-    if (legacySource === null) requireText(data.sourceHoldId, 'TicketOrder.sourceHoldId');
+    requireText(data.sourceHoldId, 'TicketOrder.sourceHoldId');
     const movieSnapshot = cloneJson(requireObject(data.movieSnapshot, 'movieSnapshot'));
     const cinemaSnapshot = cloneJson(requireObject(data.cinemaSnapshot, 'cinemaSnapshot'));
     const auditoriumSnapshot = cloneJson(requireObject(data.auditoriumSnapshot, 'auditoriumSnapshot'));
@@ -261,6 +243,8 @@ export function rehydrateTicketOrder(data) {
     requireText(auditoriumSnapshot.id, 'auditoriumSnapshot.id');
     requireText(auditoriumSnapshot.name, 'auditoriumSnapshot.name');
     requireText(showtimeSnapshot.id, 'showtimeSnapshot.id');
+    requireIsoDate(showtimeSnapshot.startsAt, 'showtimeSnapshot.startsAt');
+    requireIsoDate(showtimeSnapshot.endsAt, 'showtimeSnapshot.endsAt');
 
     if (!Array.isArray(data.ticketItems) || data.ticketItems.length === 0) {
         throw new ValidationError('TicketOrder.ticketItems 必须是非空数组');
@@ -314,8 +298,7 @@ export function rehydrateTicketOrder(data) {
         id: requireText(data.id, 'TicketOrder.id'),
         idempotencyKey: requireText(data.idempotencyKey, 'TicketOrder.idempotencyKey'),
         userId: requireText(data.userId, 'TicketOrder.userId'),
-        sourceHoldId: data.sourceHoldId === null ? null : requireText(data.sourceHoldId, 'sourceHoldId'),
-        legacySource: legacySource === null ? null : cloneJson(legacySource),
+        sourceHoldId: requireText(data.sourceHoldId, 'sourceHoldId'),
         status: data.status,
         movieSnapshot,
         cinemaSnapshot,

@@ -1,6 +1,6 @@
 import { OperationsService } from './application/ticketing/OperationsService.js';
 import { createBrowserTicketingApplication } from './bootstrapTicketing.js';
-import { StateBackupServiceV3 } from './infrastructure/storage/StateBackupServiceV3.js';
+import { StateBackupService } from './infrastructure/storage/StateBackupService.js';
 
 export function createBrowserInternalApplication(options = {}) {
     const storage = options.localStorage || globalThis.localStorage;
@@ -8,7 +8,7 @@ export function createBrowserInternalApplication(options = {}) {
         ...options,
         localStorage: storage
     });
-    const backup = new StateBackupServiceV3({
+    const backup = new StateBackupService({
         stateRepository: app.stateRepository,
         storage,
         clock: app.clock

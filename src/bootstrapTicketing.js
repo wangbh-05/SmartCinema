@@ -9,9 +9,8 @@ import {
     createDemoCatalog,
     DemoCatalogRepository
 } from './infrastructure/catalog/DemoCatalogRepository.js';
-import { LocalStateRepositoryV3 } from './infrastructure/storage/LocalStateRepositoryV3.js';
-import { MigrateV2ToV3 } from './infrastructure/storage/MigrateV2ToV3.js';
-import { V1ToV2Migration } from './infrastructure/storage/MigrateV1ToV2.js';
+import { LocalStateRepository } from './infrastructure/storage/LocalStateRepository.js';
+import { StateInitializer } from './infrastructure/storage/StateInitializer.js';
 import { SessionGuestOwnerRepository } from './infrastructure/storage/SessionGuestOwnerRepository.js';
 import { SessionBookingDraftRepository } from './infrastructure/storage/SessionBookingDraftRepository.js';
 
@@ -23,18 +22,8 @@ export function createBrowserTicketingApplication({
     businessDate = businessDateInTimeZone(clock.now())
 } = {}) {
     const catalogRepository = new DemoCatalogRepository(createDemoCatalog(businessDate));
-    const stateRepository = new LocalStateRepositoryV3({ storage: localStorage, clock });
-    const v2Migration = new V1ToV2Migration({
-        localStorage,
-        sessionStorage,
-        clock,
-        idGenerator
-    });
-    const v3Migration = new MigrateV2ToV3({
-        storage: localStorage,
-        v3Repository: stateRepository,
-        clock
-    });
+    const stateRepository = new LocalStateRepository({ storage: localStorage, clock });
+    const stateInitializer = new StateInitializer({ stateRepository, clock });
     const booking = new BookingService({
         catalogRepository,
         stateRepository,
@@ -49,8 +38,7 @@ export function createBrowserTicketingApplication({
     });
     const bookingDraftRepository = new SessionBookingDraftRepository({ storage: sessionStorage });
     return new TicketingApplication({
-        v2Migration,
-        v3Migration,
+        stateInitializer,
         booking,
         account,
         preferences,

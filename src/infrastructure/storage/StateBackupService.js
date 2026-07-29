@@ -1,10 +1,10 @@
 import { err, ok } from '../../shared/Result.js';
 import { cloneJson, isPlainObject } from '../../shared/objects.js';
-import { validateStateEnvelopeV3 } from './StorageValidatorV3.js';
+import { STATE_SCHEMA_VERSION, validateState } from './StateValidator.js';
 
-export const BACKUP_FORMAT_V3 = 'smartcinema-backup';
-export const BACKUP_VERSION_V3 = 3;
-export const IMPORT_ROLLBACK_KEY_V3 = 'smartcinema_import_backup_v3';
+export const BACKUP_FORMAT = 'smartcinema-backup';
+export const BACKUP_VERSION = STATE_SCHEMA_VERSION;
+export const IMPORT_ROLLBACK_KEY = 'smartcinema_import_rollback';
 
 const PAYLOAD_KEYS = new Set([
     'exportFormat',
@@ -28,19 +28,19 @@ function redactState(state) {
     return redacted;
 }
 
-export class StateBackupServiceV3 {
+export class StateBackupService {
     constructor({
         stateRepository,
         storage,
         clock,
-        rollbackKey = IMPORT_ROLLBACK_KEY_V3
+        rollbackKey = IMPORT_ROLLBACK_KEY
     }) {
-        if (!stateRepository) throw new TypeError('StateBackupServiceV3 需要 stateRepository');
+        if (!stateRepository) throw new TypeError('StateBackupService 需要 stateRepository');
         if (!storage || typeof storage.setItem !== 'function') {
-            throw new TypeError('StateBackupServiceV3 需要 Storage-like 对象');
+            throw new TypeError('StateBackupService 需要 Storage-like 对象');
         }
         if (!clock || typeof clock.now !== 'function') {
-            throw new TypeError('StateBackupServiceV3 需要 Clock 端口');
+            throw new TypeError('StateBackupService 需要 Clock 端口');
         }
         this.stateRepository = stateRepository;
         this.storage = storage;
@@ -54,8 +54,8 @@ export class StateBackupServiceV3 {
         const state = includeCredentials ? cloneJson(current.value) : redactState(current.value);
         state.session = null;
         const payload = {
-            exportFormat: BACKUP_FORMAT_V3,
-            exportVersion: BACKUP_VERSION_V3,
+            exportFormat: BACKUP_FORMAT,
+            exportVersion: BACKUP_VERSION,
             exportedAt: this.clock.now(),
             credentialPolicy: includeCredentials ? 'included-demo-plaintext' : 'redacted',
             restorable: includeCredentials,
@@ -78,17 +78,17 @@ export class StateBackupServiceV3 {
         if (!isPlainObject(payload) || !hasOnlyKnownKeys(payload)) {
             return err('BACKUP_INVALID', '备份包含未知顶层字段');
         }
-        if (payload.exportFormat !== BACKUP_FORMAT_V3 || payload.exportVersion !== BACKUP_VERSION_V3) {
-            return err('BACKUP_UNSUPPORTED', '仅支持 SmartCinema v3 恢复备份');
+        if (payload.exportFormat !== BACKUP_FORMAT || payload.exportVersion !== BACKUP_VERSION) {
+            return err('BACKUP_UNSUPPORTED', '备份版本与当前状态格式不兼容');
         }
         if (payload.restorable !== true || payload.credentialPolicy !== 'included-demo-plaintext') {
             return err('BACKUP_NOT_RESTORABLE', '脱敏诊断快照不能用于恢复');
         }
 
         const importedState = cloneJson(payload.state);
-        if (!isPlainObject(importedState)) return err('BACKUP_INVALID', '备份缺少 v3 state');
+        if (!isPlainObject(importedState)) return err('BACKUP_INVALID', '备份缺少 state');
         importedState.session = null;
-        const validated = validateStateEnvelopeV3(importedState);
+        const validated = validateState(importedState);
         if (!validated.ok) return err('BACKUP_INVALID', validated.error.message, validated.error.details);
         if (!Object.values(validated.value.usersById).some(user => user.role === 'admin')) {
             return err('BACKUP_INVALID', '恢复备份必须保留至少一个管理员');
@@ -115,4 +115,4 @@ export class StateBackupServiceV3 {
     }
 }
 
-export default StateBackupServiceV3;
+export default StateBackupService;
