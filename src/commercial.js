@@ -201,6 +201,9 @@ class CommercialBookingPage {
             this.checkout.refreshForAuth();
             this.notify('已退出登录');
         });
+        element('btn-admin-entry').addEventListener('click', () => {
+            window.location.assign('internal.html');
+        });
         element('btn-preferences').addEventListener('click', event =>
             this.preferencesController.open(event.currentTarget)
         );
@@ -1223,9 +1226,11 @@ class CommercialBookingPage {
 
     updateAccountHeader() {
         const user = this.app.account.getCurrentUser();
+        const isAdmin = user?.role === 'admin';
         element('btn-login').hidden = Boolean(user);
         element('btn-register').hidden = Boolean(user);
         element('btn-logout').hidden = !user;
+        element('btn-admin-entry').hidden = !isAdmin;
         element('user-info').hidden = !user;
         element('user-info').textContent = user ? `你好，${user.name}` : '';
     }
