@@ -109,7 +109,7 @@
       \begin{table}
         \footnotesize
         \centering
-        \begin{tabular}{p{0.22\textwidth}p{0.67\textwidth}}
+        \begin{tabular}{p{0.22\textwidth}p{0.63\textwidth}}
           \toprule
           成员 & 负责模块 \\
           \midrule
@@ -126,14 +126,32 @@
         \begin{itemize}
           \setlength{\itemsep}{7pt}
           \item Git + GitHub 远程协作
-          \item 功能分支 $\rightarrow$ PR 评审 $\rightarrow$ 测试集成 $\rightarrow$ \texttt{main}
+          \item 功能分支 $\rightarrow$ PR 评审\\测试集成后合入 \texttt{main}
         \end{itemize}
       \end{block}
   \end{columns}
 \end{frame}
 
 %%=======================================================================
-%% 2. 实现亮点
+%% 2. 系统演示
+%%=======================================================================
+\section{系统演示}
+
+\subsection{现场演示}
+
+\begin{frame}{现场演示}
+  \begin{block}{演示流程}
+    \begin{enumerate}
+      \setlength{\itemsep}{4pt}
+      \item 注册 / 登录 $\rightarrow$ 进入主界面
+      \item 选择放映厅 $\rightarrow$ 智能推荐选座 / 手动选座
+      \item 查看体验评分与热度地图 $\rightarrow$ 下单
+    \end{enumerate}
+  \end{block}
+\end{frame}
+
+%%=======================================================================
+%% 3. 实现亮点
 %%=======================================================================
 \section{实现亮点}
 
@@ -239,120 +257,10 @@
     width=\textwidth,height=0.85\textheight,keepaspectratio]{UI.png}
 \end{frame}
 
-\subsection{智能选座}
-
-\begin{frame}{智能选座：先保证规则，再给出推荐}
-  \centering
-  \begin{tikzpicture}[font=\small, node distance=5mm]
-    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-      minimum width=41mm, minimum height=10mm] (generate) {生成候选：同排 / 相邻排};
-    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-      right=of generate, minimum width=41mm, minimum height=10mm] (filter) {硬约束过滤：库存、无障碍};
-    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-      below=of generate, minimum width=41mm, minimum height=10mm] (rank) {多目标排序：年龄、偏好、价格};
-    \node[draw=purple!80!black, fill=purple!20, rounded corners, align=center,
-      right=of rank, minimum width=41mm, minimum height=10mm] (output) {输出至多 5 组：方案 + 理由};
-    \draw[->, thick, purple!80!black] (generate) -- (filter);
-    \draw[->, thick, purple!80!black] (filter) -- (output);
-    \draw[->, thick, purple!80!black] (generate) -- (rank);
-    \draw[->, thick, purple!80!black] (rank) -- (output);
-  \end{tikzpicture}
-  \vspace{5mm}
-  \begin{columns}[T,onlytextwidth]
-    \column{0.48\textwidth}
-      \begin{block}{不可突破的规则}
-        无台阶通行、陪同席配对、不可用座位、票数一致、禁止制造孤座。
-      \end{block}
-    \column{0.48\textwidth}
-      \begin{block}{可说明的取舍}
-        儿童避开前三排、长者避开后三排；资源不足时分级放宽，并明确告诉用户原因。
-      \end{block}
-  \end{columns}
-\end{frame}
-
-\subsection{偏好理解}
-
-\begin{frame}{偏好理解：把一句话转成选座条件}
-  \begin{columns}[T,onlytextwidth]
-    \column{0.42\textwidth}
-      \centering
-      \begin{tikzpicture}[font=\small, node distance=4mm]
-        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-          minimum width=35mm, minimum height=9mm] (text) {一句自然语言偏好};
-        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-          below=of text, minimum width=35mm, minimum height=9mm] (intent) {结构化意图\\目标 + 权重 + 约束};
-        \node[draw=purple!80!black, fill=purple!20, rounded corners, align=center,
-          below=of intent, minimum width=35mm, minimum height=9mm] (engine) {本地合法候选排序\\座位 + 解释};
-        \draw[->, thick, purple!80!black] (text) -- (intent);
-        \draw[->, thick, purple!80!black] (intent) -- (engine);
-      \end{tikzpicture}
-    \column{0.55\textwidth}
-      \begin{block}{6 个比较维度}
-        \small 银幕距离、居中程度、周边空位、价格水平、少受打扰、进出便捷。
-      \end{block}
-      \begin{itemize}\small
-        \setlength{\itemsep}{3pt}
-        \item DeepSeek 仅负责理解文本
-        \item 8 秒超时或失败时规则引擎兜底
-        \item 库存与无障碍由本地规则裁决
-      \end{itemize}
-  \end{columns}
-  \vspace{2mm}
-  \begin{alertblock}{核心边界}
-    \small AI 不生成座位号；它只提供可审计的偏好，本地算法只在\textbf{合法候选集}内排序。
-  \end{alertblock}
-\end{frame}
-
-%%=======================================================================
-%% 3. 系统演示
-%%=======================================================================
-\section{系统演示}
-
-\subsection{现场演示}
-
-\begin{frame}{现场演示}
-  \begin{block}{演示流程}
-    % TODO: 按实际演示流程填写，按需增删步骤
-    \begin{enumerate}
-      \setlength{\itemsep}{4pt}
-      \item 注册 / 登录 $\rightarrow$ 进入主界面
-      \item 选择放映厅 $\rightarrow$ 智能推荐选座 / 手动选座
-      \item 查看体验评分与热度地图 $\rightarrow$ 下单
-    \end{enumerate}
-  \end{block}
-\end{frame}
-
 %%=======================================================================
 %% 4. 项目总结与心得
 %%=======================================================================
 \section{项目总结与心得}
-
-\subsection{项目总结——实现功能清单}
-
-\begin{frame}{项目总结——实现功能清单}
-  % TODO: 按实际完成情况核对，未完成项请标注（部分 / 未完成）
-  \begin{table}[htbp]
-    \small
-    \centering
-    \begin{tabular}{p{0.66\textwidth}c}
-      \toprule
-      功能项 & 实现情况 \\
-      \midrule
-      基本功能：登录注册、会员资格、管理员后台 & $\checkmark$ \\
-      基本功能：主界面（三厅 Canvas 弧形座位、排号座号、绿/黄/红配色） & $\checkmark$ \\
-      模块1：智能推荐选座（按年龄、票型、规则推荐） & $\checkmark$ \\
-      模块2：手动选座（单选 / Ctrl 多选 / 拖拽） & $\checkmark$ \\
-      模块3：影院热度地图（红黄蓝标识、一周动态） & $\checkmark$ \\
-      模块4：观影体验评分（系统 + 观众综合） & $\checkmark$ \\
-      模块5：无障碍模式（大字体 / 高对比度 / 色盲 / 语音） & $\checkmark$ \\
-      模块6：订单中心（预订 / 取消 / 购票 / 退票） & $\checkmark$ \\
-      视觉与交互设计文档、AI 开发说明书、说明文档 & $\checkmark$ \\
-      额外加分项（AI 顾问 / 拖拽动画 / 个性化界面等） & $\checkmark$ \\
-      \bottomrule
-    \end{tabular}
-  \end{table}
-  \small 技术参考：Canvas \cite{mdn_canvas}、LocalStorage \cite{mdn_localstorage}、无障碍 \cite{w3c_aria,wcag21}
-\end{frame}
 
 \subsection{项目过程中遇到的问题及解决方案}
 
@@ -371,6 +279,34 @@
       \item \textbf{显式手势状态机}：可选座起滑为连选，空白处为平移，双指为缩放；统一触摸坐标并拦截合成点击。
     \end{itemize}
   \end{block}
+\end{frame}
+
+\subsection{项目总结——实现功能清单}
+
+\begin{frame}{项目总结——实现功能清单}
+  % TODO: 按实际完成情况核对，未完成项请标注（部分 / 未完成）
+  \begin{table}[htbp]
+    \footnotesize
+    \centering
+    \renewcommand{\arraystretch}{0.82}
+    \begin{tabular}{p{0.66\textwidth}c}
+      \toprule
+      功能项 & 实现情况 \\
+      \midrule
+      基本功能：登录注册、会员资格、管理员后台 & $\checkmark$ \\
+      基本功能：主界面（三厅 Canvas 弧形座位、排号座号、绿/黄/红配色） & $\checkmark$ \\
+      模块1：智能推荐选座（按年龄、票型、规则推荐） & $\checkmark$ \\
+      模块2：手动选座（单选 / Ctrl 多选 / 拖拽） & $\checkmark$ \\
+      模块3：影院热度地图（红黄蓝标识、一周动态） & $\checkmark$ \\
+      模块4：观影体验评分（系统 + 观众综合） & $\checkmark$ \\
+      模块5：无障碍模式（大字体 / 高对比度 / 色盲 / 语音） & $\checkmark$ \\
+      模块6：订单中心（预订 / 取消 / 购票 / 退票） & $\checkmark$ \\
+      视觉与交互设计文档、AI 开发说明书、说明文档 & $\checkmark$ \\
+      额外加分项（AI 顾问 / 拖拽动画 / 个性化界面等） & $\checkmark$ \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+  \small 技术参考：Canvas \cite{mdn_canvas}、LocalStorage \cite{mdn_localstorage}、无障碍 \cite{w3c_aria,wcag21}
 \end{frame}
 
 \subsection{AI 协作与团队开发流程}
@@ -399,15 +335,36 @@
 
 \subsection{心得体会}
 
-\begin{frame}{心得体会}
-  \begin{itemize}
-    \setlength{\itemsep}{4pt}
-    \item \textbf{产品思维}：围绕用户画像（情侣 / 家庭 / 老人 / 团体）设计功能，把“选座决策”从用户转移到系统，真正落实“别让用户思考”
-    \item \textbf{前端工程}：Canvas 手写绘制、模块分层、CSS 变量与响应式、无障碍规范，体会到“可维护”比“能跑”更重要
-    \item \textbf{AI 协作}：AI 是效率加速器，但正确性与产品判断必须由自己负责，AI 生成内容要审查、要验证
-    \item \textbf{团队协作}：Git 分支并行 + 评审 + 例会机制，让多人开发既高效又可追溯
-    \item \textbf{交付与规范}：文档、测试与提交规范同样重要，是项目按时落地的保障
-  \end{itemize}
+\begin{frame}{心得体会：从“能用”到“真正好用”}
+  \begin{block}{我们最大的感受}
+    \centering
+    \large 好系统不止\textbf{能用}，更要在真实流程中持续为用户创造价值。
+  \end{block}
+  \vspace{1mm}
+  \centering
+  \begin{tikzpicture}[font=\footnotesize, every node/.style={align=center}]
+    \draw[->, very thick, purple!75!black] (0,0) -- (9.5,0);
+
+    \node[draw=purple!80!black, fill=purple!12, circle, minimum size=10mm] (user) at (0.6,0) {\normalsize 1};
+    \node[above=3mm of user] {\textbf{理解用户}};
+    \node[below=3mm of user, text width=21mm] {价格、连座、无障碍\\需求各不相同};
+
+    \node[draw=purple!80!black, fill=purple!12, circle, minimum size=10mm] (quality) at (3.4,0) {\normalsize 2};
+    \node[above=3mm of quality] {\textbf{打磨可靠性}};
+    \node[below=3mm of quality, text width=23mm] {锁座、提交、库存、适配\\反复测试与验证};
+
+    \node[draw=purple!80!black, fill=purple!12, circle, minimum size=10mm] (ai) at (6.2,0) {\normalsize 3};
+    \node[above=3mm of ai] {\textbf{善用 AI}};
+    \node[below=3mm of ai, text width=25mm] {提升效率；判断、验证\\与方案取舍仍归团队};
+
+    \node[draw=purple!80!black, fill=purple!24, circle, minimum size=10mm] (product) at (9,0) {\normalsize 4};
+    \node[above=3mm of product] {\textbf{走向产品}};
+    \node[below=3mm of product, text width=21mm] {从想法到产品\\完整开发实践};
+  \end{tikzpicture}
+  \begin{center}
+    {\color{red}\large\textbf{最终收获}}\\[-1mm]
+    \footnotesize 不只是编程能力，更是\textbf{需求分析、团队协作与软件可靠性}的意识。
+  \end{center}
 \end{frame}
 
 \begin{frame}[allowframebreaks]{参考文献}
