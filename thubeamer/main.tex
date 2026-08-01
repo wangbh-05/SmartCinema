@@ -1,0 +1,300 @@
+%%=======================================================================
+% !Mode:: "TeX:UTF-8"
+% !TEX program  = PdfLaTeX
+%%=======================================================================
+% 模板名称：thubeamer
+% 模板版本：V1.1.0
+% 模板作者：杨敬轩（Jingxuan Yang）
+% 联系作者：yangjx20@mails.tsinghua.edu.cn & yanglatex2e@gmail.com
+% 模板适用：清华大学风格 Beamer 模板
+% 模板编译：手动编译方法参看 README.md 或 thubeamer.pdf
+%          编译 beamer 之前必须编译说明文档：make doc 或双击 makedoc.bat
+%          编译说明文档同时分离出四个样式文件 *thubeamer.sty
+%          更新信息：2021/11/15
+%%=======================================================================
+% ============================================================
+% 《Web前端技术实训》2026 夏 —— 课程大作业答辩
+% SmartCinema 智能影院选座系统
+%
+% 章节结构（对应答辩要求）：
+%   1. 小组分工                 （内容进行中）
+%   2. 技术方案讲解             （仅结构，内容 TODO）
+%   3. 系统演示                 （仅结构，内容 TODO）
+%   4. 项目总结与心得           （内容进行中）
+%
+% ============================================================
+
+% 设置文档类别为 <beamer>
+% \documentclass[aspectratio=169]{beamer} % 设置长宽比为 16:9
+\documentclass{beamer}
+
+% 使用 <thubeamer> 主题
+% 模板选项如下
+% (a.1) smoothbars: 页面顶端单行显示目录，默认选项
+\usetheme{thubeamer}
+
+% (a.2) sidebar: 页面左侧分栏显示目录
+% \usetheme[sidebar]{thubeamer}
+
+% (b) sectiontoc: 在每节（section）前显示目录，并高亮显示当前节，默认不显示
+
+% (c) subsectiontoc: 在每小节（subsection）前显示目录，并高亮显示当前节和当前小节，默认不显示
+
+% (d) en: 仅使用英文来制作 beamer，应用此选项后，汉字将全部无法编译
+
+% 图片存放路径
+\graphicspath{{figures/}}
+
+\include{macros}
+
+% 封面信息，方括号内容是显示在左侧边栏的内容（当选择 sidebar 主题时有效）
+% TODO: 将 XXX 替换为真实姓名 / 学号
+\title[SmartCinema]{SmartCinema 智能影院选座系统\\[2mm] 课程大作业答辩}
+\author[SmartCinema 小组]{答辩人：王博翰，潘宇治，赵常景行，杨世威}
+\institute[清华大学]{\small 清华大学未央书院}
+\date{\small \vskip -10pt 2026 年 8 月}
+
+% 开始写文章
+\begin{document}
+
+% 标题页
+\begin{frame}
+	\maketitle
+\end{frame}
+
+% 目录页
+\section*{目录}
+\frame{
+  \frametitle{\secname}
+  \tableofcontents[hideallsubsections]
+}
+
+%%=======================================================================
+%% 1. 小组分工
+%%=======================================================================
+\section{小组分工}
+
+\subsection{成员信息}
+
+\begin{frame}{成员信息}
+  \begin{table}[htbp]
+    \small
+    \centering
+    \begin{tabular}{cp{0.2\textwidth}p{0.28\textwidth}p{0.25\textwidth}}
+      \toprule
+      序号 & 姓名 & 学号 & 角色 \\
+      \midrule
+      1 & 王博翰 & 2024012510 & 组长 \\
+      2 & 潘宇治 & 2024012509 & 组员 \\
+      3 & 赵常景行 & 2024012513 & 组员 \\
+      4 & 杨世威 & 2024012512 & 组员 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+\end{frame}
+
+\subsection{分工与职责}
+
+\begin{frame}{分工与职责}
+  \begin{table}[htbp]
+    \small
+    \centering
+    \begin{tabular}{p{0.18\textwidth}p{0.28\textwidth}p{0.38\textwidth}}
+      \toprule
+      成员 & 负责模块  \\
+      \midrule
+      王博翰 & 项目初始框架与开发流程设计、PPT制作  \\
+      杨世威 & 项目第二版测试与优化 \\
+      潘宇治 & 项目第三版后续开发、PPT制作  \\
+      赵常景行 & 项目第四版后续开发、PPT制作  \\
+      
+      \bottomrule
+    \end{tabular}
+  \end{table}
+  \begin{block}{协作方式（Git 工作流）}
+    \begin{itemize}
+      \setlength{\itemsep}{4pt}
+      \item \textbf{版本管理}：Git + GitHub 远程仓库协作
+        （\texttt{github.com/wangbh-05/SmartCinema}）
+      \item \textbf{分支策略}：\texttt{main}（稳定版）维护可发布状态；\texttt{develop}（开发版）集成个人功能分支
+      \item \textbf{合并流程}：个人功能分支开发 $\rightarrow$ 单元测试与代码评审（Pull Request）$\rightarrow$ 合并至 \texttt{develop} $\rightarrow$ 整体测试与优化后合入 \texttt{main}，并打版本标签标记稳定版本
+      \item \textbf{例会制度}：每周例会简要汇报个人工作进展、遇到的问题与后续开发计划，明确本周里程碑
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+%%=======================================================================
+%% 2. 技术方案讲解
+%%=======================================================================
+\section{技术方案讲解}
+
+\subsection{基础框架}
+
+\begin{frame}{基础框架}
+  % TODO: 讲解整体架构与模块分层（数据层 / 引擎层 / 表现层）、工程形态
+  \begin{block}{待补充}
+    （具体内容待团队补充）
+  \end{block}
+\end{frame}
+
+\subsection{核心技术选择}
+
+\begin{frame}{核心技术选择}
+  % TODO: 说明关键技术选型及选择理由（绘制 / 存储 / 工程形态 / 样式 / 无障碍等）
+  \begin{block}{待补充}
+    （具体内容待团队补充）
+  \end{block}
+\end{frame}
+
+\subsection{重点功能技术详解}
+
+\begin{frame}{重点功能技术详解（一）}
+  % TODO: 重点功能 1 技术详解（如 Canvas 弧形座位布局与坐标映射）
+  \begin{block}{待补充}
+    （具体内容待团队补充）
+  \end{block}
+\end{frame}
+
+\begin{frame}{重点功能技术详解（二）}
+  % TODO: 重点功能 2 技术详解（如智能推荐算法）
+  \begin{block}{待补充}
+    （具体内容待团队补充）
+  \end{block}
+\end{frame}
+
+\begin{frame}{重点功能技术详解（三）}
+  % TODO: 重点功能 3 技术详解（如观影体验评分 / 热度地图 / 订单中心，可按需增删帧）
+  \begin{block}{待补充}
+    （具体内容待团队补充）
+  \end{block}
+\end{frame}
+
+%%=======================================================================
+%% 3. 系统演示
+%%=======================================================================
+\section{系统演示}
+
+\subsection{现场演示}
+
+\begin{frame}{现场演示}
+  \begin{block}{演示流程}
+    % TODO: 按实际演示流程填写，按需增删步骤
+    \begin{enumerate}
+      \setlength{\itemsep}{4pt}
+      \item 注册 / 登录 $\rightarrow$ 进入主界面
+      \item 选择放映厅 $\rightarrow$ 智能推荐选座 / 手动选座
+      \item 查看体验评分与热度地图 $\rightarrow$ 下单
+    \end{enumerate}
+  \end{block}
+  \begin{block}{说明}
+    详细功能演示请直接访问 SmartCinema 网站，PPT 中不再展示截图。
+  \end{block}
+\end{frame}
+
+%%=======================================================================
+%% 4. 项目总结与心得
+%%=======================================================================
+\section{项目总结与心得}
+
+\subsection{项目总结——实现功能清单}
+
+\begin{frame}{项目总结——实现功能清单}
+  % TODO: 按实际完成情况核对，未完成项请标注（部分 / 未完成）
+  \begin{table}[htbp]
+    \small
+    \centering
+    \begin{tabular}{p{0.66\textwidth}c}
+      \toprule
+      功能项 & 实现情况 \\
+      \midrule
+      基本功能：登录注册、会员资格、管理员后台 & $\checkmark$ \\
+      基本功能：主界面（三厅 Canvas 弧形座位、排号座号、绿/黄/红配色） & $\checkmark$ \\
+      模块1：智能推荐选座（按年龄、票型、规则推荐） & $\checkmark$ \\
+      模块2：手动选座（单选 / Ctrl 多选 / 拖拽） & $\checkmark$ \\
+      模块3：影院热度地图（红黄蓝标识、一周动态） & $\checkmark$ \\
+      模块4：观影体验评分（系统 + 观众综合） & $\checkmark$ \\
+      模块5：无障碍模式（大字体 / 高对比度 / 色盲 / 语音） & $\checkmark$ \\
+      模块6：订单中心（预订 / 取消 / 购票 / 退票） & $\checkmark$ \\
+      视觉与交互设计文档、AI 开发说明书、说明文档 & $\checkmark$ \\
+      额外加分项（AI 顾问 / 拖拽动画 / 个性化界面等） & 部分 \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+  \small 技术参考：Canvas \cite{mdn_canvas}、LocalStorage \cite{mdn_localstorage}、无障碍 \cite{w3c_aria,wcag21}
+\end{frame}
+
+\subsection{项目过程中遇到的问题及解决方案}
+
+\begin{frame}{遇到的问题及解决方案}
+  % TODO: 替换为团队实际遇到的问题及对应的解决过程，数量按需增删
+  \begin{block}{问题}
+    \begin{itemize}
+      \setlength{\itemsep}{4pt}
+      \item （待补充：问题一）
+      \item （待补充：问题二）
+      \item （待补充：问题三）
+    \end{itemize}
+  \end{block}
+  \begin{block}{对应解决方案}
+    \begin{itemize}
+      \setlength{\itemsep}{4pt}
+      \item （待补充：问题一的解决过程）
+      \item （待补充：问题二的解决过程）
+      \item （待补充：问题三的解决过程）
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\subsection{AI 协作与团队开发流程}
+
+\begin{frame}{AI 协作开发流程}
+  % 说明：工具名称与使用细节请按团队实际情况核对调整
+  \begin{itemize}
+    \setlength{\itemsep}{4pt}
+    \item \textbf{使用工具}：基于 VS Code 使用 AI 编程助手（Claude Code / GitHub Copilot 等）辅助开发，覆盖需求拆解、代码生成、代码审查与测试编写
+    \item \textbf{AI 生成内容}：Canvas 绘制逻辑、推荐算法初版、单元测试用例、说明文档初稿等
+    \item \textbf{学生修改与决策}：对 AI 生成代码逐行审查、修改与验证；产品功能取舍、推荐规则、交互与视觉设计均由成员独立决策
+    \item \textbf{质量把关}：AI 输出必须通过单元测试与代码评审后方可合入，与团队 Git 协作流程保持一致
+    \item \textbf{可追溯性}：编写 AI 开发说明书，记录产品设计、用户分析、AI 生成内容、学生修改思路与设计决策；参考资料与大模型使用均准确标注
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{团队协作开发流程}
+  \begin{itemize}
+    \setlength{\itemsep}{4pt}
+    \item \textbf{版本管理与分支策略}：基于 GitHub 仓库协作，\texttt{main} 维护稳定版本、\texttt{develop} 作为开发集成分支、成员在各自功能分支上并行开发，明确区分稳定版与开发版
+    \item \textbf{合并前质量保障}：单元测试（座位数据 / 推荐算法 / 评分引擎）+ Pull Request 代码评审；整体回归测试与优化通过后再合入稳定分支
+    \item \textbf{例会与进度管理}：每周例会汇报个人进展、问题与后续计划；借助需求清单 / 里程碑逐项跟踪与验收
+    \item \textbf{文档与规范}：统一提交信息规范，维护 README、实现说明等文档，保证开发过程可追溯
+  \end{itemize}
+\end{frame}
+
+\subsection{心得体会}
+
+\begin{frame}{心得体会}
+  \begin{itemize}
+    \setlength{\itemsep}{4pt}
+    \item \textbf{产品思维}：围绕用户画像（情侣 / 家庭 / 老人 / 团体）设计功能，把“选座决策”从用户转移到系统，真正落实“别让用户思考”
+    \item \textbf{前端工程}：Canvas 手写绘制、模块分层、CSS 变量与响应式、无障碍规范，体会到“可维护”比“能跑”更重要
+    \item \textbf{AI 协作}：AI 是效率加速器，但正确性与产品判断必须由自己负责，AI 生成内容要审查、要验证
+    \item \textbf{团队协作}：Git 分支并行 + 评审 + 例会机制，让多人开发既高效又可追溯
+    \item \textbf{交付与规范}：文档、测试与提交规范同样重要，是项目按时落地的保障
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[allowframebreaks]{参考文献}
+  \bibliographystyle{thubeamer}
+  \bibliography{reference}
+\end{frame}
+
+\begin{frame}
+	\begin{center}
+    {\Huge\calligra Thanks for your attention!}
+    \vspace{1cm}
+
+    {\Huge Q \& A}
+  \end{center}
+\end{frame}
+
+% 结束文档撰写
+\end{document}
