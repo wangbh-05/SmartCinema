@@ -6,6 +6,7 @@ import { CatalogController } from './ui/controllers/CatalogController.js';
 import { DecisionSupportController } from './ui/controllers/DecisionSupportController.js';
 import { OrdersController } from './ui/controllers/OrdersController.js';
 import { PreferencesController } from './ui/controllers/PreferencesController.js';
+import { SeatAdvisorController } from './ui/controllers/SeatAdvisorController.js';
 import { SeatMapController } from './ui/controllers/SeatMapController.js';
 import {
     appendText,
@@ -87,6 +88,7 @@ class BookingPage {
         this.setupDialogs();
         this.setupSeatMap();
         this.setupDecisionSupport();
+        this.setupSeatAdvisor();
         this.bindStaticEvents();
         this.updateAccountHeader();
 
@@ -187,6 +189,23 @@ class BookingPage {
             booking: this.booking,
             onPartyTypeChange: partyType => this.changePartyType(partyType),
             onPopularityToggle: () => this.togglePopularity()
+        });
+    }
+
+    setupSeatAdvisor() {
+        this.seatAdvisor = new SeatAdvisorController({
+            booking: this.booking,
+            getDraft: () => this.draft,
+            getContext: () => this.context,
+            getPreferences: () => [...this.preferences],
+            onPreview: (candidate, options) => this.previewSeatAdvisorCandidate(candidate, options),
+            onClearPreview: () => {
+                this.recommendedSeatIds.clear();
+                if (this.draft && this.context) this.renderSeatMap();
+            },
+            onApply: preview => this.applySeatAdvisorCandidate(preview),
+            onAnnounce: message => this.announce(message),
+            onNotify: message => this.notify(message)
         });
     }
 
@@ -339,6 +358,7 @@ class BookingPage {
         allowHoldId = null,
         persist = true
     } = {}) {
+        this.seatAdvisor?.invalidate('场次已变化，请重新生成顾问预览。');
         if (this.context?.showtime.id === showtimeId) return;
         const context = this.booking.getBookingContext(showtimeId);
         if (!context.ok) {
@@ -410,6 +430,7 @@ class BookingPage {
         const next = action === 'increase' ? current + 1 : current - 1;
         const nextTotal = this.ticketCount - current + next;
         if (next < 0 || nextTotal < 1 || nextTotal > this.ticketLimit) return;
+        this.seatAdvisor?.invalidate('人数已变化，请重新生成顾问预览。');
         const hadSeats = this.draft.selectedSeatIds.length > 0;
         this.recommendedSeatIds.clear();
         this.resetRecommendationSession();
@@ -429,6 +450,7 @@ class BookingPage {
 
     changePartyType(partyType) {
         if (partyType === this.partyType) return;
+        this.seatAdvisor?.invalidate('同行方式已变化，请重新生成顾问预览。');
         this.partyType = partyType;
         this.recommendedSeatIds.clear();
         this.resetRecommendationSession(this.draft.selectedSeatIds.length > 0 ? 'manual' : 'none');
@@ -438,6 +460,7 @@ class BookingPage {
     }
 
     togglePreference(preference, button) {
+        this.seatAdvisor?.invalidate('快捷偏好已变化，请重新生成顾问预览。');
         const shouldRecompute = this.recommendationSession.origin === 'recommendation';
         const undoSnapshot = shouldRecompute ? this.captureRecommendationSnapshot() : null;
         if (this.preferences.has(preference)) this.preferences.delete(preference);
@@ -513,6 +536,7 @@ class BookingPage {
         const selected = new Set(this.draft.selectedSeatIds);
         const seat = this.context.auditorium.seats.find(item => item.id === seatId);
         if (!seat) return;
+        this.seatAdvisor?.invalidate('你已手动调整座位，顾问预览已清除。');
         this.seatMap.rememberFocus(seatId);
 
         if (selected.has(seatId)) {
@@ -560,6 +584,7 @@ class BookingPage {
     }
 
     selectSeatBlock(seatIds, { mode = 'add' } = {}) {
+        this.seatAdvisor?.invalidate('你已手动调整座位，顾问预览已清除。');
         const availableCandidates = seatIds
             .map(id => this.context.auditorium.seats.find(seat => seat.id === id))
             .filter(seat => seat && !this.isSeatUnavailable(seat.id));
@@ -695,7 +720,7 @@ class BookingPage {
             this.recommendationSession.candidates.length > 0;
         label.textContent = isRecommendation ?
             (this.recommendationSession.candidates.length === 1 ? '已是唯一连座' : '换一组') :
-            '智能选座';
+            '一键选座';
         button.disabled = isRecommendation && this.recommendationSession.candidates.length === 1;
         count.hidden = !isRecommendation || this.recommendationSession.candidates.length === 1;
         if (!count.hidden) {
@@ -772,7 +797,7 @@ class BookingPage {
     }
 
     showRecommendationFeedback({
-        title = '智能选座',
+        title = '一键选座',
         message,
         alternate = null,
         showDismiss = false
@@ -822,7 +847,7 @@ class BookingPage {
             element('recommendation-undo').onclick = null;
         }
         this.showRecommendationFeedback({
-            title: conflictRecovery ? '已自动调整座位' : '智能选座',
+            title: conflictRecovery ? '已自动调整座位' : '一键选座',
             message: candidate.reason
         });
         this.offerRecommendationUndo(undoSnapshot);
@@ -837,6 +862,7 @@ class BookingPage {
         undoSnapshot = null,
         conflictRecovery = false
     } = {}) {
+        this.seatAdvisor?.invalidate('已切换为一键选座。');
         const canCycle = preserveSeatIds.length === 0 &&
             !undoSnapshot &&
             this.recommendationSession.origin === 'recommendation' &&
@@ -912,6 +938,32 @@ class BookingPage {
         this.announce(
             `已切换到 ${formatTime(this.context.showtime.startsAt)} 场并推荐 ${candidate.seats.map(seat => seat.label).join('、')}`
         );
+    }
+
+    previewSeatAdvisorCandidate(candidate, { focusSeat = false } = {}) {
+        this.recommendedSeatIds = new Set(candidate.seats.map(seat => seat.id));
+        this.seatMap.rememberFocus(candidate.seats[0]?.id);
+        this.renderSeatMap({ focusSeat });
+    }
+
+    applySeatAdvisorCandidate({ candidate, reason, inventoryRevision }) {
+        const inventory = this.booking.getInventory(this.draft.showtimeId);
+        if (!inventory.ok || inventory.value.revision !== inventoryRevision) return false;
+        this.inventory = inventory.value;
+        this.draft = candidate.draft;
+        this.quote = candidate.pricingQuote;
+        this.resetRecommendationSession('manual');
+        this.recommendedSeatIds = new Set(candidate.seats.map(seat => seat.id));
+        this.hideSeatConflict();
+        this.seatMap.rememberFocus(candidate.seats[0]?.id);
+        this.renderSeatMap({ focusSeat: true });
+        this.renderSummary();
+        this.persistDraft();
+        this.showRecommendationFeedback({
+            title: '已采用智能选座推荐',
+            message: reason || candidate.reason
+        });
+        return true;
     }
 
     updateQuote() {

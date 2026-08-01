@@ -13,6 +13,7 @@ import {
 } from '../src/infrastructure/catalog/DemoCatalogRepository.js';
 import { LocalStateRepository } from '../src/infrastructure/storage/LocalStateRepository.js';
 import { createDefaultState } from '../src/infrastructure/storage/InitialState.js';
+import { interpretSeatPreferenceLocally } from '../src/infrastructure/ai/RuleBasedSeatPreferenceInterpreter.js';
 
 const NOW = '2026-07-18T02:00:00.000Z';
 
@@ -258,6 +259,33 @@ class TestBookingService {
             this.assertTrue(frontRecommendation.value.seats.every(seat => seat.rowIndex === 1));
             this.assertEqual(frontRecommendation.value.constraints.ageStatus, 'relaxed');
             this.assertTrue(frontRecommendation.value.reason.includes('当前没有符合年龄建议'));
+        });
+
+        this.test('座位顾问应只对合法候选排序并返回可预览意图', () => {
+            const deps = this._deps();
+            const draft = deps.service.createDraft({
+                showtimeId: deps.showtimeId,
+                ticketItems: [{ ticketTypeId: 'adult', quantity: 2 }],
+                partyType: 'friends',
+                preferences: []
+            });
+            const intent = interpretSeatPreferenceLocally('不要太靠前，希望方便出去，不要加价', {
+                partyType: 'friends',
+                ticketCount: 2
+            });
+            const result = deps.service.recommendSeats(draft.value, {
+                advisorIntent: intent,
+                includeAlternate: false
+            });
+            this.assertTrue(result.ok, result.error?.message);
+            this.assertEqual(result.value.status, 'recommended');
+            this.assertTrue(result.value.candidates.length > 1);
+            this.assertTrue(result.value.candidates.every(candidate =>
+                candidate.seats.length === 2 && candidate.advisorMatch?.score >= 0
+            ));
+            this.assertTrue(result.value.candidates[0].reason.includes('预览'));
+            this.assertTrue(result.value.candidates[0].reason.includes('无座位附加费'));
+            this.assertTrue(result.value.candidates[0].advisorIntent.preferenceTags.includes('aisle'));
         });
 
         this.test('年龄合规的相邻排应优先于年龄不合规的同排连座', () => {

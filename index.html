@@ -173,11 +173,15 @@
 
                     <div class="seat-tools" aria-label="座位推荐偏好">
                         <div class="seat-tool-actions">
-                            <button class="recommend-button" id="recommend-seats" type="button">
+                            <button class="seat-action-button seat-action-primary" id="recommend-seats" type="button">
                                 <span aria-hidden="true">✦</span>
-                                <span id="recommend-seats-label">智能选座</span>
+                                <span id="recommend-seats-label">一键选座</span>
                             </button>
                             <span class="recommendation-count" id="recommendation-count" hidden></span>
+                            <button class="seat-action-button seat-action-secondary" id="seat-advisor-open" type="button"
+                                aria-expanded="false" aria-controls="seat-advisor-panel">
+                                <span aria-hidden="true">✲</span><span>智能选座</span>
+                            </button>
                             <button class="seat-guide-toggle" id="toggle-popularity" type="button" aria-pressed="false">
                                 <span aria-hidden="true">◌</span> 显示热度参考
                             </button>
@@ -188,6 +192,59 @@
                             <button type="button" data-preference="aisle" aria-pressed="false">靠过道</button>
                             <button type="button" data-preference="step-free" aria-pressed="false">需要无台阶通行</button>
                         </div>
+                    </div>
+
+                    <div class="seat-advisor-host seat-advisor-mobile-host" id="seat-advisor-mobile-host" hidden>
+                        <section class="seat-advisor-panel" id="seat-advisor-panel" role="region"
+                            aria-labelledby="seat-advisor-title" aria-hidden="true" hidden>
+                            <header class="seat-advisor-heading">
+                                <div>
+                                    <span class="seat-advisor-kicker">智能选座</span>
+                                    <h3 id="seat-advisor-title">想怎么坐？</h3>
+                                </div>
+                                <button class="seat-advisor-close" id="seat-advisor-close" type="button"
+                                    aria-label="关闭智能选座">×</button>
+                            </header>
+                            <div class="seat-advisor-composer" id="seat-advisor-composer">
+                                <p class="seat-advisor-intro">用一句话描述需求，先预览高亮，确认后才替换座位。</p>
+                                <div class="seat-advisor-examples" aria-label="偏好示例">
+                                    <button type="button" data-seat-advisor-example="安静一些，周围别太挤">安静宽松</button>
+                                    <button type="button" data-seat-advisor-example="带小孩，希望方便出去">方便进出</button>
+                                    <button type="button" data-seat-advisor-example="不要太靠前，视野清楚一点">视野舒适</button>
+                                </div>
+                                <form class="seat-advisor-form" id="seat-advisor-form">
+                                    <label for="seat-advisor-input">你的偏好</label>
+                                    <textarea id="seat-advisor-input" rows="3" maxlength="180"
+                                        placeholder="例如：想安静一点，不要太靠前，最好方便出去"></textarea>
+                                    <div class="seat-advisor-form-footer">
+                                        <small>仅发送座位偏好与合法候选，不包含账户和订单信息</small>
+                                        <button class="seat-advisor-submit" id="seat-advisor-submit" type="submit">
+                                            生成座位预览
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                            <p class="seat-advisor-status" id="seat-advisor-status" role="status" aria-live="polite">
+                                你仍可以随时手动选座。
+                            </p>
+                            <div class="seat-advisor-result" id="seat-advisor-result" hidden>
+                                <div class="seat-advisor-result-heading">
+                                    <div>
+                                        <span>已理解为</span>
+                                        <strong id="seat-advisor-summary"></strong>
+                                    </div>
+                                    <span class="seat-advisor-position" id="seat-advisor-position"></span>
+                                </div>
+                                <div class="seat-advisor-tags" id="seat-advisor-tags"></div>
+                                <p id="seat-advisor-reason"></p>
+                                <p class="seat-advisor-disclaimer">“少受打扰”只参考座位布局与当前占用，不代表真实分贝。</p>
+                                <div class="seat-advisor-actions">
+                                    <button id="seat-advisor-next" type="button">换一组</button>
+                                    <button id="seat-advisor-edit" type="button">修改偏好</button>
+                                    <button class="seat-advisor-apply" id="seat-advisor-apply" type="button">采用这组</button>
+                                </div>
+                            </div>
+                        </section>
                     </div>
 
                     <div class="recommendation-feedback" id="recommendation-feedback" role="status" hidden>
@@ -288,7 +345,8 @@
             </div>
 
             <aside class="booking-summary" aria-labelledby="summary-title">
-                <div class="summary-sticky">
+                <div class="seat-advisor-host seat-advisor-desktop-host" id="seat-advisor-desktop-host" hidden></div>
+                <div class="summary-sticky" id="booking-summary-card">
                     <div class="summary-heading">
                         <span class="step-kicker">订单预览</span>
                         <h2 id="summary-title">本次观影</h2>

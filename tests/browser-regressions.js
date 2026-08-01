@@ -198,8 +198,17 @@ async function run() {
             assertContract(doc.querySelector('[data-party-type="solo"]').disabled, '两张票仍允许选择单人观影');
             assertContract(doc.querySelector('[data-party-type="group"]').disabled, '两张票仍允许选择团体观影');
             assertContract(
-                doc.getElementById('recommend-seats-label').textContent === '智能选座',
-                '推荐入口没有使用“智能选座”名称'
+                doc.getElementById('recommend-seats-label').textContent === '一键选座',
+                '推荐入口没有使用“一键选座”名称'
+            );
+            assertContract(
+                doc.getElementById('seat-advisor-open').textContent.trim().includes('智能选座'),
+                'AI 推荐入口没有使用“智能选座”名称'
+            );
+            assertContract(
+                doc.getElementById('recommend-seats').classList.contains('seat-action-primary') &&
+                doc.getElementById('seat-advisor-open').classList.contains('seat-action-secondary'),
+                '一键选座与智能选座没有使用统一且主次明确的按钮组件'
             );
             recommend(doc);
             await delay();
@@ -277,8 +286,8 @@ async function run() {
                 '手选来源下切换偏好覆盖了现有座位'
             );
             assertContract(
-                doc.getElementById('recommend-seats-label').textContent === '智能选座',
-                '手动改座后推荐入口没有恢复为智能选座'
+                doc.getElementById('recommend-seats-label').textContent === '一键选座',
+                '手动改座后推荐入口没有恢复为一键选座'
             );
 
             doc.querySelector('[data-ticket-action="increase"][data-ticket-type-id="child"]').click();
@@ -954,6 +963,62 @@ async function run() {
         }
     });
 
+    await regression('UX-011', '智能选座应使用合法候选并在桌面与手机均不遮挡座位图', async () => {
+        const frame = await createAppFrame(1200);
+        try {
+            const doc = frame.contentDocument;
+            const overlaps = (left, right) => !(
+                left.right <= right.left ||
+                left.left >= right.right ||
+                left.bottom <= right.top ||
+                left.top >= right.bottom
+            );
+            doc.getElementById('seat-advisor-open').click();
+            await delay(50);
+            const panel = doc.getElementById('seat-advisor-panel');
+            const seatViewport = doc.getElementById('seat-viewport');
+            assertContract(
+                panel.parentElement.id === 'seat-advisor-desktop-host',
+                '桌面智能选座没有进入订单侧栏'
+            );
+            assertContract(doc.getElementById('booking-summary-card').hidden, '桌面订单摘要没有临时让位');
+            assertContract(
+                !overlaps(panel.getBoundingClientRect(), seatViewport.getBoundingClientRect()),
+                '桌面智能选座面板遮挡了座位图'
+            );
+            const input = doc.getElementById('seat-advisor-input');
+            input.value = '安静一点，周围别太挤，最好方便出去';
+            input.dispatchEvent(new frame.contentWindow.Event('input', { bubbles: true }));
+            frame.style.width = '676px';
+            await delay(100);
+            assertContract(
+                panel.parentElement.id === 'seat-advisor-mobile-host',
+                '移动断点没有把智能选座移入座位卡'
+            );
+            assertContract(input.value.includes('安静一点'), '跨断点后智能选座输入丢失');
+            assertContract(!doc.getElementById('booking-summary-card').hidden, '移动端错误隐藏订单摘要');
+            assertContract(
+                !overlaps(panel.getBoundingClientRect(), seatViewport.getBoundingClientRect()),
+                '移动端智能选座面板遮挡了座位图'
+            );
+            doc.getElementById('seat-advisor-submit').click();
+            await waitFor(
+                () => panel.dataset.compact === 'true' && !doc.getElementById('seat-advisor-result').hidden,
+                '移动端生成紧凑智能选座结果'
+            );
+            assertContract(doc.getElementById('seat-advisor-composer').hidden, '移动端结果生成后输入区未收起');
+            assertContract(
+                !overlaps(
+                    doc.querySelector('.seat-advisor-actions').getBoundingClientRect(),
+                    doc.getElementById('mobile-booking-bar').getBoundingClientRect()
+                ),
+                '移动端智能选座操作区被固定购票栏遮挡'
+            );
+        } finally {
+            disposeFrame(frame);
+        }
+    });
+
     await regression('BUG-007', '登录与注册表单必须支持 Enter 提交', async () => {
         const frame = await createAppFrame();
         try {
@@ -1215,8 +1280,8 @@ async function run() {
     });
 
     clearTestStorage();
-    const expected = state.pass === 20 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
-    status.textContent = expected ? '完成：19 个商业、架构与运维回归，加运行时健康检查全部通过' : '完成：结果与当前预期不一致';
+    const expected = state.pass === 21 && state.xfail === 0 && state.xpass === 0 && state.error === 0;
+    status.textContent = expected ? '完成：20 个商业、架构与运维回归，加运行时健康检查全部通过' : '完成：结果与当前预期不一致';
     document.documentElement.dataset.status = 'complete';
     Object.entries(state).forEach(([key, value]) => {
         document.documentElement.dataset[key] = String(value);

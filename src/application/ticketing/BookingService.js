@@ -97,7 +97,8 @@ export class BookingService {
         selectionPolicy = {},
         preserveSeatIds = [],
         limit = 5,
-        includeAlternate = true
+        includeAlternate = true,
+        advisorIntent = null
     } = {}) {
         const context = this.getBookingContext(draft.showtimeId);
         if (!context.ok) return context;
@@ -109,7 +110,8 @@ export class BookingService {
             inventory: inventory.value,
             selectionPolicy,
             preserveSeatIds,
-            limit
+            limit,
+            advisorIntent
         });
         if (!candidates.ok) return candidates;
         if (candidates.value.length > 0) {
@@ -135,7 +137,8 @@ export class BookingService {
         }
         const alternate = this._findAlternateShowtimeRecommendation(draft, {
             selectionPolicy,
-            limit
+            limit,
+            advisorIntent
         });
         if (!alternate.ok) return alternate;
         return ok(Object.freeze({
@@ -466,7 +469,8 @@ export class BookingService {
         inventory,
         selectionPolicy,
         preserveSeatIds,
-        limit
+        limit,
+        advisorIntent = null
     }) {
         const candidates = recommendSeatBlocks({
             draft,
@@ -476,7 +480,8 @@ export class BookingService {
             updatedAt: this.clock.now(),
             policy: selectionPolicy,
             preserveSeatIds,
-            limit
+            limit,
+            advisorIntent
         });
         const enriched = [];
         for (const candidate of candidates) {
@@ -496,7 +501,7 @@ export class BookingService {
         return ok(Object.freeze(enriched));
     }
 
-    _findAlternateShowtimeRecommendation(draft, { selectionPolicy, limit }) {
+    _findAlternateShowtimeRecommendation(draft, { selectionPolicy, limit, advisorIntent = null }) {
         const current = this.catalogRepository.getShowtime(draft.showtimeId);
         if (!current) return err('SHOWTIME_NOT_FOUND', '场次不存在或已下架', {
             showtimeId: draft.showtimeId
@@ -537,7 +542,8 @@ export class BookingService {
                 inventory: inventory.value,
                 selectionPolicy,
                 preserveSeatIds: [],
-                limit
+                limit,
+                advisorIntent
             });
             if (!candidates.ok) return candidates;
             if (candidates.value.length > 0) {

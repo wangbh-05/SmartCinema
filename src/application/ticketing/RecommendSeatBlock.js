@@ -1,6 +1,15 @@
 import { replaceDraftSeats, PARTY_TYPE_LABELS } from '../../domain/booking/BookingDraft.js';
 import { validateSeatSelection } from '../../domain/booking/SeatSelectionPolicy.js';
 import { getUnavailableSeatIds } from '../../domain/booking/ShowtimeInventory.js';
+import {
+    normalizeSeatPreferenceIntent,
+    seatPreferenceLabels
+} from '../../domain/booking/SeatPreferenceIntent.js';
+import {
+    evaluateSeatPreferenceVector,
+    matchSeatPreferenceVector,
+    seatPreferenceVectorRows
+} from '../../domain/booking/SeatPreferenceVector.js';
 import { err, ok } from '../../shared/Result.js';
 
 const PREFERENCE_LABELS = Object.freeze({
@@ -272,6 +281,25 @@ function seatSurchargeAmount(seats, pricingPolicy) {
         sum + (pricingPolicy.seatZoneSurcharges[seat.zoneId] || 0), 0);
 }
 
+function advisorAssessment({ seats, auditorium, inventory, pricingPolicy, intent }) {
+    const vector = evaluateSeatPreferenceVector({ auditorium, seats, inventory, pricingPolicy });
+    const match = matchSeatPreferenceVector({
+        vector,
+        targets: intent.targets,
+        weights: intent.weights
+    });
+    return Object.freeze({
+        score: match.score,
+        distance: match.distance,
+        vector,
+        rows: seatPreferenceVectorRows({
+            vector,
+            targets: match.targets,
+            weights: match.weights
+        })
+    });
+}
+
 function movementAssessment(seats, auditorium, preserveSeatIds) {
     if (preserveSeatIds.length === 0) return Object.freeze({ preserved: 0, distance: 0 });
     const preservedSet = new Set(preserveSeatIds);
@@ -314,6 +342,9 @@ function compareCandidates(left, right, preserveSeatIds) {
         return left.arrangement.centerOffset - right.arrangement.centerOffset;
     }
     if (left.crossesAisle !== right.crossesAisle) return left.crossesAisle ? 1 : -1;
+    if (left.advisor && right.advisor && right.advisor.score !== left.advisor.score) {
+        return right.advisor.score - left.advisor.score;
+    }
     if (right.preference.minimum !== left.preference.minimum) {
         return right.preference.minimum - left.preference.minimum;
     }
@@ -339,6 +370,23 @@ function fallbackLevel(candidate) {
 
 function recommendationReason(draft, candidate) {
     const labels = candidate.seats.map(seat => seat.label).join('、');
+    if (candidate.advisor && candidate.advisorIntent) {
+        const preferenceLabels = seatPreferenceLabels(candidate.advisorIntent);
+        const parts = [
+            `预览 ${labels}`,
+            candidate.advisorIntent.summary
+        ];
+        if (preferenceLabels.length > 0) parts.push(`重点兼顾${preferenceLabels.join('、')}`);
+        if (candidate.surchargeAmount > 0) {
+            parts.push(`含座位附加费 ¥${(candidate.surchargeAmount / 100).toFixed(0)}`);
+        } else {
+            parts.push('无座位附加费');
+        }
+        if (candidate.advisorIntent.tradeoffs.length > 0) {
+            parts.push(candidate.advisorIntent.tradeoffs[0]);
+        }
+        return parts.join('；');
+    }
     const parts = [`已推荐 ${labels}`];
     if (candidate.preference.satisfied.length > 0) {
         parts.push(`满足${candidate.preference.satisfied.map(id => PREFERENCE_LABELS[id]).join('、')}`);
@@ -403,10 +451,13 @@ export function recommendSeatBlocks({
     updatedAt = draft.updatedAt,
     policy = {},
     preserveSeatIds = [],
-    limit = 5
+    limit = 5,
+    advisorIntent = null
 }) {
     const unavailable = getUnavailableSeatIds(inventory);
-    const requiresStepFree = draft.preferences.includes('step-free');
+    const normalizedAdvisorIntent = advisorIntent ? normalizeSeatPreferenceIntent(advisorIntent) : null;
+    const requiresStepFree = draft.preferences.includes('step-free') ||
+        Boolean(normalizedAdvisorIntent?.constraints.preferStepFree);
     const groups = groupAvailableSeats(
         auditorium,
         unavailable,
@@ -449,7 +500,15 @@ export function recommendSeatBlocks({
             experience: experienceScore(seats, auditorium, draft.partyType, unavailable),
             surchargeAmount: seatSurchargeAmount(seats, pricingPolicy),
             crossesAisle: new Set(seats.map(seat => seat.sectionId)).size > 1,
-            movement: movementAssessment(seats, auditorium, preserveSeatIds)
+            movement: movementAssessment(seats, auditorium, preserveSeatIds),
+            advisorIntent: normalizedAdvisorIntent,
+            advisor: normalizedAdvisorIntent ? advisorAssessment({
+                seats,
+                auditorium,
+                inventory,
+                pricingPolicy,
+                intent: normalizedAdvisorIntent
+            }) : null
         };
         if (!candidatesBySeatKey.has(seatKey)) candidatesBySeatKey.set(seatKey, candidate);
     }
@@ -457,7 +516,9 @@ export function recommendSeatBlocks({
     const strictCandidates = allCandidates.filter(candidate => candidate.audience.satisfied);
     const candidates = strictCandidates.length > 0 ? strictCandidates : allCandidates;
     candidates.sort((left, right) => compareCandidates(left, right, preserveSeatIds));
-    return Object.freeze(diverseCandidates(candidates, Math.max(1, Math.min(5, limit))).map(candidate =>
+    const boundedLimit = Math.max(1, Math.min(5, limit));
+    const selectedCandidates = diverseCandidates(candidates, boundedLimit);
+    return Object.freeze(selectedCandidates.map(candidate =>
         Object.freeze({
             draft: candidate.draft,
             seats: candidate.seats,
@@ -474,7 +535,10 @@ export function recommendSeatBlocks({
             fallbackLevel: fallbackLevel(candidate),
             crossesAisle: candidate.crossesAisle,
             surchargeAmount: candidate.surchargeAmount,
-            reason: recommendationReason(draft, candidate)
+            reason: recommendationReason(draft, candidate),
+            advisorIntent: candidate.advisorIntent,
+            advisorMatch: candidate.advisor,
+            vectorRows: candidate.advisor?.rows || Object.freeze([])
         })
     ));
 }
