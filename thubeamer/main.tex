@@ -58,7 +58,7 @@
 % 封面信息，方括号内容是显示在左侧边栏的内容（当选择 sidebar 主题时有效）
 % TODO: 将 XXX 替换为真实姓名 / 学号
 \title[SmartCinema]{SmartCinema 智能影院选座系统\\[2mm] 课程大作业答辩}
-\author[SmartCinema 小组]{答辩人：王博翰，潘宇治，赵常景行，杨世威}
+\author[豆浆糖油饼]{答辩人：王博翰，潘宇治，赵常景行，杨世威}
 \institute[清华大学]{\small 清华大学未央书院}
 \date{\small \vskip -10pt 2026 年 8 月}
 
@@ -127,20 +127,19 @@
           \setlength{\itemsep}{7pt}
           \item Git + GitHub 远程协作
           \item 功能分支 $\rightarrow$ PR 评审 $\rightarrow$ 测试集成 $\rightarrow$ \texttt{main}
-          \item 每周同步进展、问题与里程碑
         \end{itemize}
       \end{block}
   \end{columns}
 \end{frame}
 
 %%=======================================================================
-%% 2. 核心技术设计
+%% 2. 实现亮点
 %%=======================================================================
-\section{核心技术设计}
+\section{实现亮点}
 
-\subsection{空间热度可视化}
+\subsection{热度地图}
 
-\begin{frame}{空间热度可视化：从离散座位到连续热力场}
+\begin{frame}{热度地图：让座位状态变成区域趋势}
   \begin{columns}[T,onlytextwidth]
     \column{0.48\textwidth}
       \begin{block}{问题}
@@ -172,48 +171,9 @@
   \end{columns}
 \end{frame}
 
-\subsection{跨端选座交互}
+\subsection{智能选座}
 
-\begin{frame}{跨端选座交互：同一座位图，两种交互语言}
-  \begin{columns}[T,onlytextwidth]
-    \column{0.31\textwidth}
-      \begin{block}{PC：精确操作}
-        \begin{itemize}
-          \setlength{\itemsep}{5pt}
-          \item 点击单座
-          \item 鼠标拖拽框选
-          \item 滚轮/按钮缩放
-        \end{itemize}
-      \end{block}
-    \column{0.31\textwidth}
-      \begin{block}{手机：手势优先}
-        \begin{itemize}
-          \setlength{\itemsep}{5pt}
-          \item 点按或路径滑选
-          \item 单指平移
-          \item 双指锚点缩放
-        \end{itemize}
-      \end{block}
-    \column{0.35\textwidth}
-      \begin{block}{共同的安全边界}
-        \begin{itemize}
-          \setlength{\itemsep}{5pt}
-          \item 阈值区分点击与拖动
-          \item 边界阻尼 + 松手回弹
-          \item 高分屏座标换算
-        \end{itemize}
-      \end{block}
-  \end{columns}
-  \vspace{3mm}
-  \begin{alertblock}{设计原则}
-    先识别用户\textbf{意图}，再执行选座、平移或缩放；避免手机上“滑一下就误选座”。
-  \end{alertblock}
-  \scriptsize 同时保留键盘方向键、虚拟焦点与隐藏语义按钮层，使 Canvas 不成为无障碍黑箱。
-\end{frame}
-
-\subsection{智能选座引擎}
-
-\begin{frame}{智能选座引擎：约束优先的可解释推荐}
+\begin{frame}{智能选座：先保证规则，再给出推荐}
   \centering
   \begin{tikzpicture}[font=\small, node distance=5mm]
     \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
@@ -242,9 +202,9 @@
   \end{columns}
 \end{frame}
 
-\subsection{AI 偏好理解}
+\subsection{偏好理解}
 
-\begin{frame}{AI 偏好理解：规则负责最终决策}
+\begin{frame}{偏好理解：把一句话转成选座条件}
   \begin{columns}[T,onlytextwidth]
     \column{0.42\textwidth}
       \centering
@@ -292,9 +252,6 @@
       \item 查看体验评分与热度地图 $\rightarrow$ 下单
     \end{enumerate}
   \end{block}
-  \begin{block}{说明}
-    详细功能演示请直接访问 SmartCinema 网站，PPT 中不再展示截图。
-  \end{block}
 \end{frame}
 
 %%=======================================================================
@@ -322,7 +279,7 @@
       模块5：无障碍模式（大字体 / 高对比度 / 色盲 / 语音） & $\checkmark$ \\
       模块6：订单中心（预订 / 取消 / 购票 / 退票） & $\checkmark$ \\
       视觉与交互设计文档、AI 开发说明书、说明文档 & $\checkmark$ \\
-      额外加分项（AI 顾问 / 拖拽动画 / 个性化界面等） & 部分 \\
+      额外加分项（AI 顾问 / 拖拽动画 / 个性化界面等） & $\checkmark$ \\
       \bottomrule
     \end{tabular}
   \end{table}
