@@ -9,6 +9,7 @@ import TestBookingService from './test-booking-service.js';
 import TestTicketingComposition from './test-ticketing-composition.js';
 import TestOperationsService from './test-operations-service.js';
 import TestArchitectureBoundaries from './test-architecture-boundaries.js';
+import TestSeatAdvisorController from './test-seat-advisor-controller.js';
 import TestSeatMapController from './test-seat-map-controller.js';
 
 class TestRunner {
@@ -58,6 +59,11 @@ class TestRunner {
         const seatMapControllerTest = new TestSeatMapController();
         const seatMapControllerResult = seatMapControllerTest.runAll();
         this.results.push({ name: 'SeatMapController', ...seatMapControllerResult });
+
+        // 智能选座请求取消后的交互状态恢复
+        const seatAdvisorControllerTest = new TestSeatAdvisorController();
+        const seatAdvisorControllerResult = seatAdvisorControllerTest.runAll();
+        this.results.push({ name: 'SeatAdvisorController', ...seatAdvisorControllerResult });
 
         // 打印总摘要
         this.printGlobalSummary();

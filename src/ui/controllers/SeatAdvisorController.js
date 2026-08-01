@@ -255,6 +255,7 @@ export class SeatAdvisorController {
     _abort() {
         if (this.abortController) this.abortController.abort();
         this.abortController = null;
+        this.busy = false;
     }
 
     _mountPanel() {
