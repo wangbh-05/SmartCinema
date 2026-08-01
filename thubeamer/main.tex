@@ -137,38 +137,106 @@
 %%=======================================================================
 \section{实现亮点}
 
-\subsection{热度地图}
+\subsection{前端 UI 分层}
 
-\begin{frame}{热度地图：让座位状态变成区域趋势}
+\begin{frame}{双 Canvas 与语义 DOM 分层}
   \begin{columns}[T,onlytextwidth]
-    \column{0.48\textwidth}
-      \begin{block}{问题}
-        单个座位的红黄蓝状态，难以看出\textbf{整片区域}的热度趋势。
+    \column{0.43\textwidth}
+      \begin{block}{设计需求}
+        \small
+        \begin{itemize}
+          \setlength{\itemsep}{6pt}
+          \item 热度和座位状态的更新频率不同
+          \item 100--300 个座位需要保持绘制流畅
+          \item Canvas 本身不支持 DOM 语义
+        \end{itemize}
       \end{block}
-      \begin{itemize}
-        \setlength{\itemsep}{7pt}
-        \item 弧形座标 + 过道间隔，还原影厅空间结构
-        \item ``座位层 + 热度层''双 Canvas 叠加
-        \item 周一到周日使用确定性扰动：\textbf{同一条件下可复现}
-      \end{itemize}
-    \column{0.52\textwidth}
+    \column{0.54\textwidth}
       \centering
-      \begin{tikzpicture}[font=\small, node distance=4mm]
+      \begin{tikzpicture}[font=\small, node distance=5mm]
         \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-          minimum width=38mm, minimum height=9mm] (seat) {座位基础热度：位置 + 已售情况};
+          minimum width=48mm, minimum height=12mm] (semantic)
+          {\textbf{语义 DOM 层}\\ARIA 信息、键盘导航、读屏操作};
         \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-          below=of seat, minimum width=38mm, minimum height=9mm] (day) {星期因子 + 中心区提升};
-        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
-          below=of day, minimum width=38mm, minimum height=9mm] (gauss) {高斯核加权插值};
+          below=of semantic, minimum width=48mm, minimum height=12mm] (seat)
+          {\textbf{座位 Canvas}\\座位绘制、选中状态、点击与框选};
         \node[draw=purple!80!black, fill=purple!20, rounded corners, align=center,
-          below=of gauss, minimum width=38mm, minimum height=9mm] (canvas) {连续热力场 + 座位图};
-        \draw[->, thick, purple!80!black] (seat) -- (day);
-        \draw[->, thick, purple!80!black] (day) -- (gauss);
-        \draw[->, thick, purple!80!black] (gauss) -- (canvas);
+          below=of seat, minimum width=48mm, minimum height=12mm] (heat)
+          {\textbf{热度 Canvas}\\高斯插值、低分辨率位图、缓存};
+        \draw[->, thick, purple!80!black] (semantic) --
+          node[right, font=\scriptsize] {共享座位状态} (seat);
+        \draw[->, thick, purple!80!black] (seat) -- (heat);
       \end{tikzpicture}
-      \vspace{3mm}
-      \scriptsize 热度服务于决策，不伪装成真实商业客流数据。
   \end{columns}
+  \vspace{5mm}
+  \begin{minipage}{\textwidth}
+    \centering\footnotesize
+    三层共享座位状态，分别负责热度计算、交互绘制与无障碍操作。
+  \end{minipage}
+\end{frame}
+
+\begin{frame}{液态玻璃容器的 CSS 分层实现}
+  \centering
+  {\small 网页整体设计参考苹果的“液态玻璃”风格}\\
+  {\small 在 Web 端将一个容器拆成四个 CSS 层。}
+
+  \vspace{3mm}
+  \begin{tikzpicture}[font=\scriptsize, node distance=2.4mm]
+    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+      minimum width=23mm, minimum height=11mm] (background)
+      {\textbf{背景环境}\\渐变与光斑};
+    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+      right=of background, minimum width=23mm, minimum height=11mm] (material)
+      {\textbf{半透明材质}\\背景与滤镜};
+    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+      right=of material, minimum width=23mm, minimum height=11mm] (edge)
+      {\textbf{边缘与深度}\\高光与阴影};
+    \node[draw=purple!80!black, fill=purple!20, rounded corners, align=center,
+      right=of edge, minimum width=23mm, minimum height=11mm] (content)
+      {\textbf{容器内容}\\文字、工具栏、Canvas};
+    \draw[->, thick, purple!80!black] (background) -- (material);
+    \draw[->, thick, purple!80!black] (material) -- (edge);
+    \draw[->, thick, purple!80!black] (edge) -- (content);
+  \end{tikzpicture}
+
+  \vspace{3mm}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.38\textwidth}
+      \begin{block}{CSS 示例}
+        \ttfamily\fontsize{6.5}{7.5}\selectfont
+        .glass \{\\
+        \quad background:\\
+        \qquad rgba(255,255,255,.1);\\
+        \quad backdrop-filter:\\
+        \qquad blur(22px)\\
+        \qquad saturate(112\%) contrast(104\%);\\
+        \}
+      \end{block}
+    \column{0.59\textwidth}
+      \begin{block}{实现对应}
+        \scriptsize
+        \begin{itemize}
+          \setlength{\itemsep}{2pt}
+          \item \texttt{background}：半透明渐变填充
+          \item \texttt{backdrop-filter}：模糊、饱和度与对比度
+          \item 伪元素 + \texttt{mask}：表面高光与渐变边缘
+          \item \texttt{box-shadow}：外部阴影与内部高光
+          \item 媒体查询：实色回退与高对比显示
+        \end{itemize}
+      \end{block}
+  \end{columns}
+
+  \vspace{4mm}
+  \begin{minipage}{\textwidth}
+    \centering\footnotesize
+    滤镜与核心交互解耦：不可用或降低透明度时，仅将材质回退为实色容器。
+  \end{minipage}
+\end{frame}
+
+\begin{frame}{界面实现效果}
+  \centering
+  \includegraphics[trim=300 80 300 0,clip,
+    width=\textwidth,height=0.85\textheight,keepaspectratio]{UI.png}
 \end{frame}
 
 \subsection{智能选座}
