@@ -1,0 +1,4 @@
+interface:
+  display_name: "THUBeamer"
+  short_description: "用于 SmartCinema 项目答辩的清华风格 LaTeX 幻灯片制作"
+  default_prompt: "Use $thubeamer to create or revise the SmartCinema defense presentation."
