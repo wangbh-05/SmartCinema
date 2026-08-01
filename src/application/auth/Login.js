@@ -5,9 +5,8 @@ export function loginUser({ stateRepository, clock }, { username, password }) {
     const current = stateRepository.read();
     if (!current.ok) return current;
     const normalized = typeof username === 'string' ? username.trim().toLowerCase() : '';
-    const user = Object.values(current.value.usersById).find(candidate =>
-        candidate.role !== 'system' && candidate.username.toLowerCase() === normalized
-    );
+    const user = Object.values(current.value.usersById)
+        .find(candidate => candidate.username.toLowerCase() === normalized);
     if (!user || user.credential.value !== password) {
         return err('INVALID_CREDENTIALS', '用户名或密码错误');
     }

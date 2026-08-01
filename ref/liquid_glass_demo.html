@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
+
+  <title>Neutral Liquid Glass</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      color-scheme: dark;
+
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "SF Pro Display",
+        "SF Pro Text",
+        "Segoe UI",
+        sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: white;
+
+      /*
+       * 使用低饱和度背景。
+       * 没有彩色发光，只保留足够的明暗和纹理，
+       * 让 backdrop-filter 的效果能够被观察到。
+       */
+      background:
+        linear-gradient(
+          135deg,
+          rgb(53 59 68) 0%,
+          rgb(30 34 40) 45%,
+          rgb(18 21 26) 100%
+        );
+    }
+
+    /*
+     * 用几个中性几何块模拟网页内容。
+     * 它们不是光源，只是为玻璃提供可被模糊的背景细节。
+     */
+    .background-shape {
+      position: absolute;
+      border-radius: 42px;
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.15),
+          rgb(255 255 255 / 0.035)
+        );
+      border: 1px solid rgb(255 255 255 / 0.07);
+      box-shadow: 0 30px 80px rgb(0 0 0 / 0.25);
+    }
+
+    .background-shape--large {
+      width: 520px;
+      height: 310px;
+      top: 7%;
+      left: 5%;
+      transform: rotate(-8deg);
+    }
+
+    .background-shape--medium {
+      width: 390px;
+      height: 240px;
+      right: 3%;
+      bottom: 5%;
+      transform: rotate(12deg);
+    }
+
+    .background-shape--small {
+      width: 220px;
+      height: 150px;
+      right: 12%;
+      top: 8%;
+      transform: rotate(-4deg);
+    }
+
+    .background-text {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(1050px, 94vw);
+      transform: translate(-50%, -50%);
+
+      font-size: clamp(5rem, 16vw, 13rem);
+      font-weight: 750;
+      line-height: 0.78;
+      letter-spacing: -0.075em;
+      text-align: center;
+
+      color: rgb(255 255 255 / 0.085);
+      user-select: none;
+    }
+
+    .liquid-glass {
+      position: relative;
+      width: min(650px, calc(100vw - 40px));
+      padding: 28px;
+      overflow: hidden;
+      isolation: isolate;
+
+      border-radius: 34px;
+
+      /*
+       * 玻璃本体更加透明。
+       *
+       * 旧版本主体白色透明度约为 0.08—0.24；
+       * 这里降低为约 0.02—0.10。
+       */
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.10) 0%,
+          rgb(255 255 255 / 0.035) 42%,
+          rgb(255 255 255 / 0.018) 65%,
+          rgb(255 255 255 / 0.055) 100%
+        );
+
+      border: 1px solid rgb(255 255 255 / 0.22);
+
+      -webkit-backdrop-filter:
+        blur(22px)
+        saturate(115%)
+        contrast(105%)
+        brightness(104%);
+
+      backdrop-filter:
+        blur(22px)
+        saturate(115%)
+        contrast(105%)
+        brightness(104%);
+
+      /*
+       * 外部阴影较轻，避免玻璃看起来像悬浮卡片。
+       * inset 高光仍用于表现玻璃厚度。
+       */
+      box-shadow:
+        0 24px 65px rgb(0 0 0 / 0.22),
+        0 5px 16px rgb(0 0 0 / 0.12),
+        inset 0 1px 0 rgb(255 255 255 / 0.44),
+        inset 0 -1px 0 rgb(255 255 255 / 0.07);
+    }
+
+    /*
+     * 静态表面高光。
+     *
+     * 不响应鼠标，只使用非常柔和的固定渐变，
+     * 避免玻璃表面显得完全扁平。
+     */
+    .liquid-glass::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      border-radius: inherit;
+
+      background:
+        linear-gradient(
+          135deg,
+          rgb(255 255 255 / 0.10) 0%,
+          transparent 28%,
+          transparent 72%,
+          rgb(255 255 255 / 0.025) 100%
+        );
+    }
+
+    /*
+     * 独立的玻璃边缘。
+     * 左上方略亮，右下方略暗。
+     */
+    .liquid-glass::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      padding: 1px;
+      pointer-events: none;
+      border-radius: inherit;
+
+      background:
+        linear-gradient(
+          140deg,
+          rgb(255 255 255 / 0.72),
+          rgb(255 255 255 / 0.13) 28%,
+          rgb(255 255 255 / 0.05) 57%,
+          rgb(255 255 255 / 0.25) 82%,
+          rgb(255 255 255 / 0.06)
+        );
+
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+
+      -webkit-mask-composite: xor;
+
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+
+      mask-composite: exclude;
+    }
+
+    .glass-content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 64px;
+    }
+
+    .toolbar-group {
+      display: flex;
+      gap: 9px;
+    }
+
+    .glass-button {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0 17px;
+
+      border: 1px solid rgb(255 255 255 / 0.14);
+      border-radius: 999px;
+
+      color: inherit;
+      font: inherit;
+      font-size: 0.92rem;
+      cursor: pointer;
+
+      /*
+       * 按钮同样保持高透明度，
+       * 但比外层玻璃略厚，以便区分交互层级。
+       */
+      background:
+        linear-gradient(
+          145deg,
+          rgb(255 255 255 / 0.12),
+          rgb(255 255 255 / 0.035)
+        );
+
+      -webkit-backdrop-filter:
+        blur(10px)
+        brightness(105%);
+
+      backdrop-filter:
+        blur(10px)
+        brightness(105%);
+
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 0.25),
+        0 4px 14px rgb(0 0 0 / 0.10);
+
+      transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        transform 140ms ease;
+    }
+
+    .glass-button:hover {
+      background-color: rgb(255 255 255 / 0.07);
+      border-color: rgb(255 255 255 / 0.23);
+    }
+
+    .glass-button:active {
+      transform: scale(0.96);
+      background-color: rgb(255 255 255 / 0.11);
+    }
+
+    .glass-button:focus-visible {
+      outline: 2px solid rgb(255 255 255 / 0.72);
+      outline-offset: 3px;
+    }
+
+    .eyebrow {
+      margin: 0 0 11px;
+
+      color: rgb(255 255 255 / 0.58);
+      font-size: 0.76rem;
+      font-weight: 650;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 520px;
+      margin: 0;
+
+      font-size: clamp(2.5rem, 7vw, 4.8rem);
+      font-weight: 680;
+      line-height: 0.96;
+      letter-spacing: -0.055em;
+      text-wrap: balance;
+
+      text-shadow: 0 2px 16px rgb(0 0 0 / 0.15);
+    }
+
+    .description {
+      max-width: 500px;
+      margin: 22px 0 0;
+
+      color: rgb(255 255 255 / 0.67);
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+
+    .metadata {
+      display: flex;
+      gap: 22px;
+      margin-top: 32px;
+      padding-top: 20px;
+
+      border-top: 1px solid rgb(255 255 255 / 0.10);
+      color: rgb(255 255 255 / 0.49);
+      font-size: 0.82rem;
+    }
+
+    /*
+     * 不支持 backdrop-filter 时，
+     * 提高背景不透明度以维持文字可读性。
+     */
+    @supports not (
+      (backdrop-filter: blur(1px)) or
+      (-webkit-backdrop-filter: blur(1px))
+    ) {
+      .liquid-glass {
+        background: rgb(43 47 54 / 0.92);
+      }
+
+      .glass-button {
+        background: rgb(255 255 255 / 0.10);
+      }
+    }
+
+    @media (max-width: 620px) {
+      .liquid-glass {
+        padding: 22px;
+        border-radius: 28px;
+      }
+
+      .toolbar {
+        margin-bottom: 50px;
+      }
+
+      .metadata {
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .background-shape--large {
+        left: -45%;
+      }
+
+      .background-shape--medium {
+        right: -40%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .glass-button {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div
+    class="background-shape background-shape--large"
+    aria-hidden="true"
+  ></div>
+
+  <div
+    class="background-shape background-shape--medium"
+    aria-hidden="true"
+  ></div>
+
+  <div
+    class="background-shape background-shape--small"
+    aria-hidden="true"
+  ></div>
+
+  <div class="background-text" aria-hidden="true">
+    LIQUID<br />
+    GLASS
+  </div>
+
+  <main>
+    <article class="liquid-glass">
+      <div class="glass-content">
+        <header class="toolbar">
+          <button
+            class="glass-button"
+            type="button"
+            aria-label="返回"
+          >
+            ←
+          </button>
+
+          <div class="toolbar-group">
+            <button class="glass-button" type="button">
+              分享
+            </button>
+
+            <button
+              class="glass-button"
+              type="button"
+              aria-label="更多选项"
+            >
+              •••
+            </button>
+          </div>
+        </header>
+
+        <p class="eyebrow">Interface material</p>
+
+        <h1>
+          Clear, quiet and contextual.
+        </h1>
+
+        <p class="description">
+          这个版本弱化了装饰性光线和色彩，仅通过背景散射、
+          透明层次、边缘反射与轻微阴影表达玻璃材质。
+        </p>
+
+        <footer class="metadata">
+          <span>22 px blur</span>
+          <span>Neutral lighting</span>
+          <span>No pointer effects</span>
+        </footer>
+      </div>
+    </article>
+  </main>
+</body>
+</html>

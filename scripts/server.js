@@ -7,6 +7,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { handleSeatAdvisorRequest } from './seatAdvisorEndpoint.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,22 @@ const mimeTypes = {
     '.svg': 'image/svg+xml; charset=utf-8'
 };
 
+function loadDotEnv() {
+    const envPath = path.join(__rootdir, '.env');
+    if (!fs.existsSync(envPath)) return;
+    fs.readFileSync(envPath, 'utf8').split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const separator = trimmed.indexOf('=');
+        if (separator <= 0) return;
+        const key = trimmed.slice(0, separator).trim();
+        const value = trimmed.slice(separator + 1).trim().replace(/^['"]|['"]$/g, '');
+        if (!process.env[key]) process.env[key] = value;
+    });
+}
+
+loadDotEnv();
+
 const server = http.createServer((req, res) => {
     // 设置 CORS 头
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -37,6 +54,11 @@ const server = http.createServer((req, res) => {
     if (req.method === 'OPTIONS') {
         res.writeHead(200);
         res.end();
+        return;
+    }
+
+    if (req.method === 'POST' && req.url === '/api/seat-advisor/intent') {
+        handleSeatAdvisorRequest(req, res);
         return;
     }
 
@@ -82,7 +104,11 @@ const server = http.createServer((req, res) => {
             const mimeType = mimeTypes[ext] || 'text/plain';
 
             // 返回文件
-            res.writeHead(200, { 'Content-Type': mimeType });
+            const headers = { 'Content-Type': mimeType };
+            if (['.html', '.js', '.css'].includes(ext)) {
+                headers['Cache-Control'] = 'no-store';
+            }
+            res.writeHead(200, headers);
             res.end(data);
         });
     } else {

@@ -1,0 +1,151 @@
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+
+function read(relativePath) {
+    return readFileSync(join(ROOT, relativePath), 'utf8');
+}
+
+function listJavaScript(relativeDirectory) {
+    const directory = join(ROOT, relativeDirectory);
+    return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+        const relativePath = join(relativeDirectory, entry.name);
+        return entry.isDirectory() ? listJavaScript(relativePath) :
+            (entry.isFile() && entry.name.endsWith('.js') ? [relativePath] : []);
+    });
+}
+
+export default class TestArchitectureBoundaries {
+    constructor() {
+        this.passed = 0;
+        this.failed = 0;
+    }
+
+    test(name, fn) {
+        try {
+            fn();
+            this.passed++;
+            console.log(`✓ ${name}`);
+        } catch (error) {
+            this.failed++;
+            console.error(`✗ ${name}`, error.message);
+        }
+    }
+
+    assertTrue(value, message = '') {
+        if (!value) throw new Error(`Expected true. ${message}`);
+    }
+
+    runAll() {
+        console.log('\n========== Production Architecture Boundary 测试 ==========\n');
+
+        this.test('已退役页面与启动脚本不得重新进入仓库', () => {
+            const retired = [
+                'legacy.html',
+                'order.html',
+                'src/app.js',
+                'src/order.js',
+                'src/bootstrap.js',
+                'public/styles/app.css',
+                'public/styles/order.css',
+                'public/styles/internal-tools.css',
+                'src/domain/cinema/Hall.js',
+                'src/domain/cinema/Seat.js',
+                'src/domain/cinema/SeatInventory.js',
+                'src/domain/cinema/Showtime.js',
+                'src/domain/order/CheckoutIntent.js',
+                'src/domain/order/Order.js',
+                'src/domain/order/OrderStatus.js',
+                'src/infrastructure/storage/LocalStateRepositoryV3.js',
+                'src/infrastructure/storage/MigrateV1ToV2.js',
+                'src/infrastructure/storage/MigrateV2ToV3.js',
+                'src/infrastructure/storage/SessionCheckoutIntentRepository.js',
+                'src/infrastructure/storage/StateBackupServiceV3.js',
+                'src/infrastructure/storage/StorageValidator.js',
+                'src/infrastructure/storage/StorageValidatorV3.js'
+            ];
+            const present = retired.filter(relativePath => existsSync(join(ROOT, relativePath)));
+            this.assertTrue(present.length === 0, `仍存在：${present.join('、')}`);
+        });
+
+        this.test('消费者与运维入口必须使用各自的薄启动脚本', () => {
+            const consumer = read('index.html');
+            const operations = read('internal.html');
+            this.assertTrue(consumer.includes('src/ticketing.js'), '消费者入口未使用 ticketing.js');
+            this.assertTrue(!consumer.includes('src/internal.js'), '消费者入口加载了运维脚本');
+            this.assertTrue(operations.includes('src/internal.js'), '运维入口未使用 internal.js');
+            this.assertTrue(!operations.includes('src/ticketing.js'), '运维入口加载了消费者脚本');
+        });
+
+        this.test('消费者页面不得提供内部工具导航', () => {
+            const consumer = read('index.html');
+            this.assertTrue(!/href=["'][^"']*(?:internal|legacy)/.test(consumer), '消费者页面暴露内部入口');
+        });
+
+        this.test('领域与应用层不得访问浏览器全局对象', () => {
+            const boundaryFiles = [
+                ...listJavaScript('src/domain'),
+                ...listJavaScript('src/application')
+            ];
+            const violations = boundaryFiles.filter(relativePath =>
+                /\b(?:document|window|localStorage|sessionStorage)\b/.test(read(relativePath))
+            );
+            this.assertTrue(violations.length === 0, `浏览器依赖泄漏：${violations.join('、')}`);
+        });
+
+        this.test('生产座位图必须使用原生 Canvas 且不得恢复旧模拟器链', () => {
+            const sourceFiles = listJavaScript('src');
+            const retiredFragments = [
+                'SeatData',
+                'ScoringController',
+                'AIChatbot',
+                'RealtimeEventSimulator'
+            ];
+            const violations = sourceFiles.filter(relativePath =>
+                retiredFragments.some(fragment => relativePath.includes(fragment))
+            );
+            this.assertTrue(violations.length === 0, `仍存在旧链：${violations.join('、')}`);
+            const consumer = read('index.html');
+            const controller = read('src/ui/controllers/SeatMapController.js');
+            this.assertTrue(consumer.includes('seat-layout-canvas'), '消费者入口缺少 Canvas 座位图');
+            this.assertTrue(consumer.includes('seat-heat-canvas'), '消费者入口缺少 Canvas 热度层');
+            this.assertTrue(controller.includes("getContext('2d')") ||
+                read('src/ui/canvas/CanvasSeatMapView.js').includes("getContext('2d')"),
+            '座位图没有使用原生 Canvas 2D 上下文');
+        });
+
+        this.test('桌面座位图不得截断页面滚动链', () => {
+            const stylesheet = read('public/styles/ticketing.css');
+            const controller = read('src/ui/controllers/SeatMapController.js');
+            const baseViewportRule = stylesheet.match(/\.seat-viewport\s*\{([^}]*)\}/)?.[1] || '';
+            this.assertTrue(
+                baseViewportRule.includes('overscroll-behavior: auto'),
+                '桌面 seat viewport 未恢复原生页面滚动接力'
+            );
+            this.assertTrue(
+                !baseViewportRule.includes('overscroll-behavior: contain'),
+                '桌面 seat viewport 仍会截断页面滚动链'
+            );
+            this.assertTrue(
+                !controller.includes("addEventListener('wheel'"),
+                '桌面 seatmap 不应监听 wheel 或添加边界动效'
+            );
+            this.assertTrue(
+                !controller.includes('document.scrollingElement'),
+                '座位图控制器不得手动接管页面滚动位置'
+            );
+        });
+
+        return this.printSummary();
+    }
+
+    printSummary() {
+        const total = this.passed + this.failed;
+        const rate = ((this.passed / total) * 100).toFixed(1);
+        console.log('\n========== 测试摘要 ==========');
+        console.log(`总计: ${total} | 通过: ${this.passed} | 失败: ${this.failed} | 成功率: ${rate}%\n`);
+        return { passed: this.passed, failed: this.failed, total };
+    }
+}
