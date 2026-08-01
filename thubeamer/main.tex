@@ -289,21 +289,18 @@
 \subsection{项目过程中遇到的问题及解决方案}
 
 \begin{frame}{遇到的问题及解决方案}
-  % TODO: 替换为团队实际遇到的问题及对应的解决过程，数量按需增删
   \begin{block}{问题}
     \begin{itemize}
       \setlength{\itemsep}{4pt}
-      \item （待补充：问题一）
-      \item （待补充：问题二）
-      \item （待补充：问题三）
+      \item \textbf{AI 选座语义失真}：六维“好坏分”无法区分“太近”和“太远”；近视用户想靠前时，反而可能得到低分。
+      \item \textbf{移动端手势冲突}：滑动可能被浏览器或点击事件接管，连续选座、平移和缩放难以稳定共存。
     \end{itemize}
   \end{block}
   \begin{block}{对应解决方案}
     \begin{itemize}
       \setlength{\itemsep}{4pt}
-      \item （待补充：问题一的解决过程）
-      \item （待补充：问题二的解决过程）
-      \item （待补充：问题三的解决过程）
+      \item \textbf{目标向量匹配}：六维改为客观程度；AI 输出目标与权重，按\textbf{加权欧几里得距离最小}推荐。
+      \item \textbf{显式手势状态机}：可选座起滑为连选，空白处为平移，双指为缩放；统一触摸坐标并拦截合成点击。
     \end{itemize}
   \end{block}
 \end{frame}
