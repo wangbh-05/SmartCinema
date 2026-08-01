@@ -1,0 +1,90 @@
+%%
+%% This is file `beamerinnerthemethubeamer.sty',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% thubeamer.dtx  (with options: `thuinnerstyle')
+%%
+%% This is a generated file.
+%%
+%% Copyright (C) 2019--2026 by Jingxuan Yang <yanglatex2e@gmail.com>
+%%
+%% This file may be distributed and/or modified under the
+%% conditions of the LaTeX Project Public License, either version 1.3c
+%% of this license or (at your option) any later version.
+%% The latest version of this license is in:
+%%
+%% http://www.latex-project.org/lppl.txt
+%%
+%% and version 1.3c or later is part of all distributions of LaTeX
+%% version 2008/05/04 or later.
+%%
+%% To produce the documentation run the original source files ending with `.dtx'
+%% through LaTeX.
+%%
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{beamerinnerthemethubeamer}
+[2021/11/15 v1.1.0 A Beamer Theme for Tsinghua University (THU)]
+\RequirePackage{tikz}
+\usetikzlibrary{external}
+\DeclareOptionBeamer{en}{\def\beamer@thulang{english}}
+\DeclareOptionBeamer{sectiontoc}{\def\beamer@thusectoc{sectiontoc}}
+\DeclareOptionBeamer{subsectiontoc}{\def\beamer@thusubsectoc{subsectiontoc}}
+\ProcessOptionsBeamer
+
+\def\beamer@thulanguage{english}
+\def\beamer@thusectiontoc{sectiontoc}
+\def\beamer@thusubsectiontoc{subsectiontoc}
+\mode<presentation>
+
+\ifx\beamer@thulang\beamer@thulanguage
+  \relax
+\else
+  \RequirePackage{ctex}
+\fi
+
+\useinnertheme{circles}
+\setbeamertemplate{caption}[numbered]{}
+\useinnertheme[shadow]{rounded}
+
+\newcommand\varparallel{%
+  \mathrel{%
+    \text{%
+      \tikz[baseline] \draw (0em,-0.3ex) -- (.4em,1.7ex) (.2em,-0.3ex) -- (.6em,1.7ex);
+    }%
+  }%
+}
+
+\ifx\beamer@thusectoc\beamer@thusectiontoc
+  \AtBeginSection[]{
+    \begin{frame}
+      \begin{multicols}{2}
+        \tableofcontents[sectionstyle=show/shaded,subsectionstyle=show/shaded/hide,subsubsectionstyle=show/shaded/hide]
+      \end{multicols}
+    \end{frame}
+  }
+\fi
+
+\ifx\beamer@thusubsectoc\beamer@thusubsectiontoc
+  \AtBeginSubsection[]{
+    \begin{frame}
+      \begin{multicols}{2}
+        \tableofcontents[sectionstyle=show/shaded,subsectionstyle=show/shaded/hide,subsubsectionstyle=show/shaded/hide]
+      \end{multicols}
+    \end{frame}
+  }
+\fi
+
+\mode<all>
+%%
+%% This package consists of the file  thubeamer.dtx,
+%%              and the derived files thubeamer.pdf,
+%%                                    beamerthemethubeamer.sty,
+%%                                    beamercolorthemethubeamer.sty,
+%%                                    beamerinnerthemethubeamer.sty,
+%%                                    beamerouterthemethubeamer.sty.
+%%
+%%
+%% End of file `beamerinnerthemethubeamer.sty'.

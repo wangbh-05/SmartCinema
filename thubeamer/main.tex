@@ -24,6 +24,9 @@
 %
 % ============================================================
 
+% 使用本机可用的中文字体；在 XeLaTeX 下显式配置，避免模板默认 Windows 字体集。
+\PassOptionsToPackage{fontset=none}{ctex}
+
 % 设置文档类别为 <beamer>
 % \documentclass[aspectratio=169]{beamer} % 设置长宽比为 16:9
 \documentclass{beamer}
@@ -32,6 +35,10 @@
 % 模板选项如下
 % (a.1) smoothbars: 页面顶端单行显示目录，默认选项
 \usetheme{thubeamer}
+
+\setCJKmainfont{Songti SC}
+\setCJKsansfont{Heiti SC}
+\setCJKmonofont{Songti SC}
 
 % (a.2) sidebar: 页面左侧分栏显示目录
 % \usetheme[sidebar]{thubeamer}
@@ -44,6 +51,7 @@
 
 % 图片存放路径
 \graphicspath{{figures/}}
+\usetikzlibrary{positioning,calc}
 
 \include{macros}
 
@@ -96,31 +104,33 @@
 \subsection{分工与职责}
 
 \begin{frame}{分工与职责}
-  \begin{table}[htbp]
-    \small
-    \centering
-    \begin{tabular}{p{0.18\textwidth}p{0.28\textwidth}p{0.38\textwidth}}
-      \toprule
-      成员 & 负责模块  \\
-      \midrule
-      王博翰 & 项目初始框架与开发流程设计、PPT制作  \\
-      杨世威 & 项目第二版测试与优化 \\
-      潘宇治 & 项目第三版后续开发、PPT制作  \\
-      赵常景行 & 项目第四版后续开发、PPT制作  \\
-      
-      \bottomrule
-    \end{tabular}
-  \end{table}
-  \begin{block}{协作方式（Git 工作流）}
-    \begin{itemize}
-      \setlength{\itemsep}{4pt}
-      \item \textbf{版本管理}：Git + GitHub 远程仓库协作
-        （\texttt{github.com/wangbh-05/SmartCinema}）
-      \item \textbf{分支策略}：\texttt{main}（稳定版）维护可发布状态；\texttt{develop}（开发版）集成个人功能分支
-      \item \textbf{合并流程}：个人功能分支开发 $\rightarrow$ 单元测试与代码评审（Pull Request）$\rightarrow$ 合并至 \texttt{develop} $\rightarrow$ 整体测试与优化后合入 \texttt{main}，并打版本标签标记稳定版本
-      \item \textbf{例会制度}：每周例会简要汇报个人工作进展、遇到的问题与后续开发计划，明确本周里程碑
-    \end{itemize}
-  \end{block}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.54\textwidth}
+      \begin{table}
+        \footnotesize
+        \centering
+        \begin{tabular}{p{0.22\textwidth}p{0.67\textwidth}}
+          \toprule
+          成员 & 负责模块 \\
+          \midrule
+          王博翰 & 初始框架与开发流程设计、PPT 制作 \\
+          杨世威 & 第二版测试与优化 \\
+          潘宇治 & 第三版后续开发、PPT 制作 \\
+          赵常景行 & 第四版后续开发、PPT 制作 \\
+          \bottomrule
+        \end{tabular}
+      \end{table}
+    \column{0.42\textwidth}
+      \begin{block}{协作方式}
+        \small
+        \begin{itemize}
+          \setlength{\itemsep}{7pt}
+          \item Git + GitHub 远程协作
+          \item 功能分支 $\rightarrow$ PR 评审 $\rightarrow$ 测试集成 $\rightarrow$ \texttt{main}
+          \item 每周同步进展、问题与里程碑
+        \end{itemize}
+      \end{block}
+  \end{columns}
 \end{frame}
 
 %%=======================================================================
@@ -128,45 +138,141 @@
 %%=======================================================================
 \section{技术方案讲解}
 
-\subsection{基础框架}
+\subsection{模块3：影院热度地图}
 
-\begin{frame}{基础框架}
-  % TODO: 讲解整体架构与模块分层（数据层 / 引擎层 / 表现层）、工程形态
-  \begin{block}{待补充}
-    （具体内容待团队补充）
-  \end{block}
+\begin{frame}{模块3：从离散座位到连续热力场}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.48\textwidth}
+      \begin{block}{问题}
+        单个座位的红黄蓝状态，难以看出\textbf{整片区域}的热度趋势。
+      \end{block}
+      \begin{itemize}
+        \setlength{\itemsep}{7pt}
+        \item 弧形座标 + 过道间隔，还原影厅空间结构
+        \item ``座位层 + 热度层''双 Canvas 叠加
+        \item 周一到周日使用确定性扰动：\textbf{同一条件下可复现}
+      \end{itemize}
+    \column{0.52\textwidth}
+      \centering
+      \begin{tikzpicture}[font=\small, node distance=4mm]
+        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+          minimum width=38mm, minimum height=9mm] (seat) {座位基础热度：位置 + 已售情况};
+        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+          below=of seat, minimum width=38mm, minimum height=9mm] (day) {星期因子 + 中心区提升};
+        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+          below=of day, minimum width=38mm, minimum height=9mm] (gauss) {高斯核加权插值};
+        \node[draw=purple!80!black, fill=purple!20, rounded corners, align=center,
+          below=of gauss, minimum width=38mm, minimum height=9mm] (canvas) {连续热力场 + 座位图};
+        \draw[->, thick, purple!80!black] (seat) -- (day);
+        \draw[->, thick, purple!80!black] (day) -- (gauss);
+        \draw[->, thick, purple!80!black] (gauss) -- (canvas);
+      \end{tikzpicture}
+      \vspace{3mm}
+      \scriptsize 热度服务于决策，不伪装成真实商业客流数据。
+  \end{columns}
 \end{frame}
 
-\subsection{核心技术选择}
+\subsection{模块2：跨端 Canvas 选座}
 
-\begin{frame}{核心技术选择}
-  % TODO: 说明关键技术选型及选择理由（绘制 / 存储 / 工程形态 / 样式 / 无障碍等）
-  \begin{block}{待补充}
-    （具体内容待团队补充）
-  \end{block}
+\begin{frame}{模块2：同一座位图，适配两种交互语言}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.31\textwidth}
+      \begin{block}{PC：精确操作}
+        \begin{itemize}
+          \setlength{\itemsep}{5pt}
+          \item 点击单座
+          \item 鼠标拖拽框选
+          \item 滚轮/按钮缩放
+        \end{itemize}
+      \end{block}
+    \column{0.31\textwidth}
+      \begin{block}{手机：手势优先}
+        \begin{itemize}
+          \setlength{\itemsep}{5pt}
+          \item 点按或路径滑选
+          \item 单指平移
+          \item 双指锚点缩放
+        \end{itemize}
+      \end{block}
+    \column{0.35\textwidth}
+      \begin{block}{共同的安全边界}
+        \begin{itemize}
+          \setlength{\itemsep}{5pt}
+          \item 阈值区分点击与拖动
+          \item 边界阻尼 + 松手回弹
+          \item 高分屏座标换算
+        \end{itemize}
+      \end{block}
+  \end{columns}
+  \vspace{3mm}
+  \begin{alertblock}{设计原则}
+    先识别用户\textbf{意图}，再执行选座、平移或缩放；避免手机上“滑一下就误选座”。
+  \end{alertblock}
+  \scriptsize 同时保留键盘方向键、虚拟焦点与隐藏语义按钮层，使 Canvas 不成为无障碍黑箱。
 \end{frame}
 
-\subsection{重点功能技术详解}
+\subsection{模块1：智能推荐选座}
 
-\begin{frame}{重点功能技术详解（一）}
-  % TODO: 重点功能 1 技术详解（如 Canvas 弧形座位布局与坐标映射）
-  \begin{block}{待补充}
-    （具体内容待团队补充）
-  \end{block}
+\begin{frame}{模块1：约束优先的可解释连座推荐}
+  \centering
+  \begin{tikzpicture}[font=\small, node distance=5mm]
+    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+      minimum width=41mm, minimum height=10mm] (generate) {生成候选：同排 / 相邻排};
+    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+      right=of generate, minimum width=41mm, minimum height=10mm] (filter) {硬约束过滤：库存、无障碍};
+    \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+      below=of generate, minimum width=41mm, minimum height=10mm] (rank) {多目标排序：年龄、偏好、价格};
+    \node[draw=purple!80!black, fill=purple!20, rounded corners, align=center,
+      right=of rank, minimum width=41mm, minimum height=10mm] (output) {输出至多 5 组：方案 + 理由};
+    \draw[->, thick, purple!80!black] (generate) -- (filter);
+    \draw[->, thick, purple!80!black] (filter) -- (output);
+    \draw[->, thick, purple!80!black] (generate) -- (rank);
+    \draw[->, thick, purple!80!black] (rank) -- (output);
+  \end{tikzpicture}
+  \vspace{5mm}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.48\textwidth}
+      \begin{block}{不可突破的规则}
+        无台阶通行、陪同席配对、不可用座位、票数一致、禁止制造孤座。
+      \end{block}
+    \column{0.48\textwidth}
+      \begin{block}{可说明的取舍}
+        儿童避开前三排、长者避开后三排；资源不足时分级放宽，并明确告诉用户原因。
+      \end{block}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{重点功能技术详解（二）}
-  % TODO: 重点功能 2 技术详解（如智能推荐算法）
-  \begin{block}{待补充}
-    （具体内容待团队补充）
-  \end{block}
-\end{frame}
+\subsection{AI 偏好理解}
 
-\begin{frame}{重点功能技术详解（三）}
-  % TODO: 重点功能 3 技术详解（如观影体验评分 / 热度地图 / 订单中心，可按需增删帧）
-  \begin{block}{待补充}
-    （具体内容待团队补充）
-  \end{block}
+\begin{frame}{AI 顾问：让 AI 理解偏好，但不替代规则}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.42\textwidth}
+      \centering
+      \begin{tikzpicture}[font=\small, node distance=4mm]
+        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+          minimum width=35mm, minimum height=9mm] (text) {一句自然语言偏好};
+        \node[draw=purple!80!black, fill=purple!10, rounded corners, align=center,
+          below=of text, minimum width=35mm, minimum height=9mm] (intent) {结构化意图\\目标 + 权重 + 约束};
+        \node[draw=purple!80!black, fill=purple!20, rounded corners, align=center,
+          below=of intent, minimum width=35mm, minimum height=9mm] (engine) {本地合法候选排序\\座位 + 解释};
+        \draw[->, thick, purple!80!black] (text) -- (intent);
+        \draw[->, thick, purple!80!black] (intent) -- (engine);
+      \end{tikzpicture}
+    \column{0.55\textwidth}
+      \begin{block}{6 个比较维度}
+        \small 银幕距离、居中程度、周边空位、价格水平、少受打扰、进出便捷。
+      \end{block}
+      \begin{itemize}\small
+        \setlength{\itemsep}{3pt}
+        \item DeepSeek 仅负责理解文本
+        \item 8 秒超时或失败时规则引擎兜底
+        \item 库存与无障碍由本地规则裁决
+      \end{itemize}
+  \end{columns}
+  \vspace{2mm}
+  \begin{alertblock}{核心边界}
+    \small AI 不生成座位号；它只提供可审计的偏好，本地算法只在\textbf{合法候选集}内排序。
+  \end{alertblock}
 \end{frame}
 
 %%=======================================================================

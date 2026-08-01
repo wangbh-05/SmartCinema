@@ -1,14 +1,16 @@
+LATEX ?= xelatex
+
 beamer:
-	pdflatex -synctex=1 -interaction=nonstopmode main
+	$(LATEX) -synctex=1 -interaction=nonstopmode main
 	bibtex main
-	pdflatex -synctex=1 -interaction=nonstopmode main
-	pdflatex -synctex=1 -interaction=nonstopmode main
+	$(LATEX) -synctex=1 -interaction=nonstopmode main
+	$(LATEX) -synctex=1 -interaction=nonstopmode main
 
 beamer-en:
-	pdflatex -synctex=1 -interaction=nonstopmode main-en
+	$(LATEX) -synctex=1 -interaction=nonstopmode main-en
 	bibtex main-en
-	pdflatex -synctex=1 -interaction=nonstopmode main-en
-	pdflatex -synctex=1 -interaction=nonstopmode main-en
+	$(LATEX) -synctex=1 -interaction=nonstopmode main-en
+	$(LATEX) -synctex=1 -interaction=nonstopmode main-en
 
 doc:
 	xelatex thubeamer.dtx
