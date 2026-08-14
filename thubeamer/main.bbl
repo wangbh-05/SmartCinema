@@ -1,0 +1,47 @@
+\begin{thebibliography}{1}
+\providecommand{\bibauthor}[1]{#1}
+\providecommand{\bibeditor}[1]{#1}
+\providecommand{\bibtranslator}[1]{#1}
+\providecommand{\bibtitle}[1]{#1}
+\providecommand{\bibbooktitle}[1]{#1}
+\providecommand{\bibjournal}[1]{#1}
+\providecommand{\bibmark}[1]{\mbox{#1}}
+\providecommand{\bibcountry}[1]{#1}
+\providecommand{\bibpatentid}[1]{#1}
+\providecommand{\bibedition}[1]{#1}
+\providecommand{\biborganization}[1]{#1}
+\providecommand{\bibaddress}[1]{#1}
+\providecommand{\bibpublisher}[1]{#1}
+\providecommand{\bibinstitution}[1]{#1}
+\providecommand{\bibschool}[1]{#1}
+\providecommand{\bibvolume}[1]{#1}
+\providecommand{\bibnumber}[1]{#1}
+\providecommand{\bibversion}[1]{#1}
+\providecommand{\bibpages}[1]{#1}
+\providecommand{\bibmodifydate}[1]{#1}
+\providecommand{\bibcitedate}[1]{#1}
+\providecommand{\bibyear}[1]{#1}
+\providecommand{\bibdate}[1]{#1}
+\providecommand{\biburl}[1]{\newline\url{#1}}
+
+\bibitem{mdn_canvas}
+\bibauthor{{Mozilla Contributors}}\@. \bibtitle{Canvas API - Web
+  APIs}\bibmark{[EB/OL]}\@. \bibyear{2026} \bibcitedate{[2026-08-01]}\@.
+  \url{https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API}\@.
+
+\bibitem{mdn_localstorage}
+\bibauthor{{Mozilla Contributors}}\@. \bibtitle{Window.localStorage - Web
+  APIs}\bibmark{[EB/OL]}\@. \bibyear{2026} \bibcitedate{[2026-08-01]}\@.
+  \url{https://developer.mozilla.org/zh-CN/docs/Web/API/Window/localStorage}\@.
+
+\bibitem{w3c_aria}
+\bibauthor{{W3C}}\@. \bibtitle{Accessible Rich Internet Applications (WAI-ARIA)
+  1.2}\bibmark{[EB/OL]}\@. \bibyear{2023} \bibcitedate{[2026-08-01]}\@.
+  \url{https://www.w3.org/WAI/ARIA/apg/}\@.
+
+\bibitem{wcag21}
+\bibauthor{{W3C}}\@. \bibtitle{Web Content Accessibility Guidelines (WCAG)
+  2.1}\bibmark{[EB/OL]}\@. \bibyear{2023} \bibcitedate{[2026-08-01]}\@.
+  \url{https://www.w3.org/TR/WCAG21/}\@.
+
+\end{thebibliography}

@@ -1,0 +1,49 @@
+This is BibTeX, Version 0.99e (TeX Live 2026)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+The style file: thubeamer.bst
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Database file #1: reference.bib
+You've used 4 entries,
+            3185 wiz_defined-function locations,
+            729 strings with 6370 characters,
+and the built_in function-call counts, 2216 in all, are:
+= -- 198
+> -- 8
+< -- 20
++ -- 178
+- -- 16
+* -- 126
+:= -- 271
+add.period$ -- 0
+call.type$ -- 4
+change.case$ -- 0
+chr.to.int$ -- 0
+cite$ -- 4
+duplicate$ -- 230
+empty$ -- 77
+format.name$ -- 16
+if$ -- 546
+int.to.chr$ -- 0
+int.to.str$ -- 4
+missing$ -- 0
+newline$ -- 39
+num.names$ -- 4
+pop$ -- 20
+preamble$ -- 1
+purify$ -- 0
+quote$ -- 0
+skip$ -- 36
+stack$ -- 0
+substring$ -- 194
+swap$ -- 116
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 0
+warning$ -- 0
+while$ -- 28
+width$ -- 5
+write$ -- 75
